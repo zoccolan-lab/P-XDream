@@ -4,6 +4,7 @@ from torch import Tensor
 
 from collections import defaultdict
 from typing import Any, Dict, Tuple
+from numpy.typing import DTypeLike, NDArray
 
 class SilicoProbe:
     '''
@@ -14,8 +15,8 @@ class SilicoProbe:
     
     def __init__(
         self,
-        target : Dict[str, None | Tuple[int, ...] | Tuple[np.ndarray, ...]],
-        format : np.dtype = np.float32,
+        target : Dict[str, None | Tuple[int, ...] | Tuple[NDArray, ...]],
+        format : DTypeLike = np.float32,
     ) -> None:
         '''
         Artificial probe for recording hidden unit activations
