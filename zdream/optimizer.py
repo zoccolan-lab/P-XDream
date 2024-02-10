@@ -3,8 +3,8 @@ from abc import abstractmethod
 
 from scipy.special import softmax
 
-from utils import default
-from utils import lazydefault
+from .utils import default
+from .utils import lazydefault
 
 from typing import Callable, Dict, Tuple, List
 from numpy.typing import NDArray
@@ -62,8 +62,11 @@ class Optimizer:
         
         # Initialize the internal random number generator for reproducibility
         self._rng = np.random.default_rng(random_state)
+
+    def evaluate(self, state : NDArray | Dict[str, NDArray]) -> NDArray:
+        return self.obj_fn(state)
         
-    def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> None:
+    def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> NDArray:
         '''
         Initialize the optimizer parameters. If initial parameters
         are provided they should have matching dimensionality as 
@@ -85,7 +88,10 @@ class Optimizer:
             self._param = [init_cond.copy()]
         else:
             self._distr = init_cond
-            self._param = [self.rnd_sample(**kwargs)]
+            self._param = [self.rnd_sample(size=self._shape, **kwargs)]
+            self._score = [self.evaluate(self.param)]
+
+        return self.param
     
     @abstractmethod
     def step(self, states : SubjectState) -> NDArray:
@@ -116,18 +122,21 @@ class Optimizer:
             case _: raise ValueError(f'Unrecognized distribution: {self._distr}')
     
     @property
-    def stats(self) -> Dict[str, NDArray]:
-        best_idx = np.argmax(self._score)
+    def stats(self) -> Dict[str, NDArray | List[NDArray]]:
+        best_idx : np.intp    = np.argmax(self._score)
+        hist_idx : List[int]  = np.argmax(self._score, axis=1)
         
         return {
             'best_score' : self._score[best_idx],
             'best_param' : self._param[best_idx],
             'curr_score' : self._score[-1],
             'curr_param' : self._param[-1],
+            'best_shist' : [score[idx] for score, idx in zip(self._score, hist_idx)],
+            'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)],
         }
         
     @property
-    def scores(self) -> NDArray:
+    def score(self) -> NDArray:
         return self._score[-1]
     
     @property
@@ -295,7 +304,7 @@ class GeneticOptimizer(Optimizer):
         num_children : int | None = None,
     ) -> NDArray:
         population = default(population, self.param)
-        pop_fitness = default(pop_fitness, self.scores)
+        pop_fitness = default(pop_fitness, self.score)
         num_children = default(num_children, len(population))
         
         # Select the breeding family based on the fitness of each parent
