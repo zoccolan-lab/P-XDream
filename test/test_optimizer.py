@@ -9,13 +9,26 @@ from zdream.optimizer import GeneticOptimizer
 
 from typing import Dict, cast
 
-def non_convex_objective_fn(state : NDArray | Dict[str, NDArray]) -> NDArray:
+def ackley_function(state : NDArray | Dict[str, NDArray]) -> NDArray:
     x, y = cast(NDArray, state)
 
     a1 = -20 * np.exp(-0.2 * np.sqrt(0.5 * (x * x + y * y)))
     a2 = -np.exp(0.5 * (np.cos(2 * np.pi * x) + np.cos(2 * np.pi * y)))
-    score = a1 + a2 + 20
-    return -score
+    score = -a1 - a2 + 20
+    return score
+
+def beale_function(state : NDArray | Dict[str, NDArray]) -> NDArray:
+    '''
+    Beale function. Global minimum f(x = 3, y = 0.5) = 0
+    In the domain -4.5 < x, y < +4.5
+    '''
+    x, y = cast(NDArray, state)
+
+    a = (1.500 - x + x * y   )**2
+    b = (2.250 - x + x * y**2)**2
+    c = (2.625 - x + x * y**3)**2
+
+    return -(a + b + c)
 
 class GeneticOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -25,14 +38,22 @@ class GeneticOptimizerTest(unittest.TestCase):
 
         self.mutation_size = 0.3
         self.mutation_rate = 0.3
-        self.population_size = 50
+        self.population_size = 10
         self.temperature = 1.
 
-        self.num_iteration = 100  
+        self.num_iteration = 200
+
+    def non_convex_population_obj_fn(self, state : NDArray | Dict[str, NDArray]) -> NDArray:
+        state = cast(NDArray, state)
+  
+        # Score each subject in the population individually
+        scores = [beale_function(subj) for subj in state]
+
+        return np.array(scores)
     
     def test_improvement_2_parents(self):
         optim = GeneticOptimizer(
-            non_convex_objective_fn,
+            self.non_convex_population_obj_fn,
             states_shape=self.states_shape,
             random_state=self.random_state,
             random_distr=self.random_distr,
@@ -46,8 +67,6 @@ class GeneticOptimizerTest(unittest.TestCase):
         # Initialize optimizer with random condition
         state = optim.init()
 
-        print(optim._param)
-
         # Compute the score of the initial state
         init_score = optim.evaluate(state)
 
@@ -57,8 +76,6 @@ class GeneticOptimizerTest(unittest.TestCase):
         # Extract optimizer states, in particular the
         # final score which is tested against the initial
         curr_score = cast(NDArray, optim.stats['curr_score'])
-
-        print(optim.stats['best_shist'])
 
         self.assertGreater(curr_score.max(), init_score.max())
 

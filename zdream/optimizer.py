@@ -6,7 +6,7 @@ from scipy.special import softmax
 from .utils import default
 from .utils import lazydefault
 
-from typing import Callable, Dict, Tuple, List
+from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
 
 ObjectiveFunction = Callable[[NDArray | Dict[str, NDArray]], NDArray[np.float32]]
@@ -64,7 +64,7 @@ class Optimizer:
         self._rng = np.random.default_rng(random_state)
 
     def evaluate(self, state : NDArray | Dict[str, NDArray]) -> NDArray:
-        return self.obj_fn(state)
+        return self.obj_fn(state).copy()
         
     def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> NDArray:
         '''
@@ -89,7 +89,6 @@ class Optimizer:
         else:
             self._distr = init_cond
             self._param = [self.rnd_sample(size=self._shape, **kwargs)]
-            self._score = [self.evaluate(self.param)]
 
         return self.param
     
@@ -123,12 +122,14 @@ class Optimizer:
     
     @property
     def stats(self) -> Dict[str, NDArray | List[NDArray]]:
-        best_idx : np.intp    = np.argmax(self._score)
+        flat_idx : np.intp    = np.argmax(self._score)
         hist_idx : List[int]  = np.argmax(self._score, axis=1)
+
+        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._score))
         
         return {
-            'best_score' : self._score[best_idx],
-            'best_param' : self._param[best_idx],
+            'best_score' : self._score[best_gen][best_idx],
+            'best_param' : self._param[best_gen][best_idx],
             'curr_score' : self._score[-1],
             'curr_param' : self._param[-1],
             'best_shist' : [score[idx] for score, idx in zip(self._score, hist_idx)],
@@ -203,10 +204,13 @@ class GeneticOptimizer(Optimizer):
         self.mutation_size = mutation_size
         self.mutation_rate = mutation_rate
         self.population_size = population_size
+
+        # NOTE: Shape now includes population size!
+        self._shape = (population_size, *self._shape)
     
     def step(
         self,
-        states : NDArray | Dict[str, NDArray],
+        curr_states : NDArray | Dict[str, NDArray],
         temperature : float | None = None, 
         save_topk : int = 2,   
     ) -> NDArray:
@@ -216,7 +220,7 @@ class GeneticOptimizer(Optimizer):
         novel set of parameter is proposed that would hopefully
         increase future scores.
 
-        :param states: Set of observables gather from the environment
+        :param curr_states: Set of observables gather from the environment
             (i.e. ANN activations). Can be either a numpy array
             collecting observables or a dictionary indexed by the
             observable names (i.e. layer names in an ANN) and values
@@ -224,7 +228,7 @@ class GeneticOptimizer(Optimizer):
             NOTE: Proper handling of these two different types is
                   derred to the objective function. Optimizer is
                   blind to proper computation of scores from states
-        :type states: Either numpy array or Dict[str, NDArray]
+        :type curr_states: Either numpy array or Dict[str, NDArray]
         :param temperature: Temperature in the softmax conversion
             from scores to fitness, i.e. the actual probabilities of
             selecting a given subject for reproduction
@@ -237,43 +241,51 @@ class GeneticOptimizer(Optimizer):
         :returns new_pop: Novel set of parameters (new population pool)
         :rtype: Numpy array
         '''
+        pop_size, *_ = self._shape
         temperature = default(temperature, self.temperature)
 
         # Prepare new parameter (population) set
-        new_pop = np.empty(shape=(self.population_size, *self._shape))
+        new_param = np.empty(shape=self._shape)
 
         # Use objective function to convert states to scores
-        scores = self.obj_fn(states)
-
-        # Convert scores to fitness (probability) via temperature-
-        # gated softmax function
-        fitness = softmax(scores / temperature)
+        old_score = self.evaluate(curr_states)
 
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring subject
-        sort_idx = np.argsort(scores)
-        top_k = self.param[sort_idx[-save_topk:]]
-        rest  = self.param[sort_idx[:+save_topk]]
+        sort_s = np.argsort(old_score)
+        topk_p = self.param[sort_s[-save_topk:]]
+        # rest_p = self.param[sort_idx[:-save_topk]]
+        # rest_s = self.score[sort_idx[:-save_topk]]
 
-        new_pop[:save_topk] = top_k
+        # Convert scores to fitness (probability) via temperature-
+        # gated softmax function (needed only for rest of population)
+        # fitness = softmax(rest_s / temperature)
+        fitness = softmax(old_score / temperature)
+
+        new_param[:save_topk] = topk_p
 
         # The rest of the population is obtained by generating
         # children (breed) and mutating them
-        new_pop[save_topk:] = self._breed(
-            population=rest,
+        next_gen = self._breed(
+            population=self.param,
             pop_fitness=fitness,
+            num_children=pop_size - save_topk,
         )
 
-        new_pop[save_topk:] = self._mutate(
-            population=rest,
+        new_param[save_topk:] = self._mutate(
+            population=next_gen,
         )
 
         # Bookkeping: update internal parameter history
         # and overal score history
-        self._score.append(scores)
-        self._param.append(new_pop)
+        # NOTE: These two lists are NOT aligned. They are
+        #       off-by-one as observed states correspond
+        #       to last parameter set and we are devising
+        #       the new one right now (hence why old_score)
+        self._score.append(old_score)
+        self._param.append(new_param)
 
-        return new_pop
+        return new_param
     
     def _mutate(
         self,
@@ -302,24 +314,36 @@ class GeneticOptimizer(Optimizer):
         population : NDArray | None = None,
         pop_fitness : NDArray | None = None,
         num_children : int | None = None,
+        allow_clones : bool = False,
     ) -> NDArray:
-        population = default(population, self.param)
-        pop_fitness = default(pop_fitness, self.score)
+        # NOTE: We use lazydefault here because .param and .score might
+        #       not be populated (i.e. first call to breed) but we don't
+        #       want to fail if either population or fitness are provided
+        population  = lazydefault(population,  lambda : self.param)
+        pop_fitness = lazydefault(pop_fitness, lambda : self.score)
         num_children = default(num_children, len(population))
         
         # Select the breeding family based on the fitness of each parent
         # NOTE: The same parent can occur more than once in each family
         families = self._rng.choice(
-            self.population_size,
+            len(population),
             size=(num_children, self.num_parents),
             p=pop_fitness,
             replace=True,
-        )
-        
+        ) if allow_clones else np.stack([
+            self._rng.choice(
+                len(population),
+                size=self.num_parents,
+                p=pop_fitness,
+                replace=False,
+            ) for _ in range(num_children)
+        ])
+
         # Identify which parent contributes which genes for every child
-        parentage = self._rng.choice(self.num_parents, size=(num_children, *self._shape), replace=True)
-        
-        children = np.empty(shape=(num_children, *self._shape))
+        # NOTE: First dimension of self._shape is the total population size
+        parentage = self._rng.choice(self.num_parents, size=(num_children, *self._shape[1:]), replace=True)
+        children = np.empty(shape=(num_children, *self._shape[1:]))
+
         for c, (child, family, lineage) in enumerate(zip(children, families, parentage)):
             for parent in family:
                 genes = lineage == parent
