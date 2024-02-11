@@ -5,12 +5,10 @@ from scipy.special import softmax
 
 from .utils import default
 from .utils import lazydefault
+from .utils import ObjectiveFunction, SubjectState
 
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
-
-ObjectiveFunction = Callable[[NDArray | Dict[str, NDArray]], NDArray[np.float32]]
-SubjectState = NDArray | Dict[str, NDArray]
 
 class Optimizer:
     '''
