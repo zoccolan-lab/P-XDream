@@ -2,6 +2,7 @@ import numpy as np
 import torch.nn as nn
 from torch import Tensor
 
+from einops import rearrange
 from collections import defaultdict
 from typing import Any, Dict, Tuple
 from numpy.typing import DTypeLike, NDArray
@@ -73,13 +74,17 @@ class SilicoProbe:
         # Grab the layer output activations and put special care to
         # detach them from torch computational graph, bring them to
         # GPU and convert them to numpy for easier storage and portability
-        full_act : np.ndarray = out.detach().cpu().numpy().astype(self.format).squeeze()
+        full_act : np.ndarray = out.detach().cpu().numpy().squeeze()
         
         # From the whole set of activation, we extract the targeted units
         # NOTE: If None is provided as target, we simply retain the whole
         #       set of activations from this layer
         targ_idx = self.target[module.name]
         targ_act = full_act if targ_idx is None else full_act[(slice(None), *targ_idx)]
+        
+        # Rearrange data to have common shape [batch_size, num_units] and
+        # be formatted using the desired numerical format (saving memory)
+        targ_act = rearrange(targ_act.astype(self.format), 'b ... -> b (...)')
         
         # Register the network activations in probe data storage
         self.data[module.name].append(targ_act)

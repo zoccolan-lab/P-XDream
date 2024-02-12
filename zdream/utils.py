@@ -1,6 +1,6 @@
 import numpy as np
 from typing import TypeVar, Callable, Dict
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
 
 T = TypeVar('T')
 D = TypeVar('D')

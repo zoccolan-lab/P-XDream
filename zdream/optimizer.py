@@ -61,7 +61,7 @@ class Optimizer:
         # Initialize the internal random number generator for reproducibility
         self._rng = np.random.default_rng(random_state)
 
-    def evaluate(self, state : NDArray | Dict[str, NDArray]) -> NDArray:
+    def evaluate(self, state : SubjectState) -> NDArray:
         return self.obj_fn(state).copy()
         
     def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> NDArray:
@@ -144,11 +144,11 @@ class Optimizer:
     
 class GeneticOptimizer(Optimizer):
     '''
-    Optimizer that implements a genetic optimization stategy.
+    Optimizer that implements a genetic optimization strategy.
     In particular these optimizer devise a population of candidate
     solutions (set of parameters) and iteratively improves the
     given objective function via the following heuristics:
-    - The top_k performing solution are left unhaltered
+    - The top_k performing solution are left unaltered
     - The rest of the population pool are recombined to produce novel
       candidate solutions via breeding and random mutations
     - The num_parents contributing to a single offspring are selected
@@ -178,9 +178,9 @@ class GeneticOptimizer(Optimizer):
         :param random_state: Seed for random number generation
         :param random_distr: Name of distribution to use to sample
             initial conditions if not directly provided
-        :param mutation_size: Scale of puntual mutations (how big
+        :param mutation_size: Scale of punctual mutations (how big
             the effect of mutation can be)
-        :param muration_rate: Probability of single-point mutation
+        :param mutation_rate: Probability of single-point mutation
         :param population_size: Number of subject in the population
         :param temperature: Temperature for controlling the softmax
             conversion from scores to fitness (the actual prob. to
@@ -208,7 +208,7 @@ class GeneticOptimizer(Optimizer):
     
     def step(
         self,
-        curr_states : NDArray | Dict[str, NDArray],
+        curr_states : SubjectState,
         temperature : float | None = None, 
         save_topk : int = 2,   
     ) -> NDArray:
@@ -224,7 +224,7 @@ class GeneticOptimizer(Optimizer):
             observable names (i.e. layer names in an ANN) and values
             being the corresponding observables.
             NOTE: Proper handling of these two different types is
-                  derred to the objective function. Optimizer is
+                  deferred to the objective function. Optimizer is
                   blind to proper computation of scores from states
         :type curr_states: Either numpy array or Dict[str, NDArray]
         :param temperature: Temperature in the softmax conversion
@@ -232,7 +232,7 @@ class GeneticOptimizer(Optimizer):
             selecting a given subject for reproduction
         :type temperature: positive float (> 0)
         :param save_topk: Number of top-performing subject to preserve
-            unhaltered during the current generation (to avoid loss
+            unaltered during the current generation (to avoid loss
             of provably decent solutions)
         :type save_topk: positive int (> 0)
 
@@ -274,8 +274,8 @@ class GeneticOptimizer(Optimizer):
             population=next_gen,
         )
 
-        # Bookkeping: update internal parameter history
-        # and overal score history
+        # Bookkeeping: update internal parameter history
+        # and overall score history
         # NOTE: These two lists are NOT aligned. They are
         #       off-by-one as observed states correspond
         #       to last parameter set and we are devising
