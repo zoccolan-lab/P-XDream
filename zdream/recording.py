@@ -42,7 +42,15 @@ class SilicoProbe:
         self._data : Dict[str, List[NDArray]] = defaultdict(list)
         
     @property
-    def features(self):
+    def features(self) -> Dict[str, NDArray]:
+        '''
+        Returns a dictionary of probe activations indexed by
+        layer name. The activation is a tensor with first dimension
+        referring to the specific activation.
+
+        :return: _description_
+        :rtype: Dict[str, NDArray]
+        '''
         return {
             k : np.concatenate(v) for k, v in self._data.items()
         }
