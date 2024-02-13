@@ -4,7 +4,7 @@ from torch import Tensor
 
 from einops import rearrange
 from collections import defaultdict
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple, List
 from numpy.typing import DTypeLike, NDArray
 
 class SilicoProbe:
@@ -33,13 +33,19 @@ class SilicoProbe:
         :type format: np.dtype
         '''
         
-        self.target = target
-        self.format = format
+        self._target = target
+        self._format = format
         
         # Here we define the activations dictionary of the probe.
         # The dictionary is indexed by the layer name and contains
         # a list with all the activations to which it was exposed to.
-        self.data = defaultdict(list)
+        self._data : Dict[str, List[NDArray]] = defaultdict(list)
+        
+    @property
+    def features(self):
+        return {
+            k : np.concatenate(v) for k, v in self._data.items()
+        }
         
     def __call__(
         self,
@@ -79,18 +85,18 @@ class SilicoProbe:
         # From the whole set of activation, we extract the targeted units
         # NOTE: If None is provided as target, we simply retain the whole
         #       set of activations from this layer
-        targ_idx = self.target[module.name]
+        targ_idx = self._target[module.name]
         targ_act = full_act if targ_idx is None else full_act[(slice(None), *targ_idx)]
         
         # Rearrange data to have common shape [batch_size, num_units] and
         # be formatted using the desired numerical format (saving memory)
-        targ_act = rearrange(targ_act.astype(self.format), 'b ... -> b (...)')
+        targ_act = rearrange(targ_act.astype(self._format), 'b ... -> b (...)')
         
         # Register the network activations in probe data storage
-        self.data[module.name].append(targ_act)
+        self._data[module.name].append(targ_act)
         
     def empty(self) -> None:
         '''
         Remove all stored activations from data storage 
         '''
-        self.data = defaultdict(list)
+        self._data = defaultdict(list)
