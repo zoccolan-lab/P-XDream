@@ -9,7 +9,7 @@ T = TypeVar('T')
 D = TypeVar('D')
 
 # Type Aliases
-Stimulus = Tensor | Image
+Stimulus = Tensor | Image # TODO Or Stimuli = Tensor | List[Image] ? 
 SubjectState = NDArray | Dict[str, NDArray]
 ObjectiveFunction = Callable[[SubjectState], NDArray[np.float32]]
 

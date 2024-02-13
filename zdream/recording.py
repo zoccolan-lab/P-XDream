@@ -7,6 +7,9 @@ from collections import defaultdict
 from typing import Dict, Tuple, List
 from numpy.typing import DTypeLike, NDArray
 
+from .networks import NetworkSubject
+from .utils import SubjectState
+
 class SilicoProbe:
     '''
         Basic probe to attach to an artificial network to
@@ -16,7 +19,7 @@ class SilicoProbe:
     
     def __init__(
         self,
-        target : Dict[str, None | Tuple[int, ...] | Tuple[NDArray, ...]],
+        target : Dict[str, None | Tuple[int, ...] | Tuple[NDArray, ...]], # TODO Define Alias if used in other locations
         format : DTypeLike = np.float32,
     ) -> None:
         '''
@@ -42,7 +45,7 @@ class SilicoProbe:
         self._data : Dict[str, List[NDArray]] = defaultdict(list)
         
     @property
-    def features(self) -> Dict[str, NDArray]:
+    def features(self) -> SubjectState:
         '''
         Returns a dictionary of probe activations indexed by
         layer name. The activation is a tensor with first dimension
@@ -54,6 +57,16 @@ class SilicoProbe:
         return {
             k : np.concatenate(v) for k, v in self._data.items()
         }
+        
+    @property
+    def target_names(self) -> List[str]:
+        '''
+        Returns probe target layer names.
+
+        :return: Probe target names.
+        :rtype: List[str]
+        '''
+        return list(self._target.keys())
         
     def __call__(
         self,
@@ -108,3 +121,49 @@ class SilicoProbe:
         Remove all stored activations from data storage 
         '''
         self._data = defaultdict(list)
+        
+
+# TODO Superclass Recording with (SilicoRecording, AnimalRecording)
+#      with an abstract method __call__(self, Stimulus) -> SubjectState 
+class SilicoRecording:
+    '''
+        Class representing a recording in silico from a network
+        over a set of input stimuli.
+    '''
+    
+    def __init__(self, network : NetworkSubject, probe : SilicoProbe) -> None:
+        '''
+        The constructor checks consistency between network and
+        probe layers names and attach the probe hooks to the network
+        
+        :param network: Network representing a tasked subject.
+        :type network: NetworkSubject
+        :param probe: Probe for recording activation.
+        :type probe: SilicoProbe
+        :param stimuli: Set of visual stimuli.
+        :type stimuli: Tensor
+        '''
+        
+        # Check if probe layers exist in the network
+        assert all(
+            e in network.layer_names for e in probe.target_names 
+        ),f"Probe recording sites not in the network: {set(probe.target_names).difference(network.layer_names)}"
+        
+        self._network: NetworkSubject = network
+        self._probe: SilicoProbe = probe
+        
+        # Attach hooks
+        for target in probe.target_names:
+            self._network.get_layer(layer_name=target).register_forward_hook(self._probe)  # TODO callback as __call__ method of an object ?
+            
+    def __call__(self, stimuli: Tensor) -> SubjectState:
+        """
+        """
+        
+        self._network(stimuli)
+        
+        out = self._probe.features
+        
+        self._probe.empty() # TODO Make sense?
+        
+        return out
