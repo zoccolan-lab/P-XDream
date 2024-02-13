@@ -1,12 +1,67 @@
-from torch import nn
+from abc import ABC, abstractmethod
+from torch import nn, Tensor
+from typing import List, Dict
 
-class AlexNet(nn.Module): #Copied from torchvision/models/alexnet.py
-    r"""AlexNet model architecture from the
-    `"One weird trick..." <https://arxiv.org/abs/1404.5997>`_ paper.
-    """
-    def __init__(self, num_classes=1000):
+class Subject(ABC):
+    '''
+        Abstract class representing a subject (animal or network)
+        tasked with a visual stimuli and generating a set of
+        activations for multiple layers.
+        
+    '''
+    
+    @abstractmethod
+    def foo(self):
+        # TODO discuss what is a "Subject"
+        pass
+    
+    
+    
+class NetworkSubject(Subject, nn.Module):
+    '''
+        Abstract class representing a network involved in
+        a visual task experiment as an artificial counterpart 
+        of an animal. A network subject has a layer indexing that
+        to access each architecture component with a unique mapping. 
+    '''
+    
+    @property
+    @abstractmethod
+    def layer_names(self) -> List[str]:
+        '''
+        Return layers names in the network architecture.
+        
+        :return: List of layers names.
+        :rtype: List[str]
+        '''
+        pass
+    
+    @abstractmethod
+    def get_layer(self, layer_name: str) -> nn.Module:
+        '''
+        Return the network layer matching the name in input.
+        
+        :param layer_name: Layer name in the architecture.
+        :type layer_name: str
+        :return: Network layer.
+        :rtype: nn.Module
+        '''
+        pass
+    
+
+
+class AlexNet(NetworkSubject): #Copied from 
+    '''
+    AlexNet CNN model architecture
+    NOTE Same as it was in torchvision/models/alexnet.py
+    NOTE works with input batches of size (batch_size, 224, 224, 3)
+    '''
+    
+    def __init__(self, num_classes: int = 1000):
+        
         super(AlexNet, self).__init__()
-        self.features = nn.Sequential(
+        
+        self._features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
@@ -21,8 +76,10 @@ class AlexNet(nn.Module): #Copied from torchvision/models/alexnet.py
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
         )
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        self.classifier = nn.Sequential(
+        
+        self._avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        
+        self._classifier = nn.Sequential(
             nn.Dropout(),
             nn.Linear(256 * 6 * 6, 4096),
             nn.ReLU(inplace=True),
@@ -31,10 +88,47 @@ class AlexNet(nn.Module): #Copied from torchvision/models/alexnet.py
             nn.ReLU(inplace=True),
             nn.Linear(4096, num_classes),
         )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = x.view(x.size(0), 256 * 6 * 6)
-        x = self.classifier(x)
-        return x
+        
+    def foo(self):
+        # TODO 
+        return None
+    
+    def get_layer(self, layer_name: str) -> nn.Module:
+        '''
+        Return the network layer matching the name in input.
+        
+        :param layer_name: Layer name in the architecture.
+        :type layer_name: str
+        :return: Network layer.
+        :rtype: nn.Module
+        '''
+        
+        feature_idx = self._names_layer_mapping[layer_name]
+        feature = self.features[feature_idx]
+        
+        return feature 
+    
+    @property
+    def layer_names(self) -> List[str]:
+        '''
+        Return layers names in the network architecture.
+        
+        :return: List of layers names.
+        :rtype: List[str]
+        '''
+        
+        return [v for v in self._names_layer_mapping]
+        
+    @property
+    def _names_layer_mapping(self) -> Dict[str, int]:
+        
+        # TODO - temporary workaround before indexing layers by name
+        #        we simply explicitly define the index of convolutional layers in
+        #        the sequence
+        return {
+            "conv1": 0,
+            "conv2": 3,
+            "conv3": 6,
+            "conv4": 8,
+            "conv5": 10,
+        }
