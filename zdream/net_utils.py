@@ -49,9 +49,9 @@ def load_networks(base_nets_dir='/content/drive/MyDrive/XDREAM'):
         'alexnet': AlexNet,
     }
     
-    sbj_nn_obj = net_obj_dict[sbj_nn](); sbj_nn_obj.load_state_dict(torch.load(sbj_nn_path))
-    gen_nn_obj = net_obj_dict[sbj_nn](); gen_nn_obj.load_state_dict(torch.load(gen_path))
-    return sbj_nn_obj, gen_nn_obj
+    sbj_nn_obj = net_obj_dict[sbj_nn]()#sbj_nn_obj.load_state_dict(torch.load(sbj_nn_path))
+    gen_nn_obj = net_obj_dict[gen]()#gen_nn_obj.load_state_dict(torch.load(gen_path))
+    return sbj_nn_obj, gen_nn_obj,sbj_nn_path,gen_path
 
 
 
