@@ -1,2 +1,6 @@
 # IDE local files
 *.vscode
+*.ipynb
+*egg*
+*.pyc
+*__*
