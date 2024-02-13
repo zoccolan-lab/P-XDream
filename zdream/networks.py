@@ -53,7 +53,7 @@ class NetworkSubject(Subject, nn.Module):
         pass
     
 
-
+# TODO: Nice, but do we need it? 
 class AlexNet(NetworkSubject): #Copied from 
     '''
     AlexNet CNN model architecture

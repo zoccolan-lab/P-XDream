@@ -1,16 +1,57 @@
 import numpy as np
 import torch.nn as nn
 from torch import Tensor
+from abc import abstractmethod
 
 from einops import rearrange
 from collections import defaultdict
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Any
 from numpy.typing import DTypeLike, NDArray
 
 from .networks import NetworkSubject
 from .utils import SubjectState
 
 class SilicoProbe:
+    '''
+    Abstract probe to be used with an artificial neural network
+    that implements a torch.hook (mostly forward_hook) via its
+    __call__ function to achieve a given task.
+    '''
+
+    @abstractmethod
+    def __call__(
+        self,
+        module : nn.Module,
+        inp : Tuple[Tensor, ...],
+        out : Tensor,    
+    ) -> Any | None:
+        '''
+        Abstract implementation of PyTorch forward hook, each
+        probe should provide its specific implementation to
+        accomplish its given task.
+        '''
+        raise NotImplementedError('SilicoProbe is abstract. Use concrete implementation')
+
+class NamingProbe(SilicoProbe):
+    '''
+    '''
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def __call__(
+        self,
+        inp : Tuple[Tensor, ...],
+        out : Tensor,
+    ) -> None:
+        '''
+        Custom hook designed used to attach names to each layer
+        in an artificial network. This function SHOULD NOT be
+        called directly by the user, it should be called via
+        the `forward_hook` attached to the network layer.
+        '''
+
+class RecordingProbe(SilicoProbe):
     '''
         Basic probe to attach to an artificial network to
         record the activations of an arbitrary number of
@@ -71,7 +112,7 @@ class SilicoProbe:
     def __call__(
         self,
         module : nn.Module,
-        inp : Tensor,
+        inp : Tuple[Tensor, ...],
         out : Tensor
     ) -> None:
         '''
@@ -82,12 +123,14 @@ class SilicoProbe:
         Function signature is the one expected by the hook mechanism.
         
         NOTE: This function assumes! the module posses the attribute
-            `name` which is a unique string identifier for this layer
+            `name` which is a unique string identifier for this layer.
+            Please use the dedicated NamingProbe to properly attach
+            names to each layer in the targeted artificial network.
         
         :param module: Current network layer we are registering from.
         :type module: torch.nn.Module
         :param inp: The torch Tensor the layer received as input
-        :type inp: torch.Tensor
+        :type inp: Tuple of torch.Tensor
         :param out: The torch Tensor the layer produced as output
         :type out: torch.Tensor
         
@@ -131,7 +174,7 @@ class SilicoRecording:
         over a set of input stimuli.
     '''
     
-    def __init__(self, network : NetworkSubject, probe : SilicoProbe) -> None:
+    def __init__(self, network : NetworkSubject, probe : RecordingProbe) -> None:
         '''
         The constructor checks consistency between network and
         probe layers names and attach the probe hooks to the network
@@ -150,7 +193,7 @@ class SilicoRecording:
         ),f"Probe recording sites not in the network: {set(probe.target_names).difference(network.layer_names)}"
         
         self._network: NetworkSubject = network
-        self._probe: SilicoProbe = probe
+        self._probe: RecordingProbe = probe
         
         # Attach hooks
         for target in probe.target_names:
