@@ -23,6 +23,8 @@ class NetworkSubject(Subject, nn.Module):
         a visual task experiment as an artificial counterpart 
         of an animal. A network subject has a layer indexing that
         to access each architecture component with a unique mapping. 
+        
+        NOTE The class also has the abstractmethod 'forward' from the nn.Module
     '''
     
     @property
@@ -61,7 +63,7 @@ class AlexNet(NetworkSubject): #Copied from
         
         super(AlexNet, self).__init__()
         
-        self._features = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
@@ -77,9 +79,9 @@ class AlexNet(NetworkSubject): #Copied from
             nn.MaxPool2d(kernel_size=3, stride=2),
         )
         
-        self._avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
         
-        self._classifier = nn.Sequential(
+        self.classifier = nn.Sequential(
             nn.Dropout(),
             nn.Linear(256 * 6 * 6, 4096),
             nn.ReLU(inplace=True),
@@ -104,7 +106,7 @@ class AlexNet(NetworkSubject): #Copied from
         '''
         
         feature_idx = self._names_layer_mapping[layer_name]
-        feature = self._features[feature_idx]
+        feature = self.features[feature_idx]
         
         return feature 
     
@@ -132,3 +134,11 @@ class AlexNet(NetworkSubject): #Copied from
             "conv4": 8,
             "conv5": 10,
         }
+        
+    def forward(self, x: Tensor) -> Tensor:
+                
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), 256 * 6 * 6)
+        x = self.classifier(x)
+        return x
