@@ -3,8 +3,7 @@ import os
 import torch
 from typing import Tuple
 
-from Generic_tools.Generic_list_operations import *
-from Generic_tools.Generic_string_operations import *
+from zdream.utils import *
 from zdream.networks import *
 from zdream.generators import *
 
