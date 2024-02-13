@@ -4,8 +4,8 @@ import torch
 
 from Generic_tools.Generic_list_operations import *
 from Generic_tools.Generic_string_operations import *
-from networks import *
-from generators import *
+from zdream.networks import *
+from zdream.generators import *
 
     
 def get_net_paths(base_nets_dir='/content/drive/MyDrive/XDREAM'):
