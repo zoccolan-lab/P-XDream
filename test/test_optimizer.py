@@ -45,7 +45,7 @@ class GeneticOptimizerTest(unittest.TestCase):
 
     def non_convex_population_obj_fn(self, state : NDArray | Dict[str, NDArray]) -> NDArray:
         state = cast(NDArray, state)
-  
+
         # Score each subject in the population individually
         scores = [beale_function(subj) for subj in state]
 
