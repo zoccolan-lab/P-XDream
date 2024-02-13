@@ -42,6 +42,8 @@ class NetworkSubject(Subject, nn.Module):
     def get_layer(self, layer_name: str) -> nn.Module:
         '''
         Return the network layer matching the name in input.
+        NOTE The layer is expected to have attribute "name" which
+            is its identifier in layer indexing
         
         :param layer_name: Layer name in the architecture.
         :type layer_name: str
@@ -105,10 +107,12 @@ class AlexNet(NetworkSubject): #Copied from
         :rtype: nn.Module
         '''
         
-        feature_idx = self._names_layer_mapping[layer_name]
-        feature = self.features[feature_idx]
+        layer_idx = self._names_layer_mapping[layer_name]
+        layer = self.features[layer_idx]
         
-        return feature 
+        setattr(layer, "name", layer_name)
+        
+        return layer
     
     @property
     def layer_names(self) -> List[str]:
