@@ -104,7 +104,7 @@ class AlexNet(NetworkSubject): #Copied from
         '''
         
         feature_idx = self._names_layer_mapping[layer_name]
-        feature = self.features[feature_idx]
+        feature = self._features[feature_idx]
         
         return feature 
     
