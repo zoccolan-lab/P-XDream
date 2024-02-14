@@ -218,7 +218,7 @@ class RecordingProbe(SilicoProbe):
         # Register the network activations in probe data storage
         self._data[module.name].append(targ_act)
         
-    def empty(self) -> None:
+    def clean(self) -> None:
         '''
         Remove all stored activations from data storage 
         '''
@@ -227,45 +227,45 @@ class RecordingProbe(SilicoProbe):
 
 # TODO Superclass Recording with (SilicoRecording, AnimalRecording)
 #      with an abstract method __call__(self, Stimulus) -> SubjectState 
-class SilicoRecorder:
-    '''
-        Class representing a recording in silico from a network
-        over a set of input stimuli.
-    '''
+# class SilicoRecorder:
+#     '''
+#         Class representing a recording in silico from a network
+#         over a set of input stimuli.
+#     '''
     
-    def __init__(self, network : NetworkSubject, probe : RecordingProbe) -> None:
-        '''
-        The constructor checks consistency between network and
-        probe layers names and attach the probe hooks to the network
+#     def __init__(self, network : NetworkSubject, probe : RecordingProbe) -> None:
+#         '''
+#         The constructor checks consistency between network and
+#         probe layers names and attach the probe hooks to the network
         
-        :param network: Network representing a tasked subject.
-        :type network: NetworkSubject
-        :param probe: Probe for recording activation.
-        :type probe: SilicoProbe
-        :param stimuli: Set of visual stimuli.
-        :type stimuli: Tensor
-        '''
+#         :param network: Network representing a tasked subject.
+#         :type network: NetworkSubject
+#         :param probe: Probe for recording activation.
+#         :type probe: SilicoProbe
+#         :param stimuli: Set of visual stimuli.
+#         :type stimuli: Tensor
+#         '''
         
-        # Check if probe layers exist in the network
-        assert all(
-            e in network.layer_names for e in probe.target_names 
-        ),f"Probe recording sites not in the network: {set(probe.target_names).difference(network.layer_names)}"
+#         # Check if probe layers exist in the network
+#         assert all(
+#             e in network.layer_names for e in probe.target_names 
+#         ),f"Probe recording sites not in the network: {set(probe.target_names).difference(network.layer_names)}"
         
-        self._network: NetworkSubject = network
-        self._probe: RecordingProbe = probe
+#         self._network: NetworkSubject = network
+#         self._probe: RecordingProbe = probe
         
-        # Attach hooks
-        for target in probe.target_names:
-            self._network.get_layer(layer_name=target).register_forward_hook(self._probe)  # TODO callback as __call__ method of an object ?
+#         # Attach hooks
+#         for target in probe.target_names:
+#             self._network.get_layer(layer_name=target).register_forward_hook(self._probe)  # TODO callback as __call__ method of an object ?
             
-    def __call__(self, stimuli: Tensor) -> SubjectState:
-        """
-        """
+#     def __call__(self, stimuli: Tensor) -> SubjectState:
+#         """
+#         """
         
-        self._network(stimuli)
+#         self._network(stimuli)
         
-        out = self._probe.features
+#         out = self._probe.features
         
-        self._probe.empty() # TODO Make sense?
+#         self._probe.clean() # TODO Make sense?
         
-        return out
+#         return out

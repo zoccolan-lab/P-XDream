@@ -1,6 +1,17 @@
+import torch
+import warnings
 from abc import ABC, abstractmethod
 from torch import nn, Tensor
 from typing import List, Dict
+from torchvision import models
+from torch.utils.hooks import RemovableHandle
+
+from .probe import SilicoProbe
+from .probe import NamingProbe
+from .probe import RecordingProbe
+
+from .utils import unpack
+from .utils import SubjectState
 
 class Subject(ABC):
     '''
@@ -19,16 +30,69 @@ class Subject(ABC):
     
 class NetworkSubject(Subject, nn.Module):
     '''
-        Abstract class representing a network involved in
+        Class representing an artificial network involved in
         a visual task experiment as an artificial counterpart 
-        of an animal. A network subject has a layer indexing that
-        to access each architecture component with a unique mapping. 
-        
-        NOTE The class also has the abstractmethod 'forward' from the nn.Module
+        of an animal. A network subject extends a torch Module
+        by providing a unique identifier to each layer (via a
+        NamingProbe) that can later be used for recording         
     '''
     
+    def __init__(
+        self,
+        network_name : str,
+        record_probe : RecordingProbe | None = None,
+        pretrained : bool = True,
+    ) -> None:
+        '''
+        
+        '''
+        super().__init__()
+        
+        # Load the torch model via its name from the torchvision hub
+        self._weights = models.get_model_weights(network_name)
+        self._network = models.get_model(network_name, weight=self._weights)
+
+        # Attach NamingProbe to the network to properly assign name
+        # to each layer so to get it ready for recording
+        _name_hooks = self.register(NamingProbe())
+
+        # Expose the network to a fake input to trigger the hooks
+        # TODO: @Paolo find clean why to deduce appropriate input shape for the network
+        mock_inp = torch.zeros(inp_shape, device=self._network.device)
+        with torch.no_grad():
+            _ = self._network(mock_inp)
+
+        for hook in _name_hooks: hook.remove()
+
+        # If provided, attach the recording probe to the network
+        self._rec_probe = record_probe
+        if self._rec_probe: self.register(self._rec_probe)
+
+    @torch.no_grad()
+    def forward(
+        self,
+        inp : Tensor,
+        auto_clean : bool = True
+    ) -> SubjectState:
+        warn_msg = '''
+                    Calling subject forward while no recording probe has been registered.
+                    Output is garbage, please attach a recording probe via the `register`
+                    method of the NetworkSubject class. 
+                    '''
+        assert self._rec_probe is not None, warn_msg     
+
+        _ = self._network(inp)
+    
+        out = self._rec_probe.features
+    
+        if auto_clean: self._rec_probe.clean()
+        
+        return out
+
+    def register(self, probe : SilicoProbe) -> List[RemovableHandle]:
+        return [layer.register_forward_hook(probe) for layer in unpack(self._network)]
+    
     @property
-    @abstractmethod
     def layer_names(self) -> List[str]:
         '''
         Return layers names in the network architecture.
@@ -36,10 +100,9 @@ class NetworkSubject(Subject, nn.Module):
         :return: List of layers names.
         :rtype: List[str]
         '''
-        pass
+        return [layer.name for layer in unpack(self.network)]
     
-    @abstractmethod
-    def get_layer(self, layer_name: str) -> nn.Module:
+    def get_layer(self, layer_name: str) -> nn.Module | None:
         '''
         Return the network layer matching the name in input.
         NOTE The layer is expected to have attribute "name" which
@@ -50,99 +113,7 @@ class NetworkSubject(Subject, nn.Module):
         :return: Network layer.
         :rtype: nn.Module
         '''
-        pass
-    
+        for layer in unpack(self.network):
+            if layer_name == layer.name: return layer
 
-# TODO: Nice, but do we need it? 
-class AlexNet(NetworkSubject): #Copied from 
-    '''
-    AlexNet CNN model architecture
-    NOTE Same as it was in torchvision/models/alexnet.py
-    NOTE works with input batches of size (batch_size, 224, 224, 3)
-    '''
-    
-    def __init__(self, num_classes: int = 1000):
-        
-        super(AlexNet, self).__init__()
-        
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(64, 192, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            nn.Conv2d(192, 384, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(384, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),
-        )
-        
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        
-        self.classifier = nn.Sequential(
-            nn.Dropout(),
-            nn.Linear(256 * 6 * 6, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Linear(4096, num_classes),
-        )
-        
-    def foo(self):
-        # TODO 
         return None
-    
-    def get_layer(self, layer_name: str) -> nn.Module:
-        '''
-        Return the network layer matching the name in input.
-        
-        :param layer_name: Layer name in the architecture.
-        :type layer_name: str
-        :return: Network layer.
-        :rtype: nn.Module
-        '''
-        
-        layer_idx = self._names_layer_mapping[layer_name]
-        layer = self.features[layer_idx]
-        
-        setattr(layer, "name", layer_name)
-        
-        return layer
-    
-    @property
-    def layer_names(self) -> List[str]:
-        '''
-        Return layers names in the network architecture.
-        
-        :return: List of layers names.
-        :rtype: List[str]
-        '''
-        
-        return [v for v in self._names_layer_mapping]
-        
-    @property
-    def _names_layer_mapping(self) -> Dict[str, int]:
-        
-        # TODO - temporary workaround before indexing layers by name
-        #        we simply explicitly define the index of convolutional layers in
-        #        the sequence
-        return {
-            "conv1": 0,
-            "conv2": 3,
-            "conv3": 6,
-            "conv4": 8,
-            "conv5": 10,
-        }
-        
-    def forward(self, x: Tensor) -> Tensor:
-                
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = x.view(x.size(0), 256 * 6 * 6)
-        x = self.classifier(x)
-        return x
