@@ -1,7 +1,7 @@
 import numpy as np
 import torch.nn as nn
 from torch import Tensor
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 from einops import rearrange
 from collections import defaultdict
@@ -11,7 +11,7 @@ from numpy.typing import DTypeLike, NDArray
 from .networks import NetworkSubject
 from .utils import SubjectState
 
-class SilicoProbe:
+class SilicoProbe(ABC):
     '''
     Abstract probe to be used with an artificial neural network
     that implements a torch.hook (mostly forward_hook) via its
@@ -43,7 +43,11 @@ class SilicoProbe:
         :returns: Possibly anything (probably discarded by torch)
         :rtype: Any or None 
         '''
-        raise NotImplementedError('SilicoProbe is abstract. Use concrete implementation')
+        pass
+
+    @abstractmethod
+    def clean(self) -> None:
+        pass
 
 class NamingProbe(SilicoProbe):
     '''

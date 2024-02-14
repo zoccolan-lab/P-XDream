@@ -1,10 +1,16 @@
+from pathlib import Path
+import os
+import torch
 import torch.nn as nn
 from torch import Tensor
+from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
 from diffusers.models.unets.unet_2d import UNet2DModel
 
 from typing import List, Tuple
+
+from zdream.utils import *
 
 
 class Generator(nn.Module):
@@ -41,25 +47,132 @@ class Generator(nn.Module):
 
 # TODO: This is @Lorenzo's job!
 class InverseAlexGenerator(Generator):
-    '''
-    '''
-    
-    def __init__(
-        self,
-        begin_layer : str
-    ) -> None:
-        super().__init__('inv_alexnet')
+
+    def __init__(self, base_nets_dir='/content/drive/MyDrive/XDREAM'):
+        super().__init__()
+        self.load(self, base_nets_dir = base_nets_dir)
+
+    def build(self):
+        architectures_dict = {'fc':nn.Sequential(nn.Linear(self.num_inputs, 4096),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Linear(4096, 4096),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Linear(4096, 4096),
+            nn.LeakyReLU(negative_slope=0.3),
+            Rearrange('(b c) h w -> b c h w'),
+            nn.ConvTranspose2d(256, 256, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 512, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False), 
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)),
+            'pool':nn.Sequential(nn.Conv2d(256, 512, 3, padding=1),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(512, 512, 3, padding=1),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(512, 512, 3, padding=0),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 512, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False), 
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)),
+            'conv': nn.Sequential(
+            nn.Conv2d(384, 384, 3, padding=0),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(384, 512, 3, padding=0),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(512, 512, 2, padding=0),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(64, 32, 3, stride=1, padding=1, bias=False),#
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False),
+            nn.Tanh()),
+            'norm': nn.Sequential(nn.Conv2d(self.l1_ios[0], self.l1_ios[1], 3, stride=self.l1_ios[2], padding=2),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(self.l1_ios[1], 128, 3, stride=1, padding=1),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(128, 128, 3, stride=1, padding=1),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(128, 128, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(64, 64, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.Conv2d(32, 32, 3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.3),
+            nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False),
+            nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False),
+            nn.Tanh())}
         
-        # Construction of generator
-        # TODO: Lorenzo do your magic here
-        self.layers = nn.Sequential(
-            ...
-        )
-        
-    def forward(self, inp : Tensor) -> Tensor:
-        return self.layers(inp)
+        self.layers = architectures_dict[self.type_net]
     
-    def load(base_nets_dir : str ='/content/drive/MyDrive/XDREAM') -> Tuple[nn.Module, nn.Module]:
+    def get_net_paths(self, base_nets_dir):
+        """
+        Retrieves the paths of the files of the weights of pytorch neural nets within a base directory and returns a dictionary
+        where the keys are the file names and the values are the full paths to those files.
+
+        Args:
+            base_nets_dir (str): The path of the base directory (i.e. the dir that contains all nn files). Default is '/content/drive/MyDrive/XDREAM'.
+
+        Returns:
+            Dict[str, str]: A dictionary where the keys are the nn file names and the values are the full paths to those files.
+        """
+        self.base_nets_dir = Path(base_nets_dir)
+        nets_dict = {}
+        for root, _, files in os.walk(base_nets_dir): #walk on the base net dir
+            for f in files: #if you find files...
+                if f.lower().endswith(('.pt', '.pth')): #and they are .pt/.pth
+                    file_path = os.path.join(root, f) 
+                    nets_dict[f] = file_path #add the files to nets_dict
+        return nets_dict
+
+    def load(self, base_nets_dir: str ='/content/drive/MyDrive/XDREAM') -> Tuple[torch.nn.Module, torch.nn.Module]:
         """
         Load subject and generator neural networks.
 
@@ -69,33 +182,25 @@ class InverseAlexGenerator(Generator):
         Returns:
         - Tuple[torch.nn.Module, torch.nn.Module]: A tuple containing the loaded subject neural network and generator neural network.
         """
-        nets_dict = get_net_paths(base_nets_dir=base_nets_dir); subject_nets_names = ['alexnet']
-        #ask the sbj for subject nn and generator of choice. for both, get nn name (for net_obj_dict) and path to weight file
-        gen_keys = [key for key in nets_dict.keys() if any(sbj_nn not in key for sbj_nn in subject_nets_names) and 'base_nets_dir' not in key]
-        subj_nn_keys = [key for key in nets_dict.keys() if any(sbj_nn in key for sbj_nn in subject_nets_names) and 'base_nets_dir' not in key]
-        sbj_nn = multioption_prompt(opt_list=subj_nn_keys, in_prompt='select your subject neural net:'); sbj_nn_path = nets_dict[sbj_nn]
-        gen = multioption_prompt(opt_list=gen_keys, in_prompt='select your generator:'); gen_path = nets_dict[gen]
-        sbj_nn = multichar_split(sbj_nn)[0]; gen = multichar_split(gen)[0]
+        nets_dict = self.get_net_paths(base_nets_dir=base_nets_dir); 
+        #ask the experimenter for subject nn and generator of choice. for both, get nn name (for net_obj_dict) and path to weight file
+        gen = multioption_prompt(opt_list=nets_dict.keys(), in_prompt='select your generator:'); gen_path = nets_dict[gen]
+        gen = multichar_split(gen)[0]
+        self.num_inputs = 4096; self.l1_ios = (96, 128, 2)
+        self.type_net = gen[:-1] #norm, conv, pool, fc
+        if gen=='fc8':
+            self.num_inputs = 1000
+        if gen=='norm2':
+            self.l1_ios = (96, 128, 2)
 
+        self.build() #generate the appropriate architecture
+        self.load_state_dict(torch.load(gen_path, map_location='cuda')), self.cuda(); self.eval()
 
-        net_obj_dict = { #si può trovare modo piu elegante di metterlo
-            'norm1': DeePSiMNorm,
-            'norm2': DeePSiMNorm2,
-            'conv3': DeePSiMConv34,
-            'conv4': DeePSiMConv34,
-            'pool5': DeePSiMPool5,
-            'fc6': DeePSiMFc,
-            'fc7': DeePSiMFc,
-            'fc8': DeePSiMFc8,
-        }
-        #instantiate the sbj_nn and gen objects
-        sbj_nn_obj = net_obj_dict[sbj_nn]()
-        gen_nn_obj = net_obj_dict[gen]()
-        #load state dict for both, put both in cuda and put both in evaluation mode
-        sbj_nn_obj.load_state_dict(torch.load(sbj_nn_path, map_location='cuda')); sbj_nn_obj.cuda(); sbj_nn_obj.eval()
-        gen_nn_obj.load_state_dict(torch.load(gen_path, map_location='cuda')); gen_nn_obj.cuda(); gen_nn_obj.eval()
-        return sbj_nn_obj, gen_nn_obj
-
+    def forward(self, x):
+        x = self.layers(x)
+        if self.type_net in ['conv','norm']:
+            x = x*255
+        return x    
 
 # TODO: This is @Paolo's job!
 class SDXLTurboGenerator(Generator):
