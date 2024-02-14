@@ -15,7 +15,8 @@ class SilicoProbe:
     '''
     Abstract probe to be used with an artificial neural network
     that implements a torch.hook (mostly forward_hook) via its
-    __call__ function to achieve a given task.
+    __call__ function to achieve a given task (either by returning
+    something or most likely via side-effects).
     '''
 
     @abstractmethod
@@ -29,18 +30,50 @@ class SilicoProbe:
         Abstract implementation of PyTorch forward hook, each
         probe should provide its specific implementation to
         accomplish its given task.
+        
+        :param module: The calling torch Module who raised the
+            hook callback
+        :type module: torch.nn.Module
+        :param inp: The input to the calling module
+        :type inp: Tuple of torch Tensors
+        :param out: The computed calling module output (callback
+            is raised after at the end of the forward_step)
+        :type out: Torch Tensor
+        
+        :returns: Possibly anything (probably discarded by torch)
+        :rtype: Any or None 
         '''
         raise NotImplementedError('SilicoProbe is abstract. Use concrete implementation')
 
 class NamingProbe(SilicoProbe):
     '''
+    Simple probe whose task is to attach to a given torch Module
+    a unique identifier to each of its sub-modules (layers).
     '''
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        attr_name : str = 'name'    
+    ) -> None:
+        '''
+        Construct a NamingProbe by specifying the name of the
+        attribute that the probe attaches to each sub-module of
+        the target torch.nn.Module as its unique identifier.
+        
+        :param attr_name: Name of the new attribute
+        :type attr_name: string
+        '''
+        
         super().__init__()
+        
+        self.attr_name = attr_name
+        
+        self.depth = -1
+        self.occur = defaultdict(lambda : 0)
 
     def __call__(
         self,
+        module : nn.Module,
         inp : Tuple[Tensor, ...],
         out : Tensor,
     ) -> None:
@@ -50,12 +83,34 @@ class NamingProbe(SilicoProbe):
         called directly by the user, it should be called via
         the `forward_hook` attached to the network layer.
         '''
+        
+        name = module._get_name().lower()
+        
+        self.depth       += 1
+        self.occur[name] += 1
+        
+        # Build a unique identifier for this module based
+        # on module name, depth and occurrence of this
+        # particular layer/module type
+        depth = str(self.depth      ).zfill(2)
+        occur = str(self.occur[name]).zfill(2)
+        identifier = f'{depth}_{name}_{occur}'
+        
+        # Attach the unique identifier to the (sub-)module
+        setattr(module, self.attr_name, identifier)
+        
+    def clean(self) -> None:
+        '''
+        Reset the depth and occurrence dictionary
+        '''
+        self.depth = -1
+        self.occur = defaultdict(lambda : 0)
 
 class RecordingProbe(SilicoProbe):
     '''
-        Basic probe to attach to an artificial network to
-        record the activations of an arbitrary number of
-        hidden units in arbitrary layers. 
+    Basic probe to attach to an artificial network to
+    record the activations of an arbitrary number of
+    hidden units in arbitrary layers. 
     '''
     
     def __init__(

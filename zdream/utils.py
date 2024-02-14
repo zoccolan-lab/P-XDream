@@ -1,4 +1,5 @@
 import numpy as np
+import torch.nn as nn
 from typing import TypeVar, Callable, Dict, List, Union
 import re
 from numpy.typing import NDArray
@@ -21,8 +22,29 @@ def default(var : T | None, val : D) -> T | D:
 def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
     return expr() if var is None else var
 
+def unpack(model : nn.Module) -> nn.ModuleList:
+    '''
+    Utils function to extract the layer hierarchy from a torch
+    Module. This function recursively inspects each module
+    children and progressively build the hierarchy of layers
+    that is then return to the user.
+    
+    :param model: Torch model whose hierarchy we want to unpack
+    :type model: torch.nn.Module
+    
+    :returns: List of sub-modules (layers) that compose the model
+        hierarchy
+    :rtype: nn.ModuleList
+    '''
+    children = [unpack(children) for children in model.children()]
+    unpacked = [model] if list(model.children()) == [] else []
+
+    for c in children: unpacked.append(c)
+    
+    return nn.ModuleList(unpacked)
+
 def multioption_prompt(opt_list: List[str], in_prompt: str) -> Union[str, List[str]]:
-    """
+    '''
     Prompt the user to choose from a list of options.
 
     Parameters:
@@ -31,7 +53,7 @@ def multioption_prompt(opt_list: List[str], in_prompt: str) -> Union[str, List[s
 
     Returns:
     - Either a single option (str) or a list of options (List[str]).
-    """
+    '''
     # Generate option list
     opt_prompt = '\n'.join([f'{i}: {opt}' for i, opt in enumerate(opt_list)])
     
