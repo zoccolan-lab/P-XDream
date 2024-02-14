@@ -43,17 +43,19 @@ def unpack(model : nn.Module) -> nn.ModuleList:
     
     return nn.ModuleList(unpacked)
 
-def multioption_prompt(opt_list: List[str], in_prompt: str) -> Union[str, List[str]]:
-    '''
-    Prompt the user to choose from a list of options.
 
-    Parameters:
-    - opt_list: List of options.
-    - in_prompt: Prompt message to display.
-
-    Returns:
-    - Either a single option (str) or a list of options (List[str]).
+def multioption_prompt(opt_list: List[str], in_prompt: str) -> str | List[str]:
     '''
+    Prompt the user to choose from a list of options
+
+    :param opt_list: List of options.
+    :type opt_list: List[str]
+    :param in_prompt: Prompt message to display.
+    :type in_prompt: str
+    :return: Either a single option or a list of options.
+    :rtype: str | List[str]
+    '''
+    
     # Generate option list
     opt_prompt = '\n'.join([f'{i}: {opt}' for i, opt in enumerate(opt_list)])
     
@@ -69,17 +71,23 @@ def multioption_prompt(opt_list: List[str], in_prompt: str) -> Union[str, List[s
 
     return answer
 
-def multichar_split(my_string: str, separator_chars: List[str] =['-', '.'])-> List[str]:
-    """
+
+def multichar_split(my_string: str, separator_chars: List[str] = ['-', '.'])-> List[str]:
+    '''
     Split a string using multiple separator characters.
 
-    Args:
-        my_string (str): The input string to be split.
-        separator_chars (List[str]): List of separator characters. Default is ['-','.'].
-
-    Returns:
-        List[str]: List containing the substrings resulting from the split.
-    """
+    :param my_string: The input string to be split.
+    :type my_string: str
+    :param separator_chars: List of separator characters, defaults to ['-', '.']
+    :type separator_chars: List[str], optional
+    :return: List containing the substrings resulting from the split.
+    :rtype: List[str]
+    '''
+    
     # Build the regular expression pattern to match any of the separator characters
     pattern = '[' + re.escape(''.join(separator_chars)) + ']'
-    return re.split(pattern, my_string) # Split the string using the pattern as separator
+    
+    # Split the string using the pattern as separator
+    split = re.split(pattern, my_string) 
+    
+    return split
