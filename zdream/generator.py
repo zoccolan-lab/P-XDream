@@ -109,10 +109,9 @@ class InverseAlexGenerator(Generator):
         self.type_net = multichar_split(variant)[0][:-1]
 
         if   variant == 'fc8': num_inputs = 1000
-        elif variant == 'fc7': num_inputs = 4096
-        elif variant == 'fc6': num_inputs = 4096
+        else: num_inputs = 4096
         if   variant == 'norm1': l1_ios = ( 96, 128, 3, 2)
-        elif variant == 'norm2': l1_ios = (256, 256, 3, 1)
+        else : l1_ios = (256, 256, 3, 1)
 
         templates = {
             'fc'   : nn.Sequential(
