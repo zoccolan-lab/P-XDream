@@ -1,25 +1,35 @@
+from abc import ABC, abstractmethod
+from typing import Callable, List, Tuple, Literal, cast
+from functools import partial
+
+from einops import reduce
 import numpy as np
-from abc import abstractmethod
+from numpy.typing import NDArray
+from torch import Tensor
+from torch.nn.functional import mse_loss as mse
 
 from .utils import default
 from .utils import ObjectiveFunction, SubjectState
 
-from einops import reduce
-from functools import partial
-
-from typing import Callable, Tuple, Literal, cast
-from numpy.typing import NDArray
 
 def distance(
     ord : float | Literal['fro', 'nuc'] |  None = 2,
     axis : int | None = -1,
 ) -> ObjectiveFunction:
+
     axis = cast(int, axis)
     norm = partial(np.linalg.norm, axis=axis, ord=ord)
     
     return cast(ObjectiveFunction, norm)
 
-class Score:
+def mse_torch_numpy(
+    input  : Tensor,
+    target : Tensor 
+) -> NDArray:
+    
+    return mse(input=input, target=target).numpy()
+
+class Score(ABC):
     '''
     '''
 
@@ -31,7 +41,41 @@ class Score:
 
     @abstractmethod
     def __call__(self, state : SubjectState) -> NDArray[np.float32]:
-        raise NotImplementedError('Score __call__ method is abstract')
+        pass
+    
+class ImageScore(Score):
+    '''
+        Class simulating a neuron which preferred
+        stimulus is a known image. The score function
+        is the pixel MSE
+    '''
+    
+    def __init__(
+        self,
+        image : Tensor
+    ) -> None:
+        '''
+        The init function defines 
+
+        :param image: preferred target stimulus
+        :type image: Tensor
+        '''
+        
+        mse_image = partial(mse_torch_numpy, target=image)
+        
+        super().__init__(criterion=cast(ObjectiveFunction, mse_image))
+        
+    def __call__(self, state : SubjectState) -> NDArray[np.float32]:
+        
+        if isinstance(state, dict):
+            
+            return np.concatenate(
+                [self.criterion(s) for s in state.values()]
+            )
+        
+        return self.criterion(state)
+        
+    
     
 class MinMaxSimilarity(Score):
     '''
@@ -43,13 +87,17 @@ class MinMaxSimilarity(Score):
         negative_target : str,
         neg_penalty : float = 1.,
         similarity_fn : ObjectiveFunction | None = None,
-        grouping_fn : Callable[[NDArray], Tuple[NDArray, ...]] | None = None,
+        grouping_fn : Callable[[NDArray], Tuple[NDArray, NDArray]] | None = None,
     ) -> None:
+        
+        # If similarity function is not given use euclidean distance as default
         euclidean = distance(ord=2)
         criterion = default(similarity_fn, euclidean)
+        
+        # If grouping function is not given use even-odd split as default
         group_fun = default(grouping_fn, lambda x : (x[::2], x[1::2]))
 
-        super().__init__(criterion)
+        super().__init__(criterion=criterion)
 
         self.positive_target = positive_target
         self.negative_target = negative_target
@@ -68,3 +116,5 @@ class MinMaxSimilarity(Score):
         score = self.criterion(pos_a - pos_b) - self.neg_penalty * self.criterion(neg_a - neg_b)
 
         return score
+
+
