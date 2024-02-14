@@ -50,7 +50,7 @@ class InverseAlexGenerator(Generator):
 
     def __init__(self, base_nets_dir='/content/drive/MyDrive/XDREAM'):
         super().__init__(name = 'Inv_alexnet')
-        self.load(self, base_nets_dir = base_nets_dir)
+        self.load(base_nets_dir = base_nets_dir)
 
     def build(self):
         architectures_dict = {'fc':nn.Sequential(nn.Linear(self.num_inputs, 4096),
