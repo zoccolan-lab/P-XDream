@@ -6,10 +6,11 @@ import unittest
 import numpy as np
 from numpy.typing import NDArray
 from zdream.optimizer import GeneticOptimizer
+from zdream.utils import SubjectState
 
-from typing import Dict, cast
+from typing import cast
 
-def ackley_function(state : NDArray | Dict[str, NDArray]) -> NDArray:
+def ackley_function(state : SubjectState) -> NDArray:
     x, y = cast(NDArray, state)
 
     a1 = -20 * np.exp(-0.2 * np.sqrt(0.5 * (x * x + y * y)))
@@ -17,7 +18,7 @@ def ackley_function(state : NDArray | Dict[str, NDArray]) -> NDArray:
     score = -a1 - a2 + 20
     return score
 
-def beale_function(state : NDArray | Dict[str, NDArray]) -> NDArray:
+def beale_function(state : SubjectState) -> NDArray:
     '''
     Beale function. Global minimum f(x = 3, y = 0.5) = 0
     In the domain -4.5 < x, y < +4.5
@@ -43,7 +44,7 @@ class GeneticOptimizerTest(unittest.TestCase):
 
         self.num_iteration = 200
 
-    def non_convex_population_obj_fn(self, state : NDArray | Dict[str, NDArray]) -> NDArray:
+    def non_convex_population_obj_fn(self, state : SubjectState) -> NDArray:
         state = cast(NDArray, state)
 
         # Score each subject in the population individually

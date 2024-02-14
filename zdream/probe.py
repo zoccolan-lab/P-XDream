@@ -223,7 +223,7 @@ class RecordingProbe(SilicoProbe):
 
 # TODO Superclass Recording with (SilicoRecording, AnimalRecording)
 #      with an abstract method __call__(self, Stimulus) -> SubjectState 
-class SilicoRecording:
+class SilicoRecorder:
     '''
         Class representing a recording in silico from a network
         over a set of input stimuli.

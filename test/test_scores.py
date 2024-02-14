@@ -4,10 +4,7 @@ Collection of codes for testing the workings of zdream scores
 
 import unittest
 import numpy as np
-from numpy.typing import NDArray
 from zdream.scores import MinMaxSimilarity
-
-from typing import Dict, cast
 
 class MinMaxSimilarityTest(unittest.TestCase):
     
