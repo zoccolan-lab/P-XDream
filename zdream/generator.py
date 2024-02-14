@@ -77,7 +77,7 @@ class InverseAlexGenerator(Generator):
         self.layers = self._build(variant)
 
         # Load the corresponding checkpoint
-        self.load(nets_path[variant])
+        self.load(nets_path[variant+'.pt'])
 
         # Put the generator in evaluate mode by default
         self.eval()
@@ -217,8 +217,7 @@ class InverseAlexGenerator(Generator):
                     nn.Tanh()
                 )
             }
-        
-        return templates[self.type_net]
+        self.layers = templates[self.type_net] 
             
     def _get_net_paths(self, base_nets_dir : str) -> Dict[str, Path]:
         """
