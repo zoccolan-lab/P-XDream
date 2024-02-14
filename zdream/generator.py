@@ -218,7 +218,7 @@ class InverseAlexGenerator(Generator):
                 )
             }
         
-        return templates[variant]
+        return templates[self.type_net]
             
     def _get_net_paths(self, base_nets_dir : str) -> Dict[str, Path]:
         """
