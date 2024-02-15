@@ -46,7 +46,7 @@ def unpack(model : nn.Module) -> nn.ModuleList:
     children = [unpack(children) for children in model.children()]
     unpacked = [model] if list(model.children()) == [] else []
 
-    for c in children: unpacked.append(c)
+    for c in children: unpacked.extend(c)
     
     return nn.ModuleList(unpacked)
 

@@ -13,6 +13,9 @@ from .probe import RecordingProbe
 from .utils import unpack
 from .utils import SubjectState
 
+from collections import defaultdict
+from typing import Dict, List
+
 class Subject(ABC):
     '''
         Abstract class representing a subject (animal or network)
@@ -21,10 +24,10 @@ class Subject(ABC):
         
     '''
     
-    @abstractmethod
-    def foo(self):
-        # TODO discuss what is a "Subject"
-        pass
+    # @abstractmethod
+    # def foo(self):
+    #     # TODO discuss what is a "Subject"
+    #     pass
     
     
     
@@ -72,22 +75,24 @@ class NetworkSubject(Subject, nn.Module):
         
         # Load the torch model via its name from the torchvision hub
         self._weights = models.get_model_weights(network_name) if pretrained else None
-        self._network = models.get_model(network_name, weight=self._weights).to(device)
+        self._network = models.get_model(network_name, weights=self._weights).to(device)
+
+        self._probes : Dict[SilicoProbe, List[RemovableHandle]] = defaultdict(list)
 
         # Attach NamingProbe to the network to properly assign name
         # to each layer so to get it ready for recording
-        _name_hooks = self.register(NamingProbe())
+        name_probe = NamingProbe()
+        self.register(name_probe)
 
         # Expose the network to a fake input to trigger the hooks
         mock_inp = torch.zeros(inp_shape, device=self.device)
         with torch.no_grad():
             _ = self._network(mock_inp)
 
-        for hook in _name_hooks: hook.remove()
+        self.remove(name_probe)
 
         # If provided, attach the recording probe to the network
-        self._rec_probe = record_probe
-        if self._rec_probe: self.register(self._rec_probe)
+        if record_probe: self.register(record_probe)
 
     @torch.no_grad()
     def forward(
@@ -113,13 +118,17 @@ class NetworkSubject(Subject, nn.Module):
                     Please attach a recording probe via the `register` method of the
                     NetworkSubject class. 
                     '''
-        assert self._rec_probe is not None, warn_msg     
+
+        # TODO: This return only the first RecorderProbe, what if
+        #       more than one were registered?        
+        probe = self.recorder
+        assert probe is not None, warn_msg     
 
         _ = self._network(inp)
     
-        out = self._rec_probe.features
+        out = probe.features
     
-        if auto_clean: self._rec_probe.clean()
+        if auto_clean: probe.clean()
         
         return out
 
@@ -133,7 +142,48 @@ class NetworkSubject(Subject, nn.Module):
         :returns: List of torch handles to release the attached hooks
         :rtype: List of RemovableHandle
         '''
-        return [layer.register_forward_hook(probe) for layer in unpack(self._network)]
+
+        handles = [layer.register_forward_hook(probe) for layer in unpack(self._network)]
+        self._probes[probe] = handles
+        
+        return handles
+    
+    def remove(self, probe : SilicoProbe) -> None:
+        '''
+        Remove the hooks associated to the provided probe
+        '''
+        handles = self._probes.pop(probe)
+        for hook in handles: hook.remove()
+
+    def remove_all(self) -> None:
+        for handles in self._probes.values():
+            for hook in handles: hook.remove()
+
+        self._probes = defaultdict(list) 
+
+    def get_layer(self, layer_name: str) -> nn.Module | None:
+        '''
+        Return the network layer matching the name in input.
+        NOTE The layer is expected to have attribute "name" which
+            is its identifier in layer indexing
+        
+        :param layer_name: Layer name in the architecture.
+        :type layer_name: str
+        :return: Network layer.
+        :rtype: nn.Module
+        '''
+        for layer in unpack(self._network):
+            if layer_name == layer.name: return layer
+
+        return None
+    
+    @property
+    def recorder(self) -> RecordingProbe | None:
+        for probe in self._probes:
+            if isinstance(probe, RecordingProbe):
+                return probe
+            
+        return None
     
     @property
     def device(self) -> torch.device:
@@ -147,20 +197,4 @@ class NetworkSubject(Subject, nn.Module):
         :return: List of layers names.
         :rtype: List[str]
         '''
-        return [layer.name for layer in unpack(self.network)]
-    
-    def get_layer(self, layer_name: str) -> nn.Module | None:
-        '''
-        Return the network layer matching the name in input.
-        NOTE The layer is expected to have attribute "name" which
-            is its identifier in layer indexing
-        
-        :param layer_name: Layer name in the architecture.
-        :type layer_name: str
-        :return: Network layer.
-        :rtype: nn.Module
-        '''
-        for layer in unpack(self.network):
-            if layer_name == layer.name: return layer
-
-        return None
+        return [layer.name for layer in unpack(self._network)]

@@ -1,5 +1,6 @@
 import numpy as np
 import torch.nn as nn
+from uuid import uuid4
 from torch import Tensor
 from abc import ABC, abstractmethod
 
@@ -17,6 +18,15 @@ class SilicoProbe(ABC):
     __call__ function to achieve a given task (either by returning
     something or most likely via side-effects).
     '''
+
+    def __init__(self) -> None:
+        self.unique_id = uuid4()
+
+    def __hash__(self) -> int:
+        return hash(self.unique_id)
+    
+    def __eq__(self, other : 'SilicoProbe') -> bool:
+        return self.unique_id == other.unique_id
 
     @abstractmethod
     def __call__(
@@ -134,6 +144,7 @@ class RecordingProbe(SilicoProbe):
             reduce file size or memory footprint for large recordings
         :type format: np.dtype
         '''
+        super().__init__()
         
         self._target = target
         self._format = format
@@ -199,6 +210,9 @@ class RecordingProbe(SilicoProbe):
         if not hasattr(module, 'name'):
             raise AttributeError(f'Encounter module {module} with unregistered name.')
         
+        # If this module is not within out target, we just skip
+        if module.name not in self._target: return
+
         # Grab the layer output activations and put special care to
         # detach them from torch computational graph, bring them to
         # GPU and convert them to numpy for easier storage and portability
