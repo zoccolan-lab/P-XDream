@@ -46,7 +46,27 @@ class NetworkSubject(Subject, nn.Module):
         device : str | torch.device = 'cuda',
     ) -> None:
         '''
-        
+        Initialize a subject represented by an artificial neural
+        network capable of a visual task.
+
+        :param network_name: Nme of the visual architecture to use
+            for the subject. This should be one of the supported
+            torchvision models (see torchvision.models for a list)
+        :type network_name: string
+        :param record_probe: Optional recording probe to attach to
+            the network to record its activations when exposed to
+            visual stimuli. (Default: None)
+        :type record_probe: RecordingProbe or None
+        :param pretrained: Flag to signal whether network should
+            be initialized as pretrained (usually on ImageNet)
+            (Default: True)
+        :type pretrained: bool
+        :param inp_shape: Shape of input tensor to the network,
+            usual semantic is [B, C, H, W]. (Default: (1, 3, 224, 224))
+        :type inp_shape: Tuple of ints
+        :param device: Torch device where to host the module
+            (Default: cuda)
+        :type device: string or torch.device
         '''
         super().__init__()
         
@@ -75,10 +95,23 @@ class NetworkSubject(Subject, nn.Module):
         inp : Tensor,
         auto_clean : bool = True
     ) -> SubjectState:
+        '''
+        Expose NetworkSubject to a (visual input) and return the
+        measured (hidden) activations. If no recording probe was
+        registered to the subject this function raises an error
+
+        :param inp: Input tensor (of expected shape [B, C, H, W])
+        :type inp: (Torch) Tensor
+        :param auto_clean: Flag to trigger RecordingProbe clean
+            method after recording has taken place (Default: True)
+        :type auto_clean: bool
+        :returns: The measured subject state
+        :rtype: SubjectState
+        '''
         warn_msg = '''
                     Calling subject forward while no recording probe has been registered.
-                    Output is garbage, please attach a recording probe via the `register`
-                    method of the NetworkSubject class. 
+                    Please attach a recording probe via the `register` method of the
+                    NetworkSubject class. 
                     '''
         assert self._rec_probe is not None, warn_msg     
 
@@ -91,6 +124,15 @@ class NetworkSubject(Subject, nn.Module):
         return out
 
     def register(self, probe : SilicoProbe) -> List[RemovableHandle]:
+        '''
+        Attach a given SilicoProbe to the NetworkSubject by registering
+        it as a forward_hook to the underlying model layers.
+
+        :param probe: Probe to attach to the NetworkSubject
+        :type probe: SilicoProbe (one of its concrete implementations)
+        :returns: List of torch handles to release the attached hooks
+        :rtype: List of RemovableHandle
+        '''
         return [layer.register_forward_hook(probe) for layer in unpack(self._network)]
     
     @property

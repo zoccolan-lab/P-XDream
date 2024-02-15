@@ -8,7 +8,6 @@ from collections import defaultdict
 from typing import Dict, Tuple, List, Any
 from numpy.typing import DTypeLike, NDArray
 
-from .networks import NetworkSubject
 from .utils import SubjectState
 
 class SilicoProbe(ABC):
