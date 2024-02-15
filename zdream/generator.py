@@ -119,7 +119,7 @@ class InverseAlexGenerator(Generator):
             case _: pass
             
         templates = {
-            'fc'   : nn.Sequential(
+            'fc'   : lambda : nn.Sequential(
                     nn.Linear(num_inputs, 4096),
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.Linear(4096, 4096),
@@ -145,7 +145,7 @@ class InverseAlexGenerator(Generator):
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)
                 ),
-            'pool' : nn.Sequential(
+            'pool' : lambda : nn.Sequential(
                     nn.Conv2d(256, 512, 3, padding=1),
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.Conv2d(512, 512, 3, padding=1),
@@ -170,7 +170,7 @@ class InverseAlexGenerator(Generator):
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)
                 ),
-            'conv' : nn.Sequential(
+            'conv' : lambda : nn.Sequential(
                     nn.Conv2d(384, 384, 3, padding=0),
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.Conv2d(384, 512, 3, padding=0),
@@ -198,7 +198,7 @@ class InverseAlexGenerator(Generator):
                     nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False),
                     nn.Tanh()
                 ),
-            'norm' : nn.Sequential(
+            'norm' : lambda : nn.Sequential(
                     nn.Conv2d(*inp_par, padding=2),
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.Conv2d(inp_par[1], 128, 3, stride=1, padding=1),
@@ -223,7 +223,7 @@ class InverseAlexGenerator(Generator):
                 )
             }
         
-        return templates[self.type_net] 
+        return templates[self.type_net]() 
             
     def _get_net_paths(self, base_nets_dir : str) -> Dict[str, Path]:
         """
