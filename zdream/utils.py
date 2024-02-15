@@ -14,8 +14,9 @@ D = TypeVar('D')
 
 # TODO: Add numpy type with explicit shape (batch_size, activation_size)
 Stimulus = Tensor | Image # TODO Or Stimuli = Tensor | List[Image] ? 
-SubjectState = Dict[str, NDArray]
-SubjectScore = NDArray[np.float32]
+
+SubjectState = Dict[str, NDArray]   # State of a subject mapping each layer to its batch of activation
+SubjectScore = NDArray[np.float32]  # 1-dimensional array with the length of the batch assigning a score to each tested stimulus
 
 ObjectiveFunction = Callable[[SubjectState], SubjectScore]
 

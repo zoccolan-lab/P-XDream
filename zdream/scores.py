@@ -1,6 +1,7 @@
 from abc import ABC
 from typing import Callable, Dict, Tuple, cast
 from functools import partial
+from itertools import combinations
 
 from einops import reduce
 import numpy as np
@@ -163,7 +164,16 @@ class WeightedPairSimilarity(Score):
         '''
         
         # If grouping function is not given use even-odd split as default
-        pair_fn = default(pair_fn, lambda x : (x[::2], x[1::2]))
+        # pair_fn = default(pair_fn, lambda x : (x[::2], x[1::2]))
+        pair_fn = default(
+            pair_fn, 
+            lambda x: (
+                np.stack([i for i, _ in combinations(x, 2)]), 
+                np.stack([j for _, j in combinations(x, 2)])
+            )
+        )
+        
+        
         
         # If similarity function is not given use euclidean distance as default
         self._metric = partial(distance, metric=metric)
@@ -197,3 +207,5 @@ class WeightedPairSimilarity(Score):
                 axis=0
             )
         )
+        
+
