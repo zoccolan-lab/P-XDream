@@ -1,24 +1,29 @@
-from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Tuple, Literal, cast
+from abc import ABC
+from typing import Callable, Dict, Tuple, cast
 from functools import partial
 
 from einops import reduce
 import numpy as np
 from numpy.typing import NDArray
 
-from .utils import SubjectScore, default, is_multiple_state
-from .utils import ObjectiveFunction, SubjectState
+from scipy.spatial.distance import euclidean
 
+from .utils import default
+from .utils import SubjectScore, SubjectState
+
+ScoringFunction   = Callable[[SubjectState], Dict[str, SubjectScore]]
+AggregateFunction = Callable[[Dict[str, SubjectScore]], SubjectScore]
 
 def distance(
-    ord : float | Literal['fro', 'nuc'] |  None = 2,
-    axis : int | None = -1,
-) -> ObjectiveFunction:
+    UV : Tuple[NDArray, NDArray],
+    metric : str = 'euclidean',
+) -> SubjectScore:
 
-    axis = cast(int, axis)
-    norm = partial(np.linalg.norm, axis=axis, ord=ord)
-    
-    return cast(ObjectiveFunction, norm)
+    match metric:
+        case 'euclidean': dist = euclidean
+        case _: raise ValueError(f'Unrecognized metric {metric}')
+
+    return np.array([dist(u, v) for u, v in zip(*UV)]) 
 
 def mse(arr1: NDArray, arr2: NDArray) -> NDArray[np.float32]:
         '''
@@ -39,17 +44,29 @@ def mse(arr1: NDArray, arr2: NDArray) -> NDArray[np.float32]:
 
 class Score(ABC):
     '''
+    Abstract class for computing subject scores.
     '''
 
     def __init__(
         self,
-        criterion : ObjectiveFunction
+        criterion : ScoringFunction,
+        aggregate : AggregateFunction,
     ) -> None:
         self.criterion = criterion
+        self.aggregate = aggregate
 
-    @abstractmethod
     def __call__(self, state : SubjectState) -> SubjectScore:
-        pass
+        '''
+        Compute the subject scores given a subject state.
+
+        :param state: state of subject
+        :type state: SubjectState
+        :return: array of scores
+        :rtype: SubjectScore
+        '''
+        scores = self.criterion(state)
+        
+        return self.aggregate(scores)
     
 class MSEScore(Score):
     '''
@@ -60,7 +77,8 @@ class MSEScore(Score):
     
     def __init__(
         self,
-        target : SubjectState
+        target : SubjectState,
+        aggregate : AggregateFunction | None = None,
     ) -> None:
         '''
         The constructor uses the target state to create
@@ -73,111 +91,109 @@ class MSEScore(Score):
         
         self._target : SubjectState = target
         
-        mse_image = partial(self._images_mse, state2=self._target)
+        # MSEScore criterion is the mse between the measured subject
+        # state and a given fixed target. This is accomplished via the
+        # partial higher order function that fixes the second input to
+        # the _score method of the class
+        criterion = partial(self._score, target=self._target)
+        aggregate = default(aggregate, lambda d : cast(NDArray, np.mean(list(d.values()), axis=0)))
         
-        super().__init__(criterion=mse_image)
+        super().__init__(
+            criterion=criterion,
+            aggregate=aggregate,    
+        )
         
-    def __call__(self, state : SubjectState) -> SubjectScore:
-        '''
-        Compute the score function with a given subject state in terms of MSE
-
-        :param state: state of subject state as one array or multiple
-                        arrays indexed by layer name
-        :type state: SubjectState
-        :return: array of scores
-        :rtype: SubjectScore
-        '''
+    def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, SubjectScore]:
+        # Check for layer name consistency
+        if not set(state.keys()).issubset(set(target.keys())):
+            raise AssertionError('Keys of test image not in target')
         
-        score = self.criterion(state)
+        scores = {
+            layer: -mse(arr1=state[layer], arr2=target[layer]) for layer in state.keys()
+        }
         
-        print(type(state))
-        
-        # NOTE the minus sign is required because the score is passed
-        #      to an optimizer which is a maximizer; the MSE returns non 
-        #      negative values where 0 corresponds to the perfect match       
-        if is_multiple_state(state=state):
-            score = {k: -v for k, v in cast(Dict[str, NDArray], score).items()}
-        else:
-            score = - cast(NDArray, score)
-        
-        return score
+        return scores
     
     
-    @staticmethod
-    def _images_mse(state1: SubjectState, state2: SubjectState) -> SubjectScore:
-        
-        
-        # Array state
-        if  not is_multiple_state(state1) and\
-            not is_multiple_state(state2):
-            
-            state1 = cast(NDArray, state1)
-            state2 = cast(NDArray, state2)
-
-            score = mse(arr1=state1, arr2=state2)
-            
-            return score
-        
-        # Dict state
-        if  is_multiple_state(state1) and\
-            is_multiple_state(state2):
-            
-            state1 = cast(Dict[str, NDArray], state1)
-            state2 = cast(Dict[str, NDArray], state2)
-            
-            # Check for layer name consistency
-            if not set(state1.keys()).issubset(set(state2.keys())):
-                raise AssertionError("Keys of test image")
-            
-            scores = {
-                layer: mse(arr1=state1[layer], arr2=state2[layer]) for layer in state1.keys()
-            }
-            
-            return scores
-        
-        # Incompatible states type
-        err_msg = 'The states are expected both to be both arrays or both dicts'
-        raise ValueError(err_msg)
-    
-    
-class MinMaxSimilarity(Score):
+class WeightedPairSimilarity(Score):
     '''
+    This scorer computes weighted similarities (negative distances)
+    between groups of subject states. Weights can either be positive
+    or negative. Groups are defined via a grouping function. 
     '''
 
     def __init__(
         self,
-        positive_target : str,
-        negative_target : str,
-        neg_penalty : float = 1.,
-        similarity_fn : ObjectiveFunction | None = None,
-        grouping_fn : Callable[[NDArray], Tuple[NDArray, NDArray]] | None = None,
+        signature : Dict[str, float],
+        metric : str = 'euclidean',
+        pair_fn : Callable[[NDArray], Tuple[NDArray, NDArray]] | None = None,
     ) -> None: 
+        '''
         
-        # If similarity function is not given use euclidean distance as default
-        euclidean = distance(ord=2)
-        criterion = default(similarity_fn, euclidean)
+        :param signature: Dictionary containing for each recorded state
+            (the str key in the dict) the corresponding weight (a float)
+            to be used in the final aggregation step. Positive weights
+            (> 0) denote desired similarity, while negative weights (< 0)
+            denote desired dissimilarity.
+        :type signature: Dictionary of string with float values
+        :param metric: Which kind of distance to use. Should be one of
+            the supported scipy.spatial.distance function
+        :type metric: string
+        :param pair_fn: Grouping function defining (within a given state,
+            i.e. a given recorded layer) which set of activations should be
+            compared against.
+            Default: Odd-even pairing, i.e. given the subject state:
+                state = {
+                    'layer_1' : [+0, +1, -1, +3, +2, +4],
+                    'layer_2' : [-4, -5, +9, -2, -7, +8],
+                }
+            the default pairing build the following pairs:
+                'layer_1' : {
+                    'l1_pair_1: [+0, -1, +2],
+                    'l1_pair_2: [+1, +3, +4],
+                }
+                'layer_2' : {
+                    'l2_pair_1': [-4, +9, -7],
+                    'l2_pair_2': [-5, -2, +8],
+                }
+            so that the similarities will be computed as:
+                'layer_1' : similarity(l1_pair_1, l1_pair_2)
+                'layer_2' : similarity(l2_pair_1, l2_pair_2)
+        :type pair_fn: Callable[[NDArray], Tuple[NDArray, NDArray]] | None
+        '''
         
         # If grouping function is not given use even-odd split as default
-        group_fun = default(grouping_fn, lambda x : (x[::2], x[1::2]))
-
-        super().__init__(criterion=criterion)
-
-        self.positive_target = positive_target
-        self.negative_target = negative_target
-
-        self.grouping_fn = group_fun
-        self.neg_penalty = neg_penalty
-
-    def __call__(self, state: SubjectState) -> NDArray[np.float32]:
-        if not isinstance(state, dict):
-            err_msg = 'MinMaxSimilarity expects subject state to be a dictionary'
-            raise ValueError(err_msg)
+        pair_fn = default(pair_fn, lambda x : (x[::2], x[1::2]))
         
-        pos_a, pos_b = self.grouping_fn(state[self.positive_target])
-        neg_a, neg_b = self.grouping_fn(state[self.negative_target])
+        # If similarity function is not given use euclidean distance as default
+        self._metric = partial(distance, metric=metric)
+        
+        criterion = partial(self._score, pair_fn=pair_fn)
+        aggregate = partial(self._dprod, signature=signature)
+        
+        self.signature = signature
 
-        score = self.criterion(pos_a - pos_b) - self.neg_penalty * self.criterion(neg_a - neg_b)
+        super().__init__(
+            criterion=criterion,
+            aggregate=aggregate,
+        )
 
-        return score
+    def _score(
+        self,
+        state : SubjectState,
+        pair_fn : Callable[[NDArray], Tuple[NDArray, NDArray]]
+    ) -> Dict[str, NDArray]:
+        scores = {
+            k: -self._metric(pair_fn(v)) for k, v in state.items()
+        }
+        
+        return scores
 
-
+    def _dprod(self, state : Dict[str, SubjectScore], signature : Dict[str, float]) -> SubjectScore:
+        return cast(
+            SubjectScore,
+            np.sum(
+                [v * state[k] for k, v in signature.items()],
+                axis=0
+            )
+        )

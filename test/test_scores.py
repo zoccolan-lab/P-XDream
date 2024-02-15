@@ -6,7 +6,7 @@ from typing import Dict, cast
 import unittest
 import numpy as np
 from numpy.typing import NDArray
-from zdream.scores import MSEScore, MinMaxSimilarity
+from zdream.scores import MSEScore, WeightedPairSimilarity
 
 class MSEScoreTest(unittest.TestCase):
     
@@ -19,8 +19,14 @@ class MSEScoreTest(unittest.TestCase):
         
     def test_state_array(self):
         
-        target = np.random.rand(self.batch, 3, 224, 224)
-        state  = np.random.rand(self.batch, 3, 224, 224)
+        target = {
+            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            for i in range(self.nkeys)
+        }
+        state = {
+            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            for i in range(self.nkeys)
+        }
         mse_score = MSEScore(target=target)
         score = cast(NDArray, mse_score(state=state))
         
@@ -33,15 +39,6 @@ class MSEScoreTest(unittest.TestCase):
         # Check if all values are non-positive
         self.assertTrue(np.all(score <= 0))
         
-    def test_target_array(self):
-        
-        target = np.random.rand(self.batch, 3, 224, 224)
-        mse_score = MSEScore(target=target)
-        score = cast(NDArray, mse_score(state=target))
-        
-        # Check target score to be zero
-        self.assertTrue(np.all(score == 0))
-        
     def test_state_dict(self):
         
         target = {
@@ -52,25 +49,11 @@ class MSEScoreTest(unittest.TestCase):
             f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
             for i in range(self.nkeys)
         }
-        mse_score = MSEScore(target=target)
-        score = cast(Dict[str, NDArray], mse_score(state=state))
         
-        # Check if the score and state dictionaries have the keys
-        self.assertEqual(state.keys(), score.keys())
-        
-        # Check if any arrays satisfy requirements of being a one
-        # dimensional float.3d array of the same size as the batch
-        # containing non positive values
-        
-        for arr in score.values():
-            
-            self.assertTrue(arr.ndim == 1)
-            self.assertEqual(len(arr), self.batch)
-            self.assertTrue(arr.dtype == np.float32)
-            self.assertTrue(np.all(arr <= 0))
-            
         # Check if target can have more key then the subject state has
         target["new_key"] = np.random.rand(self.batch, 3, 224, 224)
+        
+        mse_score = MSEScore(target=target)
         self.assertIsNotNone(mse_score(state=state))
         
         # Check if subject state raises errors when it has unexpected
@@ -86,28 +69,29 @@ class MSEScoreTest(unittest.TestCase):
             for i in range(self.nkeys)
         }
         mse_score = MSEScore(target=target)
-        score = cast(Dict[str, NDArray], mse_score(state=target))
+        score = mse_score(state=target)
         
         # Check all targets score to be zero
-        for arr in score.values():
-            self.assertTrue(np.all(arr == 0))
+        self.assertTrue(np.allclose(score, 0))
         
-
-class MinMaxSimilarityTest(unittest.TestCase):
+class WeightedPairSimilarityTest(unittest.TestCase):
     
     random_state = 31415
     
     def setUp(self) -> None:
         self.rng = np.random.default_rng(self.random_state)
     
-    def test_cnn_two_layers_defaults(self):
+    def test_two_layers_euclidean(self):
+        signature = {
+            'conv1' : +1.,
+            'conv8' : -1.,
+        }
+
         # Initialize scorer and create mock up data to test
-        score = MinMaxSimilarity(
-            positive_target='conv8',
-            negative_target='conv1',
-            neg_penalty=1.5,
-            similarity_fn=None,
-            grouping_fn=None,
+        score = WeightedPairSimilarity(
+            signature=signature,
+            metric='euclidean',
+            pair_fn=None
         )
         
         num_imgs = 5
@@ -120,16 +104,17 @@ class MinMaxSimilarityTest(unittest.TestCase):
         }
         
         state_2 = {
-            'conv1' : np.ones((2 * num_imgs, num_unit_conv1)), # All equal => zero neg. penalty
-            'conv8' : np.random.uniform(-1, +1, size=(2 * num_imgs, num_unit_conv8))
+            'conv1' : np.ones((2 * num_imgs, num_unit_conv1)),
+            'conv8' : np.random.uniform(-1, +1, size=(2 * num_imgs, num_unit_conv8)),
         }
         
         # Score these states via scoring function. We should get a score for
         # each pair of images, i.e. expected output has shape (num_images,)
-        ans_1 = score(state_1)
-        ans_2 = score(state_2)
+        score_1 = score(state_1)
+        score_2 = score(state_2)
 
-        self.assertEqual(ans_1.shape, (num_imgs,))
-        self.assertEqual(ans_2.shape, (num_imgs,))
+        self.assertEqual(score_1.shape, (num_imgs,))
+        self.assertEqual(score_2.shape, (num_imgs,))
         
-        self.assertTrue(np.all(ans_2 > 0))
+        # Second scores has ensured similarity in late conv8 so that  
+        self.assertTrue(np.all(score_2 > score_1))

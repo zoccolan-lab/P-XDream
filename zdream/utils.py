@@ -11,16 +11,16 @@ T = TypeVar('T')
 D = TypeVar('D')
 
 # Type Aliases
+
+# TODO: Add numpy type with explicit shape (batch_size, activation_size)
 Stimulus = Tensor | Image # TODO Or Stimuli = Tensor | List[Image] ? 
-SubjectState = NDArray | Dict[str, NDArray]
-SubjectScore = NDArray[np.float32] | Dict[str, NDArray[np.float32]]
+SubjectState = Dict[str, NDArray]
+SubjectScore = NDArray[np.float32]
+
 ObjectiveFunction = Callable[[SubjectState], SubjectScore]
 
 
 # Type function utils
-def is_multiple_state(state: SubjectState) -> bool:
-    return isinstance(state, dict)
-
 def default(var : T | None, val : D) -> T | D:
     return val if var is None else var
 
