@@ -1,15 +1,15 @@
-from pathlib import Path
 import os
 import torch
 import torch.nn as nn
-from torch import Tensor
+from pathlib import Path
 from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
 from diffusers.models.unets.unet_2d import UNet2DModel
 
 from functools import partial
-from typing import List, Dict, cast, Callable
+from collections import OrderedDict
+from typing import List, Dict, cast, Callable, Tuple
 
 from .utils import lazydefault
 from .utils import multichar_split
@@ -44,10 +44,15 @@ class Generator(nn.Module):
         pass
 
     @abstractmethod
+    @torch.no_grad()
     def forward(self):
         '''
         '''
         pass
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
 # TODO: This is @Lorenzo's job!
 class InverseAlexGenerator(Generator):
@@ -72,13 +77,13 @@ class InverseAlexGenerator(Generator):
                     in_prompt='select your generator:',
                 )
             )
-        variant = lazydefault(variant, user_in)
+        self.variant = lazydefault(variant, user_in)
         
         # Build the network layers based on provided generator variant
-        self.layers = self._build(variant)
+        self.layers = self._build(self.variant)
 
         # Load the corresponding checkpoint
-        self.load(nets_path[variant+'.pt'])
+        self.load(nets_path[self.variant])
 
         # Put the generator in evaluate mode by default
         self.eval()
@@ -106,12 +111,23 @@ class InverseAlexGenerator(Generator):
 
         return x  
 
+    @property
+    def input_dim(self) -> Tuple[int, ...]:
+        match self.variant:
+            case 'fc8':            return (1000,)
+            case 'fc7',   'fc6':   return (4096,)
+            case 'conv3', 'conv4': return (384, 13, 13)
+            case 'norm1':          return (96, 30, 30)
+            case 'norm2':          return (256, 14, 14)
+            case 'pool5':          return (256, 6, 6)
+            case _: return ()
+
     def _build(self, variant : str = 'fc8') -> nn.Module:
         # Get type of network (i.e: norm, conv, pool, fc)
         self.type_net = multichar_split(variant)[0][:-1]
 
         match variant:
-            case 'fc8': num_inputs = 100
+            case 'fc8': num_inputs = 1000
             case 'fc7': num_inputs = 4096
             case 'fc6': num_inputs = 4096
             case 'norm1': inp_par = ( 96, 128, 3, 2)
@@ -119,108 +135,111 @@ class InverseAlexGenerator(Generator):
             case _: pass
             
         templates = {
-            'fc'   : lambda : nn.Sequential(
-                    nn.Linear(num_inputs, 4096),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Linear(4096, 4096),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Linear(4096, 4096),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    Rearrange('b (c h w) -> b c h w', c=256, h=4, w=4),
-                    nn.ConvTranspose2d(256, 256, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 512, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False), 
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)
-                ),
-            'pool' : lambda : nn.Sequential(
-                    nn.Conv2d(256, 512, 3, padding=1),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(512, 512, 3, padding=1),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(512, 512, 3, padding=0),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 512, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False), 
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)
-                ),
-            'conv' : lambda : nn.Sequential(
-                    nn.Conv2d(384, 384, 3, padding=0),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(384, 512, 3, padding=0),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(512, 512, 2, padding=0),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(64, 32, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False),
-                    nn.Tanh()
-                ),
-            'norm' : lambda : nn.Sequential(
-                    nn.Conv2d(*inp_par, padding=2),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(inp_par[1], 128, 3, stride=1, padding=1),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(128, 128, 3, stride=1, padding=1),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(128, 128, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(64, 64, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(32, 32, 3, stride=1, padding=1, bias=False),
-                    nn.LeakyReLU(negative_slope=0.3),
-                    nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False),
-                    nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False),
-                    nn.Tanh()
-                )
+            'fc'   : lambda : nn.Sequential(OrderedDict([
+                    ('fc7',       nn.Linear(num_inputs, 4096)),
+                    ('lrelu01',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('fc6',       nn.Linear(4096, 4096)),
+                    ('lrelu02',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('fc5',       nn.Linear(4096, 4096)),
+                    ('lrelu03',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('rearrange', Rearrange('b (c h w) -> b c h w', c=256, h=4, w=4)),
+                    ('tconv5_0',  nn.ConvTranspose2d(256, 256, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu04',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv5_1',  nn.ConvTranspose2d(256, 512, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu05',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_0',  nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu06',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_1',  nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False)), 
+                    ('lrelu07',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_0',  nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu08',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_1',  nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu09',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv2',    nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu10',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv1',    nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu11',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv0',    nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)),
+                ])
+            ),
+            'pool' : lambda : nn.Sequential(OrderedDict([
+                    ('conv6',    nn.Conv2d(256, 512, 3, padding=1)),
+                    ('lrelu01',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv7',    nn.Conv2d(512, 512, 3, padding=1)),
+                    ('lrelu02',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv8',    nn.Conv2d(512, 512, 3, padding=0)),
+                    ('lrelu03',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv5_0', nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu04',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv5_1', nn.ConvTranspose2d(256, 512, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu05',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_0', nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu06',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_1', nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False)), 
+                    ('lrelu07',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_0', nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu08',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_1', nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu09',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv2',   nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu10',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv1',   nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu11',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv0',   nn.ConvTranspose2d(32, 3, 4, stride=2, padding=1, bias=False)),
+                ])
+            ),
+            'conv' : lambda : nn.Sequential(OrderedDict([
+                    ('conv6',    nn.Conv2d(384, 384, 3, padding=0)),
+                    ('lrelu01',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv7',    nn.Conv2d(384, 512, 3, padding=0)),
+                    ('lrelu02',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv8',    nn.Conv2d(512, 512, 2, padding=0)),
+                    ('lrelu03',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv5_0', nn.ConvTranspose2d(512, 256, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu04',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv5_1', nn.ConvTranspose2d(256, 256, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu05',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_0', nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu06',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_1', nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu07',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_0', nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu08',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_1', nn.ConvTranspose2d(128, 128, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu09',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv2_0', nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu10',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv2_1',  nn.Conv2d(64, 32, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu11',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv1_0', nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu12',  nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv1_1',  nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False)),
+                    ('tanh',     nn.Tanh()),
+                ])
+            ),
+            'norm' : lambda : nn.Sequential(OrderedDict([
+                    ('conv6',    nn.Conv2d(*inp_par, padding=2)),
+                    ('lrelu1',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv7',    nn.Conv2d(inp_par[1], 128, 3, stride=1, padding=1)),
+                    ('lrelu2',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv8',    nn.Conv2d(128, 128, 3, stride=1, padding=1)),
+                    ('lrelu3',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv4_0', nn.ConvTranspose2d(128, 128, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu4',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv4_1',  nn.Conv2d(128, 128, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu5',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv3_0', nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu6',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv3_1',  nn.Conv2d(64, 64, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu7',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv2_0', nn.ConvTranspose2d(64, 32, 4, stride=2, padding=1, bias=False)),
+                    ('lrelu8',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('conv2_1',  nn.Conv2d(32, 32, 3, stride=1, padding=1, bias=False)),
+                    ('lrelu9',   nn.LeakyReLU(negative_slope=0.3)),
+                    ('tconv1_0', nn.ConvTranspose2d(32, 16, 4, stride=2, padding=1, bias=False)),
+                    ('conv1_1',  nn.Conv2d(16, 3, 3, stride=1, padding=1, bias=False)),
+                    ('tanh',     nn.Tanh()),
+                ]))
             }
         
         return templates[self.type_net]() 
@@ -236,13 +255,13 @@ class InverseAlexGenerator(Generator):
         Returns:
             Dict[str, str]: A dictionary where the keys are the nn file names and the values are the full paths to those files.
         """
-        self.base_nets_dir = Path(base_nets_dir)
-        nets_dict = {}
-        for root, _, files in os.walk(base_nets_dir): #walk on the base net dir
-            for f in files: #if you find files...
-                if f.lower().endswith(('.pt', '.pth')): #and they are .pt/.pth
-                    file_path = os.path.join(root, f) 
-                    nets_dict[f] = file_path #add the files to nets_dict
+        root = Path(base_nets_dir)
+        nets_dict = {
+            Path(file).stem : Path(base, file)
+            for base, _, files in os.walk(root)
+            for file in files if file.endswith(('.pt', 'pth'))
+        }
+        
         return nets_dict  
 
 # TODO: This is @Paolo's job!
