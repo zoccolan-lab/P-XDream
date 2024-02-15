@@ -10,7 +10,7 @@ from zdream.utils import SubjectState
 
 from typing import cast
 
-def ackley_function(state : SubjectState) -> NDArray:
+def ackley_function(state : NDArray) -> NDArray:
     x, y = cast(NDArray, state)
 
     a1 = -20 * np.exp(-0.2 * np.sqrt(0.5 * (x * x + y * y)))
@@ -18,12 +18,12 @@ def ackley_function(state : SubjectState) -> NDArray:
     score = -a1 - a2 + 20
     return score
 
-def beale_function(state : SubjectState) -> NDArray:
+def beale_function(state : NDArray) -> NDArray:
     '''
     Beale function. Global minimum f(x = 3, y = 0.5) = 0
     In the domain -4.5 < x, y < +4.5
     '''
-    x, y = cast(NDArray, state)
+    x, y = state
 
     a = (1.500 - x + x * y   )**2
     b = (2.250 - x + x * y**2)**2
@@ -44,9 +44,7 @@ class GeneticOptimizerTest(unittest.TestCase):
 
         self.num_iteration = 200
 
-    def non_convex_population_obj_fn(self, state : SubjectState) -> NDArray:
-        state = cast(NDArray, state)
-
+    def non_convex_score(self, state : NDArray) -> NDArray:
         # Score each subject in the population individually
         scores = [beale_function(subj) for subj in state]
 
@@ -68,10 +66,12 @@ class GeneticOptimizerTest(unittest.TestCase):
         state = optim.init()
 
         # Compute the score of the initial state
-        init_score = self.non_convex_population_obj_fn(state)
+        score = self.non_convex_score(state)
+        init_score = score.copy()
 
         for t in range(self.num_iteration):
-            state = optim.step(state)
+            state = optim.step(score)
+            score = self.non_convex_score(state)
 
         # Extract optimizer states, in particular the
         # final score which is tested against the initial
