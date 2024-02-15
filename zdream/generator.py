@@ -114,12 +114,14 @@ class InverseAlexGenerator(Generator):
     @property
     def input_dim(self) -> Tuple[int, ...]:
         match self.variant:
-            case 'fc8':            return (1000,)
-            case 'fc7',   'fc6':   return (4096,)
-            case 'conv3', 'conv4': return (384, 13, 13)
-            case 'norm1':          return (96, 30, 30)
-            case 'norm2':          return (256, 14, 14)
-            case 'pool5':          return (256, 6, 6)
+            case 'fc8':   return (1000,)
+            case 'fc7':   return (4096,)
+            case 'fc6':   return (4096,)
+            case 'conv3': return (384, 13, 13)
+            case 'conv4': return (384, 13, 13)
+            case 'norm1': return (96, 30, 30)
+            case 'norm2': return (256, 14, 14)
+            case 'pool5': return (256, 6, 6)
             case _: return ()
 
     def _build(self, variant : str = 'fc8') -> nn.Module:
