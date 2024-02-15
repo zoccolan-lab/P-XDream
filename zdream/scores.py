@@ -32,7 +32,7 @@ def mse(arr1: NDArray, arr2: NDArray) -> NDArray[np.float32]:
         :rtype: NDArray[np.float32]
         '''
         
-        # TODO Explicit check for dimension
+        # TODO Explicit check for dimension or use NDArray typing
         
         return np.mean(np.square(arr1 - arr2), axis=(1, 2, 3)).astype(np.float32)
 
@@ -124,10 +124,11 @@ class MSEScore(Score):
             
             state1 = cast(Dict[str, NDArray], state1)
             state2 = cast(Dict[str, NDArray], state2)
+            
             # Check for layer name consistency
-            # NOTE it can raise an error if keys are not consistent
-            #      the state1 is expected to be the test one
-            # TODO make explicit check for keys consistency
+            if not set(state1.keys()).issubset(set(state2.keys())):
+                raise AssertionError("Keys of test image")
+            
             scores = {
                 layer: mse(arr1=state1[layer], arr2=state2[layer]) for layer in state1.keys()
             }
