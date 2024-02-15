@@ -2,7 +2,7 @@ import torch
 import warnings
 from abc import ABC, abstractmethod
 from torch import nn, Tensor
-from typing import List, Dict
+from typing import List, Tuple
 from torchvision import models
 from torch.utils.hooks import RemovableHandle
 
@@ -42,6 +42,8 @@ class NetworkSubject(Subject, nn.Module):
         network_name : str,
         record_probe : RecordingProbe | None = None,
         pretrained : bool = True,
+        inp_shape : Tuple[int, ...] = (1, 3, 224, 224),
+        device : str | torch.device = 'cuda',
     ) -> None:
         '''
         
@@ -49,16 +51,15 @@ class NetworkSubject(Subject, nn.Module):
         super().__init__()
         
         # Load the torch model via its name from the torchvision hub
-        self._weights = models.get_model_weights(network_name)
-        self._network = models.get_model(network_name, weight=self._weights)
+        self._weights = models.get_model_weights(network_name) if pretrained else None
+        self._network = models.get_model(network_name, weight=self._weights).to(device)
 
         # Attach NamingProbe to the network to properly assign name
         # to each layer so to get it ready for recording
         _name_hooks = self.register(NamingProbe())
 
         # Expose the network to a fake input to trigger the hooks
-        # TODO: @Paolo find clean why to deduce appropriate input shape for the network
-        mock_inp = torch.zeros(inp_shape, device=self._network.device)
+        mock_inp = torch.zeros(inp_shape, device=self.device)
         with torch.no_grad():
             _ = self._network(mock_inp)
 
@@ -91,6 +92,10 @@ class NetworkSubject(Subject, nn.Module):
 
     def register(self, probe : SilicoProbe) -> List[RemovableHandle]:
         return [layer.register_forward_hook(probe) for layer in unpack(self._network)]
+    
+    @property
+    def device(self) -> torch.device:
+        return next(self._network.parameters()).device
     
     @property
     def layer_names(self) -> List[str]:
