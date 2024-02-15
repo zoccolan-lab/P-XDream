@@ -5,7 +5,7 @@ from scipy.special import softmax
 
 from .utils import default
 from .utils import lazydefault
-from .utils import ObjectiveFunction, SubjectState
+from .utils import ObjectiveFunction, SubjectScore
 
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
@@ -19,7 +19,6 @@ class Optimizer:
     
     def __init__(
         self,
-        objective_fn : ObjectiveFunction,
         states_space : None | Dict[int | str, Tuple[float | None, float | None]] = None,
         states_shape : None | int | Tuple[int, ...] = None,
         random_state : None | int = None,
@@ -50,7 +49,6 @@ class Optimizer:
         if isinstance(states_shape, int):
             states_shape = (states_shape,)
         
-        self.obj_fn = objective_fn
         self._space = lazydefault(states_space, lambda : {i : (None, None) for i in range(len(states_shape))}) # type: ignore
         self._shape = lazydefault(states_shape, lambda : (len(states_space),))                                 # type: ignore
         
@@ -60,9 +58,6 @@ class Optimizer:
         
         # Initialize the internal random number generator for reproducibility
         self._rng = np.random.default_rng(random_state)
-
-    def evaluate(self, state : SubjectState) -> NDArray:
-        return self.obj_fn(state).copy()
         
     def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> NDArray:
         '''
@@ -91,7 +86,7 @@ class Optimizer:
         return self.param
     
     @abstractmethod
-    def step(self, states : SubjectState) -> NDArray:
+    def step(self, states : SubjectScore) -> NDArray:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the
@@ -158,7 +153,6 @@ class GeneticOptimizer(Optimizer):
     
     def __init__(
         self,
-        objective_fn: ObjectiveFunction,
         states_space : None | Dict[int | str, Tuple[float | None, float | None]] = None,
         states_shape : None | int | Tuple[int, ...] = None,
         random_state : None | int = None,
@@ -190,11 +184,10 @@ class GeneticOptimizer(Optimizer):
         '''
         
         super().__init__(
-            objective_fn,
             states_space,
             states_shape,
             random_state, 
-            random_distr
+            random_distr,
         )
         
         self.num_parents = num_parents
@@ -208,7 +201,7 @@ class GeneticOptimizer(Optimizer):
     
     def step(
         self,
-        curr_states : SubjectState,
+        curr_scores : SubjectScore,
         temperature : float | None = None, 
         save_topk : int = 2,   
     ) -> NDArray:
@@ -218,15 +211,10 @@ class GeneticOptimizer(Optimizer):
         novel set of parameter is proposed that would hopefully
         increase future scores.
 
-        :param curr_states: Set of observables gather from the environment
-            (i.e. ANN activations). Can be either a numpy array
-            collecting observables or a dictionary indexed by the
-            observable names (i.e. layer names in an ANN) and values
-            being the corresponding observables.
-            NOTE: Proper handling of these two different types is
-                  deferred to the objective function. Optimizer is
-                  blind to proper computation of scores from states
-        :type curr_states: Either numpy array or Dict[str, NDArray]
+        :param curr_scores: Set of computed scores (gather from a
+            scorer that evaluated for example some ANN activations).
+        :type curr_scores: SubjectScore (i.e. NDArray[np.float32] |
+            Dict[str, NDArray[np.float32]])
         :param temperature: Temperature in the softmax conversion
             from scores to fitness, i.e. the actual probabilities of
             selecting a given subject for reproduction
@@ -245,12 +233,9 @@ class GeneticOptimizer(Optimizer):
         # Prepare new parameter (population) set
         new_param = np.empty(shape=self._shape)
 
-        # Use objective function to convert states to scores
-        old_score = self.evaluate(curr_states)
-
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring subject
-        sort_s = np.argsort(old_score)
+        sort_s = np.argsort(curr_scores)
         topk_p = self.param[sort_s[-save_topk:]]
         # rest_p = self.param[sort_idx[:-save_topk]]
         # rest_s = self.score[sort_idx[:-save_topk]]
@@ -258,7 +243,7 @@ class GeneticOptimizer(Optimizer):
         # Convert scores to fitness (probability) via temperature-
         # gated softmax function (needed only for rest of population)
         # fitness = softmax(rest_s / temperature)
-        fitness = softmax(old_score / temperature)
+        fitness = softmax(curr_scores / temperature)
 
         new_param[:save_topk] = topk_p
 
@@ -280,7 +265,7 @@ class GeneticOptimizer(Optimizer):
         #       off-by-one as observed states correspond
         #       to last parameter set and we are devising
         #       the new one right now (hence why old_score)
-        self._score.append(old_score)
+        self._score.append(curr_scores)
         self._param.append(new_param)
 
         return new_param
