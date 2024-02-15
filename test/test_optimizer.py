@@ -54,7 +54,6 @@ class GeneticOptimizerTest(unittest.TestCase):
     
     def test_improvement_2_parents(self):
         optim = GeneticOptimizer(
-            self.non_convex_population_obj_fn,
             states_shape=self.states_shape,
             random_state=self.random_state,
             random_distr=self.random_distr,
@@ -69,7 +68,7 @@ class GeneticOptimizerTest(unittest.TestCase):
         state = optim.init()
 
         # Compute the score of the initial state
-        init_score = optim.evaluate(state)
+        init_score = self.non_convex_population_obj_fn(state)
 
         for t in range(self.num_iteration):
             state = optim.step(state)
