@@ -30,6 +30,7 @@ class Generator(nn.Module):
         self,
         name : str,
     ) -> None:
+        super().__init__()
         
         self.name = name
 
@@ -98,7 +99,8 @@ class InverseAlexGenerator(Generator):
     def forward(self, x):
         x = self.layers(x)
 
-        # TODO: @Lorenzo Why this scaling here? Kreimann does it in his code. I don't know why this is
+        # TODO: @Lorenzo Why this scaling here?
+        # TODO: @Paolo Kreimann does it in his code. I don't know why this is
         if self.type_net in ['conv','norm']:
             x = x * 255
 
@@ -108,11 +110,14 @@ class InverseAlexGenerator(Generator):
         # Get type of network (i.e: norm, conv, pool, fc)
         self.type_net = multichar_split(variant)[0][:-1]
 
-        if   variant == 'fc8': num_inputs = 1000
-        else: num_inputs = 4096
-        if   variant == 'norm1': l1_ios = ( 96, 128, 3, 2)
-        else : l1_ios = (256, 256, 3, 1)
-
+        match variant:
+            case 'fc8': num_inputs = 100
+            case 'fc7': num_inputs = 4096
+            case 'fc6': num_inputs = 4096
+            case 'norm1': inp_par = ( 96, 128, 3, 2)
+            case 'norm2': inp_par = (256, 256, 3, 1)
+            case _: pass
+            
         templates = {
             'fc'   : nn.Sequential(
                     nn.Linear(num_inputs, 4096),
@@ -194,9 +199,9 @@ class InverseAlexGenerator(Generator):
                     nn.Tanh()
                 ),
             'norm' : nn.Sequential(
-                    nn.Conv2d(*l1_ios, padding=2),
+                    nn.Conv2d(*inp_par, padding=2),
                     nn.LeakyReLU(negative_slope=0.3),
-                    nn.Conv2d(l1_ios[1], 128, 3, stride=1, padding=1),
+                    nn.Conv2d(inp_par[1], 128, 3, stride=1, padding=1),
                     nn.LeakyReLU(negative_slope=0.3),
                     nn.Conv2d(128, 128, 3, stride=1, padding=1),
                     nn.LeakyReLU(negative_slope=0.3),
@@ -217,7 +222,8 @@ class InverseAlexGenerator(Generator):
                     nn.Tanh()
                 )
             }
-        self.layers = templates[self.type_net] 
+        
+        return templates[self.type_net] 
             
     def _get_net_paths(self, base_nets_dir : str) -> Dict[str, Path]:
         """
