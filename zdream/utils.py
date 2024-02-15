@@ -13,15 +13,21 @@ D = TypeVar('D')
 # Type Aliases
 Stimulus = Tensor | Image # TODO Or Stimuli = Tensor | List[Image] ? 
 SubjectState = NDArray | Dict[str, NDArray]
-ObjectiveFunction = Callable[[SubjectState], NDArray[np.float32]]
+SubjectScore = NDArray[np.float32] | Dict[str, NDArray[np.float32]]
+ObjectiveFunction = Callable[[SubjectState], SubjectScore]
+
 
 # Type function utils
+def is_multiple_state(state: SubjectState) -> bool:
+    return isinstance(state, dict)
+
 def default(var : T | None, val : D) -> T | D:
     return val if var is None else var
 
 def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
     return expr() if var is None else var
 
+# Torch function utils
 def unpack(model : nn.Module) -> nn.ModuleList:
     '''
     Utils function to extract the layer hierarchy from a torch
@@ -43,7 +49,7 @@ def unpack(model : nn.Module) -> nn.ModuleList:
     
     return nn.ModuleList(unpacked)
 
-
+# String function utils
 def multioption_prompt(opt_list: List[str], in_prompt: str) -> str | List[str]:
     '''
     Prompt the user to choose from a list of options
@@ -91,3 +97,6 @@ def multichar_split(my_string: str, separator_chars: List[str] = ['-', '.'])-> L
     split = re.split(pattern, my_string) 
     
     return split
+
+def xor(a: bool, b: bool) -> bool:
+    return (a and b) or (not a and not b)
