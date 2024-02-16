@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import euclidean
 
 from .utils import default
+from .utils import Message
 from .utils import SubjectScore, SubjectState
 
 ScoringFunction   = Callable[[SubjectState], Dict[str, SubjectScore]]
@@ -56,7 +57,7 @@ class Score(ABC):
         self.criterion = criterion
         self.aggregate = aggregate
 
-    def __call__(self, state : SubjectState) -> SubjectScore:
+    def __call__(self, data : Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
         '''
         Compute the subject scores given a subject state.
 
@@ -65,9 +66,11 @@ class Score(ABC):
         :return: array of scores
         :rtype: SubjectScore
         '''
+        state, msg = data
+        
         scores = self.criterion(state)
         
-        return self.aggregate(scores)
+        return (self.aggregate(scores), msg)
     
 class MSEScore(Score):
     '''
@@ -123,6 +126,7 @@ class WeightedPairSimilarity(Score):
     or negative. Groups are defined via a grouping function. 
     '''
 
+    # TODO: Change pairing function mechanism
     def __init__(
         self,
         signature : Dict[str, float],
@@ -172,9 +176,9 @@ class WeightedPairSimilarity(Score):
                 np.stack([j for _, j in combinations(x, 2)])
             )
         )
+                
         
-        
-        
+
         # If similarity function is not given use euclidean distance as default
         self._metric = partial(distance, metric=metric)
         
