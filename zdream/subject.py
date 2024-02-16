@@ -11,6 +11,7 @@ from .probe import NamingProbe
 from .probe import RecordingProbe
 
 from .utils import unpack
+from .utils import default
 from .utils import Stimuli
 from .utils import Message
 from .utils import SubjectState
@@ -100,6 +101,7 @@ class NetworkSubject(Subject, nn.Module):
     def forward(
         self,
         data : Tuple[Stimuli, Message],
+        probe : RecordingProbe | None = None,
         auto_clean : bool = True
     ) -> Tuple[SubjectState, Message]:
         '''
@@ -107,8 +109,10 @@ class NetworkSubject(Subject, nn.Module):
         measured (hidden) activations. If no recording probe was
         registered to the subject this function raises an error
 
-        :param inp: Input tensor (of expected shape [B, C, H, W])
-        :type inp: (Torch) Tensor
+        :param data: Input tensor (of expected shape [B, C, H, W])
+        :type data: Tuple[Stimuli, Message]
+        :param probe:
+        :type probe: RecordingProbe
         :param auto_clean: Flag to trigger RecordingProbe clean
             method after recording has taken place (Default: True)
         :type auto_clean: bool
@@ -123,8 +127,8 @@ class NetworkSubject(Subject, nn.Module):
 
         # TODO: This return only the first RecorderProbe, what if
         #       more than one were registered?        
-        probe = self.recorder
-        assert probe, warn_msg     
+        probe = default(probe, self.recorder)
+        assert probe and probe in self._probes, warn_msg     
 
         stimuli, msg = data
         
