@@ -4,6 +4,7 @@ from typing import TypeVar, Callable, Dict, List, Any
 import re
 from numpy.typing import NDArray
 from torch import Tensor
+import torch
 
 from dataclasses import dataclass
 
@@ -37,6 +38,8 @@ def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
     return expr() if var is None else var
 
 # Torch function utils
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def unpack(model : nn.Module) -> nn.ModuleList:
     '''
     Utils function to extract the layer hierarchy from a torch

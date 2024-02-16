@@ -16,6 +16,8 @@ from zdream.scores import MSEScore
 from zdream.optimizer import GeneticOptimizer
 from zdream.generator import InverseAlexGenerator
 
+from zdream.utils import device
+
 def trivial_subj(
     data : Tuple[Stimuli, Message],
     name : str = 'image',
@@ -41,7 +43,7 @@ def main(args):
     generator = InverseAlexGenerator(
         root=gen_root,
         variant=args.gen_variant,
-    ).to('cuda')
+    ).to(device)
 
     optim = GeneticOptimizer(
         states_shape=generator.input_dim,

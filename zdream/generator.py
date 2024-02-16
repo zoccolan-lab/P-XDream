@@ -9,6 +9,7 @@ from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
 from torch.utils.data import DataLoader
+from zdream.utils import device
 # from diffusers.models.unets.unet_2d import UNet2DModel
 
 from functools import partial
@@ -97,7 +98,7 @@ class InverseAlexGenerator(Generator):
         
         # Build the network layers based on provided generator variant
         self.layers = self._build(self.variant)
-
+        
         # Load the corresponding checkpoint
         self.load(nets_path[self.variant])
 
@@ -117,7 +118,7 @@ class InverseAlexGenerator(Generator):
         '''
         
         self.layers.load_state_dict(
-            torch.load(path, map_location='cuda')
+            torch.load(path, map_location=device)
         )
         
     @torch.no_grad()

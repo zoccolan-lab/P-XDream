@@ -5,6 +5,7 @@ from torch import nn, Tensor
 from typing import List, Tuple
 from torchvision import models
 from torch.utils.hooks import RemovableHandle
+from .utils import device
 
 from .probe import SilicoProbe
 from .probe import NamingProbe
@@ -49,7 +50,7 @@ class NetworkSubject(Subject, nn.Module):
         record_probe : RecordingProbe | None = None,
         pretrained : bool = True,
         inp_shape : Tuple[int, ...] = (1, 3, 224, 224),
-        device : str | torch.device = 'cuda',
+        device : str | torch.device = device,
     ) -> None:
         '''
         Initialize a subject represented by an artificial neural

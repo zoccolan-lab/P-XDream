@@ -1,6 +1,13 @@
 # IDE local files
 *.vscode
+
+# Format
 *.ipynb
 *egg*
+
+# Pycache
 *.pyc
 *__*
+
+# Local directories
+data/
