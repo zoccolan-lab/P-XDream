@@ -11,3 +11,7 @@
 
 # Local directories
 data/
+
+# Local settings - include example files
+*local_settings*
+!*.example

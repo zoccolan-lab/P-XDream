@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import torch.nn as nn
 from typing import TypeVar, Callable, Dict, List, Any
@@ -112,3 +113,11 @@ def multichar_split(my_string: str, separator_chars: List[str] = ['-', '.'])-> L
 
 def xor(a: bool, b: bool) -> bool:
     return (a and b) or (not a and not b)
+
+def read_json(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        return data
+    except FileNotFoundError:
+        raise FileNotFoundError(f'File not found at path: {path}')

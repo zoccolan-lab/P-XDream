@@ -2,15 +2,19 @@
 Collection of codes for testing the workings of zdream generators
 '''
 
+from os import path
 import unittest
 import torch
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Dict, Any
 from zdream.generator import InverseAlexGenerator
 from zdream.utils import Stimuli, Message
 from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
-from zdream.utils import device
+from zdream.utils import device, read_json
+
+test_settings_fp = path.join(__file__, '..', './test_local_settings.json')
+test_settings: Dict[str, Any] = read_json(path=test_settings_fp)
 
 class _RandomImageDataset(Dataset):
     
@@ -29,10 +33,9 @@ class InverseAlexGeneratorTest(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         
-        # NOTE: One must change this root dir accordingly
-        #       for proper testing to work
-        self.root = '/media/pmurator/archive/InverseAlexGenerator'
-        self.root = 'C://Users//user.LAPTOP-G27BJ7JO//Documents//GitHub//ZXDREAM//data//InverseAlexGenerator'
+        # NOTE: One must edit the test_local_settings.json in test dir
+        #       accordingly to proper local machine path
+        self.root = test_settings['inverse_alex_net']
         
         self.gen_batch = 2
         self.target_shape = (3, 256, 256)
