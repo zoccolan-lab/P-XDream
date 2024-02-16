@@ -41,6 +41,8 @@ class Generator(nn.Module):
     def __init__(
         self,
         name : str,
+        mixing_mask : List[bool] | None = None,
+        data_loader : DataLoader | None = None,
     ) -> None:
         super().__init__()
         
@@ -48,6 +50,22 @@ class Generator(nn.Module):
 
         # List for tracking image history
         self._im_hist : List[Image.Image] = []
+        
+        # In the case the mixing mask contains only True values
+        # no natural image is expected so we reset the default behavior
+        if mixing_mask and all(mixing_mask):
+            mixing_mask = None
+        
+        # If data loader is provided but the mask is not
+        # it won't be used
+        if data_loader and mixing_mask is None:
+            wrn_msg = 'Data loader was provided but mixing mask was not.'
+            warnings.warn(wrn_msg)
+        
+        self.mixing_mask = mixing_mask
+        self.data_loader = data_loader if mixing_mask else None
+        self.iter_loader = iter(self.data_loader) if self.data_loader else None
+
 
     @abstractmethod
     def load(self, path : str | Path) -> None:
@@ -76,20 +94,12 @@ class InverseAlexGenerator(Generator):
         mixing_mask : List[bool] | None = None,
         data_loader : DataLoader | None = None,
     ) -> None:
-        super().__init__(name='inv_alexnet')
+        super().__init__(
+            name='inv_alexnet',
+            mixing_mask=mixing_mask,
+            data_loader=data_loader
+        )
         
-        # In the case the mixing mask contains only True values
-        # no natural image is expected so we reset the default behavior
-        if mixing_mask and all(mixing_mask):
-            mixing_mask = None
-        
-        # If data loader is provided but the mask is not
-        # it won't be used
-        if data_loader and mixing_mask is None:
-            wrn_msg = 'Data loader was provided but mixing mask was not.'
-            warnings.warn(wrn_msg)
-            
-
         # Get the networks paths based on provided root folder
         nets_path = self._get_net_paths(base_nets_dir=root)
 
@@ -113,10 +123,6 @@ class InverseAlexGenerator(Generator):
 
         # Put the generator in evaluate mode by default
         self.eval()
-        
-        self.mixing_mask = mixing_mask
-        self.data_loader = data_loader if mixing_mask else None
-        self.iter_loader = iter(self.data_loader) if self.data_loader else None
 
     def load(self, path : str | Path) -> None:
         '''
