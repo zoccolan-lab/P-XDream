@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Callable, Dict, Tuple, cast
+from typing import Callable, Dict, List, Tuple, cast
 from functools import partial
 from itertools import combinations
 
@@ -115,8 +115,33 @@ class MSEScore(Score):
         scores = {
             layer: -mse(arr1=state[layer], arr2=target[layer]) for layer in state.keys()
         }
-        
+                
         return scores
+    
+class NeuronScore(Score):
+    
+    def __init__(
+            self, 
+            neurons: Dict[str, List[Tuple[int, int]]], 
+            aggregate: AggregateFunction
+        ) -> None:
+        
+        criterion = partial(self._aux, neurons=neurons)
+                
+        super().__init__(criterion, aggregate)
+        
+    def _aux(self, state: SubjectState, neurons: Dict[str, List[Tuple[int, int]]]) -> Dict[str, SubjectScore]:
+        
+        # Check for layer name consistency
+        if not set(state.keys()).issubset(set(neurons.keys())):
+            err_msg = f'Keys of test image not in target {set(state.keys()).difference(neurons.keys())}'
+            raise AssertionError(err_msg)
+        
+        scores = {
+            layer: np.sum([activations[i][j] for i, j in neurons[layer]]) for layer, activations in state.keys()
+        }
+        
+        return scores    
     
     
 class WeightedPairSimilarity(Score):
