@@ -4,7 +4,6 @@ from typing import TypeVar, Callable, Dict, List, Any
 import re
 from numpy.typing import NDArray
 from torch import Tensor
-from PIL.Image import Image
 
 from dataclasses import dataclass
 
@@ -27,7 +26,7 @@ class Message:
     mask    : NDArray[np.bool_]
     label   : List[str] | None = None
 
-def exists(var) -> bool:
+def exists(var: Any | None) -> bool:
     return var is not None
 
 # Type function utils
