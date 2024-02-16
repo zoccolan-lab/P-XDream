@@ -8,13 +8,14 @@ from pathlib import Path
 from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
-
 from torch.utils.data import DataLoader
-from diffusers.models.unets.unet_2d import UNet2DModel
+# from diffusers.models.unets.unet_2d import UNet2DModel
 
 from functools import partial
 from collections import OrderedDict
+
 from typing import List, Dict, cast, Callable, Tuple
+from numpy.typing import NDArray
 
 from .utils import exists
 from .utils import default
@@ -120,7 +121,10 @@ class InverseAlexGenerator(Generator):
         )
         
     @torch.no_grad()
-    def forward(self, inp : Tensor) -> Tuple[Stimuli, Message]:
+    def forward(self, inp : Tensor | NDArray) -> Tuple[Stimuli, Message]:
+        if isinstance(inp, np.ndarray):
+            inp = torch.from_numpy(inp).to(self.device).to(self.dtype)
+            
         b, *_ = inp.shape
         
         mask = default(self.mixing_mask, [True] * b)
@@ -167,6 +171,10 @@ class InverseAlexGenerator(Generator):
     @property
     def device(self) -> torch.device:
         return next(self.layers.parameters()).device
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return next(self.layers.parameters()).dtype
 
     @property
     def input_dim(self) -> Tuple[int, ...]:

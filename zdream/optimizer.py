@@ -130,6 +130,13 @@ class Optimizer:
         }
         
     @property
+    def solution(self) -> NDArray:
+        flat_idx : np.intp    = np.argmax(self._score)
+        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._score))
+        
+        return self._param[best_gen][best_idx]
+        
+    @property
     def score(self) -> NDArray:
         return self._score[-1]
     
@@ -249,7 +256,10 @@ class GeneticOptimizer(Optimizer):
         # Convert scores to fitness (probability) via temperature-
         # gated softmax function (needed only for rest of population)
         # fitness = softmax(rest_s / temperature)
+        print(curr_scores)
         fitness = softmax(curr_scores / temperature)
+        
+        print(fitness)
 
         new_param[:save_topk] = topk_p
 
