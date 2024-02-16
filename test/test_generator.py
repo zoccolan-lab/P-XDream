@@ -127,10 +127,10 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
     def test_gen_plus_nat_batch(self):
         
-        num_images = 10  # Number of images in the dataset
-        num_nat    = 15  # Number of natural images
+        num_images = 5
+        num_nat    = 18
         dataloader_bach = 1
-        
+                
         dataloader = self._get_data_loader(
             num_images=num_images,
             batch_size=dataloader_bach,

@@ -153,13 +153,13 @@ class InverseAlexGenerator(Generator):
             nats_list : List[Tensor] = []
             assert next(iter(self.data_loader)).shape[1:] == (c, h, w),\
                 'Natural images have different dimensions than generated'
-            
-            while len(nats_list) < num_nats:
+            while len(nats_list) * cast(int, self.data_loader.batch_size) < num_nats :
                 try:
-                    nats_list.append(next(self.iter_loader))
+                    image_batch = next(self.iter_loader)
+                    nats_list.append(image_batch)
                 except StopIteration:
                     self.iter_loader = iter(self.data_loader)
-            nats : Tensor = torch.cat(nats_list[:num_nats])
+            nats : Tensor = torch.cat(nats_list)[:num_nats]
         else:
             nats : Tensor = torch.empty(0, c, h, w, device=self.device)
             
