@@ -156,7 +156,7 @@ class InverseAlexGenerator(Generator):
             
             while len(nats_list) < num_nats:
                 try:
-                    nats_list.extend(next(self.iter_loader))
+                    nats_list.append(next(self.iter_loader))
                 except StopIteration:
                     self.iter_loader = iter(self.data_loader)
             nats : Tensor = torch.cat(nats_list[:num_nats])

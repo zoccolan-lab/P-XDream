@@ -34,15 +34,29 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.root = '/media/pmurator/archive/InverseAlexGenerator'
         self.root = 'C://Users//user.LAPTOP-G27BJ7JO//Documents//GitHub//ZXDREAM//data//InverseAlexGenerator'
         
-        self.batch = 2
+        self.gen_batch = 2
         self.target_shape = (3, 256, 256)
         
     def run_mock_inp(self, generator : InverseAlexGenerator) -> Tuple[Stimuli, Message]:
         # Test generator on mock input
         inp_dim = generator.input_dim
-        mock_inp = torch.randn(self.batch, *inp_dim, device=generator.device)
+        mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
         
         return generator(mock_inp)
+        
+    def _get_data_loader(self, num_images: int, batch_size: int, target_shape: Tuple[int, ...]):
+        
+        dataset = _RandomImageDataset(
+            num_images=num_images,
+            image_size=target_shape
+        )
+        
+        dataloader = DataLoader(
+            dataset=dataset,
+            batch_size=batch_size
+        )
+        
+        return dataloader
     
     def test_loading_fc8(self):
         generator = InverseAlexGenerator(
@@ -52,7 +66,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
     
     def test_loading_fc7(self):
@@ -63,7 +77,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
 
     def test_loading_conv(self):
@@ -74,7 +88,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
 
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
 
     def test_loading_norm1(self):
@@ -85,7 +99,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
 
     
@@ -97,7 +111,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
     
     def test_loading_pool(self):
@@ -108,37 +122,33 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
         
-    def test_gen_plus_nat(self):
+    def test_gen_plus_nat_batch(self):
         
         num_images = 10  # Number of images in the dataset
-        num_nat    =  1  # Number of natural images
-        dataloader_bach_size = 1
+        num_nat    = 15  # Number of natural images
+        dataloader_bach = 1
         
-        dataset = _RandomImageDataset(
+        dataloader = self._get_data_loader(
             num_images=num_images,
-            image_size=self.target_shape
-        )
-        
-        dataloader = DataLoader(
-            dataset=dataset,
-            batch_size=dataloader_bach_size
+            batch_size=dataloader_bach,
+            target_shape=self.target_shape
         )
         
         generator = InverseAlexGenerator(
             root=self.root,
             variant='fc8',
-            mixing_mask=[True] * self.batch + [False] * num_nat,
+            mixing_mask=[True] * self.gen_batch + [False] * num_nat,
             data_loader=dataloader
         ).to(device)
 
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.batch+num_nat, *self.target_shape))
+        self.assertEqual(out.shape, (self.gen_batch+num_nat, *self.target_shape))
         
-        self.assertTrue(np.sum( msg.mask) == self.batch)
+        self.assertTrue(np.sum( msg.mask) == self.gen_batch)
         self.assertTrue(np.sum(~msg.mask) == num_nat)
         
     
