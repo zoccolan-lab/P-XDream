@@ -6,7 +6,8 @@ import unittest
 import numpy as np
 from numpy.typing import NDArray
 from zdream.optimizer import GeneticOptimizer
-from zdream.utils import SubjectState
+
+from zdream.utils import Message
 
 from typing import cast
 
@@ -68,9 +69,11 @@ class GeneticOptimizerTest(unittest.TestCase):
         # Compute the score of the initial state
         score = self.non_convex_score(state)
         init_score = score.copy()
+        
+        msg = Message(mask=np.ones(self.population_size, dtype=bool))
 
         for t in range(self.num_iteration):
-            state = optim.step(score)
+            state = optim.step((score, msg))
             score = self.non_convex_score(state)
 
         # Extract optimizer states, in particular the

@@ -2,11 +2,13 @@
 Collection of codes for testing the workings of zdream scores
 '''
 
-from typing import Dict, cast
 import unittest
 import numpy as np
-from numpy.typing import NDArray
-from zdream.scores import MSEScore, WeightedPairSimilarity
+
+from itertools import combinations
+
+from zdream.utils import Message
+from zdream.scores import MSEScore, WeightedPairSimilarityScore
 
 class MSEScoreTest(unittest.TestCase):
     
@@ -15,7 +17,9 @@ class MSEScoreTest(unittest.TestCase):
     nkeys = 3
     
     def setUp(self) -> None:
-        np.random.seed(self.rseed) 
+        np.random.seed(self.rseed)
+        
+        self.msg = Message(mask=np.ones(self.batch, dtype=bool))
         
     def test_state_array(self):
         
@@ -27,8 +31,10 @@ class MSEScoreTest(unittest.TestCase):
             f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
             for i in range(self.nkeys)
         }
+        
+        
         mse_score = MSEScore(target=target)
-        score = cast(NDArray, mse_score(state=state))
+        score, _ = mse_score(data=(state, self.msg))
         
         # Check if it's a one-dimensional array of float32
         # with the same length as batch size
@@ -54,13 +60,16 @@ class MSEScoreTest(unittest.TestCase):
         target["new_key"] = np.random.rand(self.batch, 3, 224, 224)
         
         mse_score = MSEScore(target=target)
-        self.assertIsNotNone(mse_score(state=state))
+        
+        score, _ = mse_score(data=(state, self.msg))
+        self.assertIsNotNone(score)
         
         # Check if subject state raises errors when it has unexpected
         # keys for the target
         state["new_key2"] = np.random.rand(self.batch, 3, 224, 224)
+        
         with self.assertRaises(AssertionError):
-            mse_score(state=state)
+            mse_score(data=(state, self.msg))
         
     def test_target_dict(self):
         
@@ -69,18 +78,20 @@ class MSEScoreTest(unittest.TestCase):
             for i in range(self.nkeys)
         }
         mse_score = MSEScore(target=target)
-        score = mse_score(state=target)
+        score, _ = mse_score(data=(target, self.msg))
         
         # Check all targets score to be zero
         self.assertTrue(np.allclose(score, 0))
         
-class WeightedPairSimilarityTest(unittest.TestCase):
+class WeightedPairSimilarityScoreTest(unittest.TestCase):
     
+    num_imgs = 5
     random_state = 31415
     
     def setUp(self) -> None:
         self.rng = np.random.default_rng(self.random_state)
-    
+        self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
+        
     def test_two_layers_euclidean(self):
         signature = {
             'conv1' : +1.,
@@ -88,33 +99,33 @@ class WeightedPairSimilarityTest(unittest.TestCase):
         }
 
         # Initialize scorer and create mock up data to test
-        score = WeightedPairSimilarity(
+        score = WeightedPairSimilarityScore(
             signature=signature,
             metric='euclidean',
-            pair_fn=None
+            filter_distance_fn=None,
         )
         
-        num_imgs = 5
         num_unit_conv1 = 500
         num_unit_conv8 = 250
         
         state_1 = {
-            'conv1' : np.random.uniform(-1, +1, size=(2 * num_imgs, num_unit_conv1)),
-            'conv8' : np.random.uniform(-1, +1, size=(2 * num_imgs, num_unit_conv8)),
+            'conv1' : np.random.uniform(-1, +1, size=(self.num_imgs, num_unit_conv1)),
+            'conv8' : np.random.uniform(-1, +1, size=(self.num_imgs, num_unit_conv8)),
         }
         
         state_2 = {
-            'conv1' : np.ones((2 * num_imgs, num_unit_conv1)),
-            'conv8' : np.random.uniform(-1, +1, size=(2 * num_imgs, num_unit_conv8)),
+            'conv1' : np.ones((self.num_imgs, num_unit_conv1)),
+            'conv8' : np.random.uniform(-1, +1, size=(self.num_imgs, num_unit_conv8)),
         }
         
         # Score these states via scoring function. We should get a score for
         # each pair of images, i.e. expected output has shape (num_images,)
-        score_1 = score(state_1)
-        score_2 = score(state_2)
+        score_1, _ = score(data=(state_1, self.msg))
+        score_2, _ = score(data=(state_2, self.msg))
 
-        self.assertEqual(score_1.shape, (num_imgs,))
-        self.assertEqual(score_2.shape, (num_imgs,))
+        expected_num_score = len(list(combinations(range(self.num_imgs), 2)))
+        self.assertEqual(score_1.shape, (expected_num_score,))
+        self.assertEqual(score_2.shape, (expected_num_score,))
         
         # Second scores has ensured similarity in late conv8 so that  
         self.assertTrue(np.all(score_2 > score_1))

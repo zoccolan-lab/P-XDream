@@ -1,48 +1,35 @@
 from abc import ABC
-from typing import Callable, Dict, List, Tuple, cast
+from typing import Callable, Dict, List, Tuple, cast, Literal
 from functools import partial
 from itertools import combinations
 
-from einops import reduce
 import numpy as np
 from numpy.typing import NDArray
 
-from scipy.spatial.distance import euclidean
+from scipy.spatial.distance import pdist
 
 from .utils import default
 from .utils import Message
 from .utils import SubjectScore, SubjectState
 
+from einops import reduce
+from einops import rearrange
+from einops.einops import Reduction
+
 ScoringFunction   = Callable[[SubjectState], Dict[str, SubjectScore]]
 AggregateFunction = Callable[[Dict[str, SubjectScore]], SubjectScore]
 
-def distance(
-    UV : Tuple[NDArray, NDArray],
-    metric : str = 'euclidean',
-) -> SubjectScore:
-
-    match metric:
-        case 'euclidean': dist = euclidean
-        case _: raise ValueError(f'Unrecognized metric {metric}')
-
-    return np.array([dist(u, v) for u, v in zip(*UV)]) 
-
-def mse(arr1: NDArray, arr2: NDArray) -> NDArray[np.float32]:
-        '''
-        Compute the Mean Squared Error for the two batches of image in input
-
-        :param arr1: first array with shape [B, C, W, H]
-        :type arr1: NDArray
-        :param arr2: second array with shape [B, C, W, H]
-        :type arr2: NDArray
-        :return: _description_
-        :rtype: NDArray[np.float32]
-        '''
-        
-        # TODO Explicit check for dimension or use NDArray typing
-        
-        return np.mean(np.square(arr1 - arr2), axis=(1, 2, 3)).astype(np.float32)
-
+MetricKind = Literal[
+    'braycurtis', 'canberra', 'chebychev', 'chebyshev',
+    'cheby', 'cheb', 'ch', 'cityblock', 'cblock', 'cb',
+    'c', 'correlation', 'co', 'cosine', 'cos', 'dice',
+    'euclidean', 'euclid', 'eu', 'e', 'hamming', 'hamm',
+    'ha', 'h', 'minkowski', 'mi', 'm', 'pnorm', 'jaccard',
+    'jacc', 'ja', 'j', 'jensenshannon', 'js', 'kulczynski1',
+    'mahalanobis', 'mahal', 'mah', 'rogerstanimoto', 'russellrao',
+    'seuclidean', 'se', 's', 'sokalmichener', 'sokalsneath',
+    'sqeuclidean', 'sqe', 'sqeuclid', 'yule'
+]
 
 class Score(ABC):
     '''
@@ -112,25 +99,32 @@ class MSEScore(Score):
         if not set(state.keys()).issubset(set(target.keys())):
             raise AssertionError('Keys of test image not in target')
         
+        def mse(a : NDArray, b : NDArray) -> NDArray:
+            a = rearrange(a, 'b ... -> b (...)')
+            b = rearrange(b, 'b ... -> b (...)')
+            return np.mean(np.square(a - b), axis=1).astype(np.float32)
+        
         scores = {
-            layer: -mse(arr1=state[layer], arr2=target[layer]) for layer in state.keys()
+            layer: -mse(state[layer], target[layer]) for layer in state.keys()
         }
                 
         return scores
     
-class NeuronScore(Score):
+class MaxActivityScore(Score):
     
     def __init__(
             self, 
-            neurons: Dict[str, List[Tuple[int, int]]], 
-            aggregate: AggregateFunction
+            neurons: Dict[str, List[int]], 
+            aggregate: AggregateFunction,
+            reduction: Reduction = np.mean,
         ) -> None:
-        
-        criterion = partial(self._aux, neurons=neurons)
+        criterion = partial(self._combine, neurons=neurons)
+                
+        self.reduction = partial(reduce, pattern='b u -> b', reduction=reduction)
                 
         super().__init__(criterion, aggregate)
         
-    def _aux(self, state: SubjectState, neurons: Dict[str, List[Tuple[int, int]]]) -> Dict[str, SubjectScore]:
+    def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, SubjectScore]:
         
         # Check for layer name consistency
         if not set(state.keys()).issubset(set(neurons.keys())):
@@ -138,13 +132,14 @@ class NeuronScore(Score):
             raise AssertionError(err_msg)
         
         scores = {
-            layer: np.sum([activations[i][j] for i, j in neurons[layer]]) for layer, activations in state.keys()
+            layer: self.reduction(activations[:, neurons[layer]])
+            for layer, activations in state.items()
         }
         
         return scores    
     
     
-class WeightedPairSimilarity(Score):
+class WeightedPairSimilarityScore(Score):
     '''
     This scorer computes weighted similarities (negative distances)
     between groups of subject states. Weights can either be positive
@@ -155,8 +150,8 @@ class WeightedPairSimilarity(Score):
     def __init__(
         self,
         signature : Dict[str, float],
-        metric : str = 'euclidean',
-        pair_fn : Callable[[NDArray], Tuple[NDArray, NDArray]] | None = None,
+        metric : MetricKind = 'euclidean',
+        filter_distance_fn : Callable[[NDArray], NDArray] | None = None,
     ) -> None: 
         '''
         
@@ -193,21 +188,12 @@ class WeightedPairSimilarity(Score):
         '''
         
         # If grouping function is not given use even-odd split as default
-        # pair_fn = default(pair_fn, lambda x : (x[::2], x[1::2]))
-        pair_fn = default(
-            pair_fn, 
-            lambda x: (
-                np.stack([i for i, _ in combinations(x, 2)]), 
-                np.stack([j for _, j in combinations(x, 2)])
-            )
-        )
-                
+        filter_distance_fn = default(filter_distance_fn, lambda x : x)
         
-
         # If similarity function is not given use euclidean distance as default
-        self._metric = partial(distance, metric=metric)
+        self._metric = partial(pdist, metric=metric)
         
-        criterion = partial(self._score, pair_fn=pair_fn)
+        criterion = partial(self._score, filter_distance_fn=filter_distance_fn)
         aggregate = partial(self._dprod, signature=signature)
         
         self.signature = signature
@@ -220,10 +206,14 @@ class WeightedPairSimilarity(Score):
     def _score(
         self,
         state : SubjectState,
-        pair_fn : Callable[[NDArray], Tuple[NDArray, NDArray]]
+        filter_distance_fn : Callable[[NDArray], NDArray]
     ) -> Dict[str, NDArray]:
         scores = {
-            k: -self._metric(pair_fn(v)) for k, v in state.items()
+            k: -self._metric(v) for k, v in state.items()
+        }
+        
+        scores = {
+            k: filter_distance_fn(v) for k, v in scores.items()
         }
         
         return scores

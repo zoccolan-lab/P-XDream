@@ -4,9 +4,9 @@ Collection of codes for testing the workings of zdream generators
 
 import unittest
 import torch
-from torch import Tensor
+from typing import Tuple
 from zdream.generator import InverseAlexGenerator
-from zdream.utils import SubjectState
+from zdream.utils import Stimuli, Message
 
 class InverseAlexGeneratorTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -19,7 +19,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.batch = 2
         self.target_shape = (3, 256, 256)
         
-    def run_mock_inp(self, generator : InverseAlexGenerator) -> Tensor:
+    def run_mock_inp(self, generator : InverseAlexGenerator) -> Tuple[Stimuli, Message]:
         # Test generator on mock input
         inp_dim = generator.input_dim
         mock_inp = torch.randn(self.batch, *inp_dim, device=generator.device)
@@ -32,9 +32,10 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='fc8'
         ).to('cuda')
         
-        out = self.run_mock_inp(generator)
+        out, msg = self.run_mock_inp(generator)
     
         self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertTrue(all(msg.mask))
     
     def test_loading_fc7(self):
         generator = InverseAlexGenerator(
@@ -42,9 +43,10 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='fc7'
         ).to('cuda')
         
-        out = self.run_mock_inp(generator)
+        out, msg = self.run_mock_inp(generator)
     
         self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertTrue(all(msg.mask))
 
     def test_loading_conv(self):
         generator = InverseAlexGenerator(
@@ -52,19 +54,21 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='conv4'
         ).to('cuda')
 
-        out = self.run_mock_inp(generator)
+        out, msg = self.run_mock_inp(generator)
     
         self.assertEqual(out.shape, (self.batch, *self.target_shape))
-    
+        self.assertTrue(all(msg.mask))
+
     def test_loading_norm1(self):
         generator = InverseAlexGenerator(
             root=self.root,
             variant='norm1'
         ).to('cuda')
         
-        out = self.run_mock_inp(generator)
+        out, msg = self.run_mock_inp(generator)
     
         self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertTrue(all(msg.mask))
 
     
     def test_loading_norm2(self):
@@ -73,9 +77,10 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='norm2'
         ).to('cuda')
         
-        out = self.run_mock_inp(generator)
+        out, msg = self.run_mock_inp(generator)
     
         self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertTrue(all(msg.mask))
     
     def test_loading_pool(self):
         generator = InverseAlexGenerator(
@@ -83,6 +88,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='pool5'
         ).to('cuda')
         
-        out = self.run_mock_inp(generator)
+        out, msg = self.run_mock_inp(generator)
     
         self.assertEqual(out.shape, (self.batch, *self.target_shape))
+        self.assertTrue(all(msg.mask))

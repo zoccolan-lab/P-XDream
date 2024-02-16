@@ -5,7 +5,7 @@ from scipy.special import softmax
 
 from .utils import default
 from .utils import lazydefault
-from .utils import ObjectiveFunction, SubjectScore
+from .utils import Message, SubjectScore
 
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
@@ -201,7 +201,7 @@ class GeneticOptimizer(Optimizer):
     
     def step(
         self,
-        curr_scores : SubjectScore,
+        data : Tuple[SubjectScore, Message],
         temperature : float | None = None, 
         save_topk : int = 2,   
     ) -> NDArray:
@@ -211,7 +211,8 @@ class GeneticOptimizer(Optimizer):
         novel set of parameter is proposed that would hopefully
         increase future scores.
 
-        :param curr_scores: Set of computed scores (gather from a
+        # TODO: Update doc
+        :param data: Set of computed scores (gather from a
             scorer that evaluated for example some ANN activations).
         :type curr_scores: SubjectScore (i.e. NDArray[np.float32] |
             Dict[str, NDArray[np.float32]])
@@ -227,6 +228,11 @@ class GeneticOptimizer(Optimizer):
         :returns new_pop: Novel set of parameters (new population pool)
         :rtype: Numpy array
         '''
+        
+        # Use Message mask to filter for generated data
+        curr_scores, msg = data
+        curr_scores = curr_scores[msg.mask]
+        
         pop_size, *_ = self._shape
         temperature = default(temperature, self.temperature)
 

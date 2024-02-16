@@ -1,19 +1,29 @@
 import os
 import torch
+import warnings
+import numpy as np
 import torch.nn as nn
+from torch import Tensor
 from pathlib import Path
 from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
+
+from torch.utils.data import DataLoader
 from diffusers.models.unets.unet_2d import UNet2DModel
 
 from functools import partial
 from collections import OrderedDict
 from typing import List, Dict, cast, Callable, Tuple
 
+from .utils import exists
+from .utils import default
 from .utils import lazydefault
 from .utils import multichar_split
 from .utils import multioption_prompt
+
+from .utils import Stimuli
+from .utils import Message
 
 
 class Generator(nn.Module):
@@ -61,8 +71,13 @@ class InverseAlexGenerator(Generator):
         self,
         root : str,
         variant : str | None = 'fc8',
+        mixing_mask : List[bool] | None = None,
+        data_loader : DataLoader | None = None,
     ) -> None:
         super().__init__(name='inv_alexnet')
+        
+        if data_loader is not None and mixing_mask is None:
+            warnings.warn('')
 
         # Get the networks paths based on provided root folder
         nets_path = self._get_net_paths(base_nets_dir=root)
@@ -87,6 +102,10 @@ class InverseAlexGenerator(Generator):
 
         # Put the generator in evaluate mode by default
         self.eval()
+        
+        self.mixing_mask = mixing_mask
+        self.data_loader = data_loader if mixing_mask else None
+        self.iter_loader = iter(self.data_loader) if self.data_loader else None
 
     def load(self, path : str | Path) -> None:
         '''
@@ -101,15 +120,53 @@ class InverseAlexGenerator(Generator):
         )
         
     @torch.no_grad()
-    def forward(self, x):
-        x = self.layers(x)
+    def forward(self, inp : Tensor) -> Tuple[Stimuli, Message]:
+        b, *_ = inp.shape
+        
+        mask = default(self.mixing_mask, [True] * b)
+        mask = torch.tensor(mask)
+        
+        num_gens = int(torch.sum( mask).item())
+        num_nats = int(torch.sum(~mask).item())
+        
+        if num_gens != b:
+            msg = f'''
+                Number of requested generated images in mask does not equal the
+                number of provided codes. Got {num_gens} and {b}.                
+                '''
+            raise ValueError(msg)
+        
+        gens : Tensor = self.layers(inp)        
+        b, c, h, w = gens.shape
 
         # TODO: @Lorenzo Why this scaling here?
         # TODO: @Paolo Kreimann does it in his code. I don't know why this is
         if self.type_net in ['conv','norm']:
-            x = x * 255
+            gens *= 255
 
-        return x  
+        if self.iter_loader and self.data_loader:
+            nats_list : List[Tensor] = []
+            assert next(iter(self.data_loader)).shape[1:] == (c, h, w),\
+                'Natural images have different dimensions than generated'
+            
+            while len(nats_list) < num_nats:
+                try:
+                    nats_list.extend(next(self.iter_loader))
+                except StopIteration:
+                    self.iter_loader = iter(self.data_loader)
+            nats : Tensor = torch.cat(nats_list[:num_nats])
+        else:
+            nats : Tensor = torch.empty(0, c, h, w, device=self.device)
+            
+        out = torch.empty(num_gens + num_nats, c, h, w, device=self.device)
+        out[ mask] = gens
+        out[~mask] = nats
+
+        return out, Message(mask=mask.numpy(), label=None)  
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.layers.parameters()).device
 
     @property
     def input_dim(self) -> Tuple[int, ...]:

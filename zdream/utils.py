@@ -1,10 +1,12 @@
 import numpy as np
 import torch.nn as nn
-from typing import TypeVar, Callable, Dict, List, Union
+from typing import TypeVar, Callable, Dict, List, Any
 import re
 from numpy.typing import NDArray
 from torch import Tensor
 from PIL.Image import Image
+
+from dataclasses import dataclass
 
 # Type Generics
 T = TypeVar('T')
@@ -12,14 +14,21 @@ D = TypeVar('D')
 
 # Type Aliases
 
-# TODO: Add numpy type with explicit shape (batch_size, activation_size)
-Stimulus = Tensor | Image # TODO Or Stimuli = Tensor | List[Image] ? 
+# TODO: Create StimulusSet Dataclass
+Stimuli = Tensor
 
 SubjectState = Dict[str, NDArray]   # State of a subject mapping each layer to its batch of activation
 SubjectScore = NDArray[np.float32]  # 1-dimensional array with the length of the batch assigning a score to each tested stimulus
 
 ObjectiveFunction = Callable[[SubjectState], SubjectScore]
 
+@dataclass
+class Message:
+    mask    : NDArray[np.bool_]
+    label   : List[str] | None = None
+
+def exists(var) -> bool:
+    return var is not None
 
 # Type function utils
 def default(var : T | None, val : D) -> T | D:

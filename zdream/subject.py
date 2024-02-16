@@ -11,6 +11,8 @@ from .probe import NamingProbe
 from .probe import RecordingProbe
 
 from .utils import unpack
+from .utils import Stimuli
+from .utils import Message
 from .utils import SubjectState
 
 from collections import defaultdict
@@ -97,9 +99,9 @@ class NetworkSubject(Subject, nn.Module):
     @torch.no_grad()
     def forward(
         self,
-        inp : Tensor,
+        data : Tuple[Stimuli, Message],
         auto_clean : bool = True
-    ) -> SubjectState:
+    ) -> Tuple[SubjectState, Message]:
         '''
         Expose NetworkSubject to a (visual input) and return the
         measured (hidden) activations. If no recording probe was
@@ -122,15 +124,17 @@ class NetworkSubject(Subject, nn.Module):
         # TODO: This return only the first RecorderProbe, what if
         #       more than one were registered?        
         probe = self.recorder
-        assert probe is not None, warn_msg     
+        assert probe, warn_msg     
 
-        _ = self._network(inp)
+        stimuli, msg = data
+        
+        _ = self._network(stimuli)
     
-        out = probe.features
+        out = probe.features        
     
         if auto_clean: probe.clean()
         
-        return out
+        return out, msg
 
     def register(self, probe : SilicoProbe) -> List[RemovableHandle]:
         '''

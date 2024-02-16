@@ -4,7 +4,9 @@ Collection of codes for testing the workings of zdream subject
 
 import torch
 import unittest
+import numpy as np
 
+from zdream.utils import Message
 from zdream.utils import SubjectState
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
@@ -15,6 +17,8 @@ class NetworkSubjectTest(unittest.TestCase):
         self.pretrained = False
         self.img_shape = (3, 224, 224)
         self.num_imgs = 2
+        
+        self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
 
     def test_forward_no_probe_cpu(self):
         subject = NetworkSubject(
@@ -30,7 +34,7 @@ class NetworkSubjectTest(unittest.TestCase):
 
         # We expect to see an assertion error raised here
         with self.assertRaises(AssertionError):
-            _ = subject(mock_inp)
+            _ = subject((mock_inp, self.msg))
 
     def test_forward_with_probe_cpu(self):
         subject = NetworkSubject(
@@ -53,7 +57,9 @@ class NetworkSubjectTest(unittest.TestCase):
         mock_inp = torch.randn(self.num_imgs, *self.img_shape, device=subject.device)
 
         # We expect to see an assertion error raised here
-        feat : SubjectState = subject(mock_inp)
+        feat : SubjectState
+        msg : Message
+        feat, msg = subject((mock_inp, self.msg))
 
         subject.remove(probe)
 
