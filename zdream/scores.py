@@ -97,7 +97,7 @@ class MSEScore(Score):
     def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, SubjectScore]:
         # Check for layer name consistency
         if not set(state.keys()).issubset(set(target.keys())):
-            raise AssertionError('Keys of test image not in target')
+            raise ValueError('Keys of test image not in target')
         
         def mse(a : NDArray, b : NDArray) -> NDArray:
             a = rearrange(a, 'b ... -> b (...)')
@@ -129,7 +129,7 @@ class MaxActivityScore(Score):
         # Check for layer name consistency
         if not set(state.keys()).issubset(set(neurons.keys())):
             err_msg = f'Keys of test image not in target {set(state.keys()).difference(neurons.keys())}'
-            raise AssertionError(err_msg)
+            raise ValueError(err_msg)
         
         scores = {
             layer: self.reduction(activations[:, neurons[layer]])

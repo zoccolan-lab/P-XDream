@@ -68,7 +68,7 @@ class MSEScoreTest(unittest.TestCase):
         # keys for the target
         state["new_key2"] = np.random.rand(self.batch, 3, 224, 224)
         
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             mse_score(data=(state, self.msg))
         
     def test_target_dict(self):

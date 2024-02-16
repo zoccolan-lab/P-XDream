@@ -78,8 +78,17 @@ class InverseAlexGenerator(Generator):
     ) -> None:
         super().__init__(name='inv_alexnet')
         
-        if data_loader is not None and mixing_mask is None:
-            warnings.warn('')
+        # In the case the mixing mask contains only True values
+        # no natural image is expected so we reset the default behavior
+        if mixing_mask and all(mixing_mask):
+            mixing_mask = None
+        
+        # If data loader is provided but the mask is not
+        # it won't be used
+        if data_loader and mixing_mask is None:
+            wrn_msg = 'Data loader was provided but mixing mask was not.'
+            warnings.warn(wrn_msg)
+            
 
         # Get the networks paths based on provided root folder
         nets_path = self._get_net_paths(base_nets_dir=root)
@@ -123,6 +132,7 @@ class InverseAlexGenerator(Generator):
         
     @torch.no_grad()
     def forward(self, inp : Tensor | NDArray) -> Tuple[Stimuli, Message]:
+        
         if isinstance(inp, np.ndarray):
             inp = torch.from_numpy(inp).to(self.device).to(self.dtype)
             
@@ -151,8 +161,11 @@ class InverseAlexGenerator(Generator):
 
         if self.iter_loader and self.data_loader:
             nats_list : List[Tensor] = []
-            assert next(iter(self.data_loader)).shape[1:] == (c, h, w),\
-                'Natural images have different dimensions than generated'
+            
+            if next(iter(self.data_loader)).shape[1:] != (c, h, w):
+                err_msg = 'Natural images have different dimensions than generated'
+                raise ValueError(err_msg)
+            
             while len(nats_list) * cast(int, self.data_loader.batch_size) < num_nats :
                 try:
                     image_batch = next(self.iter_loader)

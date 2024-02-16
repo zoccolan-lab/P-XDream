@@ -47,7 +47,13 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         return generator(mock_inp)
         
-    def _get_data_loader(self, num_images: int, batch_size: int, target_shape: Tuple[int, ...]):
+    def _get_generator_nat(
+        self,
+        num_images: int, 
+        batch_size: int, 
+        num_nat: int,
+        target_shape: Tuple[int, ...]
+    ) -> InverseAlexGenerator:
         
         dataset = _RandomImageDataset(
             num_images=num_images,
@@ -59,7 +65,15 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             batch_size=batch_size
         )
         
-        return dataloader
+        generator = InverseAlexGenerator(
+            root=self.root,
+            variant='fc8',
+            mixing_mask=[True] * self.gen_batch + [False] * num_nat,
+            data_loader=dataloader
+        ).to(device)
+        
+        
+        return generator
     
     def test_loading_fc8(self):
         generator = InverseAlexGenerator(
@@ -128,30 +142,52 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
         
-    def test_gen_plus_nat_batch(self):
+    def test_natural_images(self):
         
-        num_images = 5
-        num_nat    = 18
-        dataloader_bach = 1
+        # We run different cases for the number of images in the dataset,
+        # the number of natural images in the generator and the number
+        # of batches of the dataloader
+        
+        # num_images, num_nat, dataloader_bach
+        parameters = [
+            (100, 10,  1), # single batch
+            (100, 10,  2), # batch divisible for the natural images
+            (100, 10,  3), # batch non divisible for the natural images
+            ( 71, 15, 12),
+            ( 10, 10, 10), # same batch size as dataset
+            ( 10, 20, 10), # more natural images than ones in the dataset
+            ( 10,  0, 10), # no natural images
+        ]
+        
+        for num_images, num_nat, dataloader_bach in parameters:
                 
-        dataloader = self._get_data_loader(
+            generator = self._get_generator_nat(
+                num_images=num_images,
+                batch_size=dataloader_bach,
+                target_shape=self.target_shape,
+                num_nat=num_nat
+            )
+            
+            out, msg = self.run_mock_inp(generator)
+        
+            self.assertEqual(out.shape, (self.gen_batch+num_nat, *self.target_shape))
+            self.assertTrue(np.sum( msg.mask) == self.gen_batch)
+            self.assertTrue(np.sum(~msg.mask) == num_nat)
+
+    def test_different_shape(self):
+        
+        num_images = 100
+        batch_size = 12
+        target_shape = (3, 242, 242) # wrong!
+        num_nat = 15
+        
+        generator = self._get_generator_nat(
             num_images=num_images,
-            batch_size=dataloader_bach,
-            target_shape=self.target_shape
+            batch_size=batch_size,
+            target_shape=target_shape,
+            num_nat=num_nat
         )
         
-        generator = InverseAlexGenerator(
-            root=self.root,
-            variant='fc8',
-            mixing_mask=[True] * self.gen_batch + [False] * num_nat,
-            data_loader=dataloader
-        ).to(device)
-
-        out, msg = self.run_mock_inp(generator)
-    
-        self.assertEqual(out.shape, (self.gen_batch+num_nat, *self.target_shape))
-        
-        self.assertTrue(np.sum( msg.mask) == self.gen_batch)
-        self.assertTrue(np.sum(~msg.mask) == num_nat)
-        
+        with self.assertRaises(ValueError):
+            self.run_mock_inp(generator)
     
