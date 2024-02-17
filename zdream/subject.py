@@ -3,7 +3,8 @@ import warnings
 from abc import ABC, abstractmethod
 from torch import nn, Tensor
 from typing import List, Tuple
-from torchvision import models
+from torchvision.models import get_model
+from torchvision.models import get_model_weights
 from torch.utils.hooks import RemovableHandle
 from .utils import device
 
@@ -78,9 +79,9 @@ class NetworkSubject(Subject, nn.Module):
         super().__init__()
         
         # Load the torch model via its name from the torchvision hub
-        self._weights = models.get_model_weights(network_name) if pretrained else None
-        self._network = models.get_model(network_name, weights=self._weights).to(device)
-
+        self._weights = get_model_weights(network_name).DEFAULT if pretrained else None # type: ignore
+        self._network = get_model(network_name, weights=self._weights).to(device)
+        
         self._probes : Dict[SilicoProbe, List[RemovableHandle]] = defaultdict(list)
 
         # Attach NamingProbe to the network to properly assign name
@@ -133,6 +134,9 @@ class NetworkSubject(Subject, nn.Module):
 
         stimuli, msg = data
         
+        pipe = self._weights.transforms() if self._weights else lambda x : x
+        stimuli = pipe(stimuli)
+
         _ = self._network(stimuli)
     
         out = probe.features        

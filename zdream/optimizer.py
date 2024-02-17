@@ -256,11 +256,8 @@ class GeneticOptimizer(Optimizer):
         # Convert scores to fitness (probability) via temperature-
         # gated softmax function (needed only for rest of population)
         # fitness = softmax(rest_s / temperature)
-        print(curr_scores)
         fitness = softmax(curr_scores / temperature)
         
-        print(fitness)
-
         new_param[:save_topk] = topk_p
 
         # The rest of the population is obtained by generating

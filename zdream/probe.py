@@ -165,7 +165,7 @@ class RecordingProbe(SilicoProbe):
         :rtype: Dict[str, NDArray]
         '''
         return {
-            k : np.concatenate(v) for k, v in self._data.items()
+            k : np.concatenate(v, axis=0) for k, v in self._data.items()
         }
         
     @property
@@ -216,7 +216,7 @@ class RecordingProbe(SilicoProbe):
         # Grab the layer output activations and put special care to
         # detach them from torch computational graph, bring them to
         # GPU and convert them to numpy for easier storage and portability
-        full_act : np.ndarray = out.detach().cpu().numpy().squeeze()
+        full_act : np.ndarray = out.detach().cpu().numpy()#.squeeze()
         
         # From the whole set of activation, we extract the targeted units
         # NOTE: If None is provided as target, we simply retain the whole
