@@ -9,6 +9,7 @@ from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
 from torch.utils.data import DataLoader
+from torch.utils.data.dataloader import _BaseDataLoaderIter
 from zdream.utils import device
 # from diffusers.models.unets.unet_2d import UNet2DModel
 
@@ -19,7 +20,7 @@ from tqdm.auto import trange
 from functools import partial
 from collections import OrderedDict
 
-from typing import List, Dict, cast, Callable, Tuple
+from typing import Iterable, List, Dict, cast, Callable, Tuple
 from numpy.typing import NDArray
 
 from .utils import exists
@@ -45,9 +46,8 @@ class Generator(nn.Module):
     def __init__(
         self,
         name : str,
-        mixing_mask : List[bool] | None = None,
-        data_loader : DataLoader | None = None,
         output_pipe : Callable[[Tensor], Tensor] | None = None,
+        data_loader : DataLoader | None = None,
     ) -> None:
         super().__init__()
         
@@ -59,21 +59,14 @@ class Generator(nn.Module):
         # List for tracking image history
         self._im_hist : List[Image.Image] = []
         
-        # In the case the mixing mask contains only True values
-        # no natural image is expected so we reset the default behavior
-        if mixing_mask and all(mixing_mask):
-            mixing_mask = None
+        self.set_data_loader(data_loader=data_loader)
         
-        # If data loader is provided but the mask is not
-        # it won't be used
-        if data_loader and mixing_mask is None:
-            wrn_msg = 'Data loader was provided but mixing mask was not.'
-            warnings.warn(wrn_msg)
-        
-        self._mixing_mask = mixing_mask
-        self._data_loader = data_loader if mixing_mask else None
-        self._iter_loader = iter(self._data_loader) if self._data_loader else None
         self._output_pipe = default(output_pipe, cast(Callable[[Tensor], Tensor], lambda x : x))
+
+    def set_data_loader(self, data_loader: DataLoader | None):
+            
+        self._data_loader = data_loader
+        self._iter_loader = iter(self._data_loader) if self._data_loader else None
 
     def find_code(
         self,
@@ -136,12 +129,116 @@ class Generator(nn.Module):
         '''
         '''
         pass
+    
+    def _masking_sanity_check(
+        self, 
+        mixing_mask : List[bool] | None, 
+        inp_shape : int
+    ) -> List[bool]:
+        
+        # In the case the mixing mask contains only True values
+        # no natural image is expected so we reset the default behavior
+        # with no mask (if with the same length of the batch)
+        if mixing_mask and all(mixing_mask):
+            if len(mixing_mask) == inp_shape: # default condition
+                mixing_mask = None
+            else:
+                err_msg = f'Input codes with batch size {inp_shape}, but {len(mixing_mask)} were indicated in the mask'
+                raise ValueError(err_msg)
+        
+        # If natural images are expected but on dataloader is
+        # available it raises an error
+        if mixing_mask and self._data_loader is None:
+            err_msg =   "Mixing mask for natural images were provided but no dataloader is available. "\
+                        "Use set_data_loader() to set one."
+            raise AssertionError(err_msg)
+        pass 
+    
+        # In the mixing mask is None we set a trivial one only True and batch length
+        # mixing_mask = default(mixing_mask, [True] * b) -> better, but not for type checker :(
+        if not mixing_mask:
+            mixing_mask = [True] * inp_shape
+            
+        return mixing_mask
+    
+    def _generate_natural_images(self, 
+            num_nats: int, 
+            shape: Tuple[int, int , int]
+        ) -> Tensor:
+        
+        # At this point of the flow we are sure
+        # data loader and iter can't be None
+        #data_loader = cast(DataLoader, self._data_loader)
+        #iter_loader = cast(_BaseDataLoaderIter, self._iter_loader)
+        
+        c, h, w = shape
+        
+        if num_nats != 0:
+            nats_list : List[Tensor] = []
+            
+            if next(iter(self._data_loader)).shape[1:] != (c, h, w):
+                err_msg = 'Natural images have different dimensions than generated'
+                raise ValueError(err_msg)
+            
+            while len(nats_list) * cast(int, self._data_loader.batch_size) < num_nats :
+                try:
+                    image_batch = next(self._iter_loader)
+                    nats_list.append(image_batch)
+                except StopIteration:
+                    self._iter_loader = iter(self._data_loader)
+            nats = torch.cat(nats_list)[:num_nats]
+        else:
+            nats = torch.empty(0, c, h, w, device=self.device)
+        
+        return nats
+        
+        
+    def forward(
+        self, 
+        inp : Tensor | NDArray,
+        mixing_mask : List[bool] | None = None,
+    ) -> Tuple[Stimuli, Message]:
+        '''
+        '''
+        
+        # Extract input batch size
+        inp_shape, *_ = inp.shape
 
-    @abstractmethod
+        # Input sanity check
+        mixing_mask = self._masking_sanity_check(mixing_mask=mixing_mask, inp_shape=inp_shape)
+    
+        # Get generated images
+        generated, message = self._forward(inp=inp)
+    
+        # Cast
+        mask = torch.tensor(mixing_mask)
+    
+        # Number of gen and nat
+        num_gens = int(torch.sum( mask).item())
+        num_nats = int(torch.sum(~mask).item())
+        
+        # Extract generated images dimension
+        _, c, h, w = generated.shape
+        
+        # Generate natural images
+        nats = self._generate_natural_images(num_nats, shape = (c, h, w))
+        
+        # Combine the two according to the mask
+        out = torch.empty(num_gens + num_nats, c, h, w, device=self.device)
+        out[ mask] = generated
+        out[~mask] = nats
+        
+        # Attach information to the message
+        message.mask = np.array(mixing_mask)
+        
+        return out, message
+    
     @torch.no_grad()
-    def forward(self, inp : Tensor | NDArray) -> Tuple[Stimuli, Message]:
-        '''
-        '''
+    @abstractmethod 
+    def _forward(
+        self, 
+        inp : Tensor | NDArray
+    ) -> Tuple[Stimuli, Message]:
         pass
 
     @property
@@ -164,15 +261,13 @@ class InverseAlexGenerator(Generator):
         self,
         root : str,
         variant : str | None = 'fc8',
-        mixing_mask : List[bool] | None = None,
-        data_loader : DataLoader | None = None,
         output_pipe : Callable[[Tensor], Tensor] | None = None,
+        data_loader : DataLoader | None = None,
     ) -> None:
         super().__init__(
             name='inv_alexnet',
-            mixing_mask=mixing_mask,
-            data_loader=data_loader,
             output_pipe=output_pipe,
+            data_loader=data_loader
         )
         
         # Get the networks paths based on provided root folder
@@ -212,59 +307,27 @@ class InverseAlexGenerator(Generator):
         )
         
     @torch.no_grad()
-    def forward(self, inp : Tensor | NDArray) -> Tuple[Stimuli, Message]:
+    def _forward(
+        self, 
+        inp : Tensor | NDArray
+    ) -> Tuple[Stimuli, Message]:
         
         if isinstance(inp, np.ndarray):
             inp = torch.from_numpy(inp).to(self.device).to(self.dtype)
             
-        b, *_ = inp.shape
-        
-        mask = default(self._mixing_mask, [True] * b)
-        mask = torch.tensor(mask)
-        
-        num_gens = int(torch.sum( mask).item())
-        num_nats = int(torch.sum(~mask).item())
-        
-        if num_gens != b:
-            msg = f'''
-                Number of requested generated images in mask does not equal the
-                number of provided codes. Got {num_gens} and {b}.                
-                '''
-            raise ValueError(msg)
-        
         # Generate the synthetic images and apply the output pipe
         gens = self._network(inp)
         gens = self._output_pipe(gens)
-
-        b, c, h, w = gens.shape
 
         # TODO: @Lorenzo Why this scaling here?
         # TODO: @Paolo Kreimann does it in his code. I don't know why this is
         if self.type_net in ['conv','norm']:
             gens *= 255
+            
+        # Generate message
+        message = Message(mask=np.array([])) 
 
-        if self._iter_loader and self._data_loader:
-            nats_list : List[Tensor] = []
-            
-            if next(iter(self._data_loader)).shape[1:] != (c, h, w):
-                err_msg = 'Natural images have different dimensions than generated'
-                raise ValueError(err_msg)
-            
-            while len(nats_list) * cast(int, self._data_loader.batch_size) < num_nats :
-                try:
-                    image_batch = next(self._iter_loader)
-                    nats_list.append(image_batch)
-                except StopIteration:
-                    self._iter_loader = iter(self._data_loader)
-            nats : Tensor = torch.cat(nats_list)[:num_nats]
-        else:
-            nats : Tensor = torch.empty(0, c, h, w, device=self.device)
-            
-        out = torch.empty(num_gens + num_nats, c, h, w, device=self.device)
-        out[ mask] = gens
-        out[~mask] = nats
-
-        return out, Message(mask=mask.numpy(), label=None)  
+        return gens, message
 
     @property
     def input_dim(self) -> Tuple[int, ...]:
