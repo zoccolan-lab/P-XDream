@@ -12,6 +12,10 @@ from torch.utils.data import DataLoader
 from zdream.utils import device
 # from diffusers.models.unets.unet_2d import UNet2DModel
 
+from torch.optim import AdamW
+
+from tqdm.auto import trange
+
 from functools import partial
 from collections import OrderedDict
 
@@ -43,10 +47,14 @@ class Generator(nn.Module):
         name : str,
         mixing_mask : List[bool] | None = None,
         data_loader : DataLoader | None = None,
+        output_pipe : Callable[[Tensor], Tensor] | None = None,
     ) -> None:
         super().__init__()
         
         self.name = name
+
+        # Underlying torch module that generates images
+        self._network = None
 
         # List for tracking image history
         self._im_hist : List[Image.Image] = []
@@ -62,10 +70,66 @@ class Generator(nn.Module):
             wrn_msg = 'Data loader was provided but mixing mask was not.'
             warnings.warn(wrn_msg)
         
-        self.mixing_mask = mixing_mask
-        self.data_loader = data_loader if mixing_mask else None
-        self.iter_loader = iter(self.data_loader) if self.data_loader else None
+        self._mixing_mask = mixing_mask
+        self._data_loader = data_loader if mixing_mask else None
+        self._iter_loader = iter(self._data_loader) if self._data_loader else None
+        self._output_pipe = default(output_pipe, cast(Callable[[Tensor], Tensor], lambda x : x))
 
+    def find_code(
+        self,
+        target : Tensor,
+        num_iter : int = 500,
+        rel_tol : float = 1e-1,
+    ) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
+        '''
+        '''
+        assert self._network, 'Unspecified underlying network model'
+        self._network = cast(nn.Module, self._network)
+
+        b, c, h, w = target.shape
+
+        loss = nn.MSELoss()
+        code = torch.zeros(b, *self.input_dim, device=self.device, requires_grad=True)
+
+        optim = AdamW(
+            [code],
+            lr=1e-3,
+        )
+
+        epoch = 0
+        found_solution = False
+        progress = trange(num_iter, desc='Code retrieval | avg. err: --- | rel. err: --- |')
+        while not found_solution and (epoch := epoch + 1) < num_iter:
+            optim.zero_grad()
+
+            # Generate a novel set of images from the current
+            # set of latent codes
+            imgs = self._network(code)
+            imgs = self._output_pipe(imgs)
+
+            errs : Tensor = loss(imgs, target)
+            errs.backward()
+
+            optim.step()
+
+            a_errs = errs.mean()
+            r_errs = a_errs / imgs.mean()
+            p_desc = f'Code retrieval | avg. err: {a_errs:.2f} | rel. err: {r_errs:.4f}'
+            progress.set_description(p_desc)
+            progress.update()
+
+            if torch.all(errs / imgs.mean() < rel_tol):
+                found_solution = True
+        
+        progress.close()
+
+        if not found_solution:
+            warnings.warn(
+                'Cannot find codes within specified relative tolerance'
+            )
+
+
+        return code, (imgs.detach(), errs)
 
     @abstractmethod
     def load(self, path : str | Path) -> None:
@@ -75,7 +139,7 @@ class Generator(nn.Module):
 
     @abstractmethod
     @torch.no_grad()
-    def forward(self):
+    def forward(self, inp : Tensor | NDArray) -> Tuple[Stimuli, Message]:
         '''
         '''
         pass
@@ -83,6 +147,15 @@ class Generator(nn.Module):
     @property
     def device(self):
         return next(self.parameters()).device
+    
+    @property
+    def dtype(self) -> torch.dtype:
+        return next(self.parameters()).dtype
+
+    @property
+    @abstractmethod
+    def input_dim(self) -> Tuple[int, ...]:
+        pass
 
 # TODO: This is @Lorenzo's job!
 class InverseAlexGenerator(Generator):
@@ -93,11 +166,13 @@ class InverseAlexGenerator(Generator):
         variant : str | None = 'fc8',
         mixing_mask : List[bool] | None = None,
         data_loader : DataLoader | None = None,
+        output_pipe : Callable[[Tensor], Tensor] | None = None,
     ) -> None:
         super().__init__(
             name='inv_alexnet',
             mixing_mask=mixing_mask,
-            data_loader=data_loader
+            data_loader=data_loader,
+            output_pipe=output_pipe,
         )
         
         # Get the networks paths based on provided root folder
@@ -116,7 +191,7 @@ class InverseAlexGenerator(Generator):
         self.variant = lazydefault(variant, user_in)
         
         # Build the network layers based on provided generator variant
-        self.layers = self._build(self.variant)
+        self._network = self._build(self.variant)
         
         # Load the corresponding checkpoint
         self.load(nets_path[self.variant])
@@ -132,7 +207,7 @@ class InverseAlexGenerator(Generator):
         - path (str): Path to the network weights.
         '''
         
-        self.layers.load_state_dict(
+        self._network.load_state_dict(
             torch.load(path, map_location=device)
         )
         
@@ -144,7 +219,7 @@ class InverseAlexGenerator(Generator):
             
         b, *_ = inp.shape
         
-        mask = default(self.mixing_mask, [True] * b)
+        mask = default(self._mixing_mask, [True] * b)
         mask = torch.tensor(mask)
         
         num_gens = int(torch.sum( mask).item())
@@ -157,7 +232,10 @@ class InverseAlexGenerator(Generator):
                 '''
             raise ValueError(msg)
         
-        gens : Tensor = self.layers(inp)        
+        # Generate the synthetic images and apply the output pipe
+        gens = self._network(inp)
+        gens = self._output_pipe(gens)
+
         b, c, h, w = gens.shape
 
         # TODO: @Lorenzo Why this scaling here?
@@ -165,19 +243,19 @@ class InverseAlexGenerator(Generator):
         if self.type_net in ['conv','norm']:
             gens *= 255
 
-        if self.iter_loader and self.data_loader:
+        if self._iter_loader and self._data_loader:
             nats_list : List[Tensor] = []
             
-            if next(iter(self.data_loader)).shape[1:] != (c, h, w):
+            if next(iter(self._data_loader)).shape[1:] != (c, h, w):
                 err_msg = 'Natural images have different dimensions than generated'
                 raise ValueError(err_msg)
             
-            while len(nats_list) * cast(int, self.data_loader.batch_size) < num_nats :
+            while len(nats_list) * cast(int, self._data_loader.batch_size) < num_nats :
                 try:
-                    image_batch = next(self.iter_loader)
+                    image_batch = next(self._iter_loader)
                     nats_list.append(image_batch)
                 except StopIteration:
-                    self.iter_loader = iter(self.data_loader)
+                    self._iter_loader = iter(self._data_loader)
             nats : Tensor = torch.cat(nats_list)[:num_nats]
         else:
             nats : Tensor = torch.empty(0, c, h, w, device=self.device)
@@ -189,14 +267,6 @@ class InverseAlexGenerator(Generator):
         return out, Message(mask=mask.numpy(), label=None)  
 
     @property
-    def device(self) -> torch.device:
-        return next(self.layers.parameters()).device
-
-    @property
-    def dtype(self) -> torch.dtype:
-        return next(self.layers.parameters()).dtype
-
-    @property
     def input_dim(self) -> Tuple[int, ...]:
         match self.variant:
             case 'fc8':   return (1000,)
@@ -204,10 +274,17 @@ class InverseAlexGenerator(Generator):
             case 'fc6':   return (4096,)
             case 'conv3': return (384, 13, 13)
             case 'conv4': return (384, 13, 13)
-            case 'norm1': return (96, 30, 30)
-            case 'norm2': return (256, 14, 14)
+            case 'norm1': return (96, 27, 27)
+            case 'norm2': return (256, 13, 13)
             case 'pool5': return (256, 6, 6)
-            case _: return ()
+            case _: raise ValueError(f'Unsupported variant {self.variant}')
+
+    @property
+    def output_dim(self) -> Tuple[int, int, int]:
+        match self.variant:
+            case 'norm1': return (3, 240, 240)
+            case 'norm2': return (3, 240, 240)
+            case _: return (3, 256, 256)
 
     def _build(self, variant : str = 'fc8') -> nn.Module:
         # Get type of network (i.e: norm, conv, pool, fc)
