@@ -13,7 +13,8 @@ from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
 from zdream.utils import device, read_json
 
-test_settings_fp = path.join(__file__, '..', './test_local_settings.json')
+test_folder = path.dirname(path.abspath(__file__))
+test_settings_fp = path.join(test_folder, 'local_settings.json')
 test_settings: Dict[str, Any] = read_json(path=test_settings_fp)
 
 class _RandomImageDataset(Dataset):
