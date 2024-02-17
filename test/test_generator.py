@@ -3,10 +3,11 @@ Collection of codes for testing the workings of zdream generators
 '''
 
 from os import path
+import random
 import unittest
 import torch
 import numpy as np
-from typing import Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any
 from zdream.generator import InverseAlexGenerator
 from zdream.utils import Stimuli, Message
 from torch.utils.data import Dataset, DataLoader
@@ -31,8 +32,12 @@ class _RandomImageDataset(Dataset):
         return torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
 
 class InverseAlexGeneratorTest(unittest.TestCase):
+    
+    
     def setUp(self) -> None:
         super().setUp()
+        
+        random.seed = 123
         
         # NOTE: One must edit the test_local_settings.json in test dir
         #       accordingly to proper local machine path
@@ -47,12 +52,19 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
         
         return generator(mock_inp)
+    
+    def run_mock_inp_with_nat(self, generator : InverseAlexGenerator, mask: List[bool]) -> Tuple[Stimuli, Message]:
+        # Test generator on mock input
+        inp_dim = generator.input_dim
+        mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
+        
+        return generator(mock_inp, mask)
+    
         
     def _get_generator_nat(
         self,
         num_images: int, 
-        batch_size: int, 
-        num_nat: int,
+        batch_size: int,
         target_shape: Tuple[int, ...]
     ) -> InverseAlexGenerator:
         
@@ -69,10 +81,8 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         generator = InverseAlexGenerator(
             root=self.root,
             variant='fc8',
-            mixing_mask=[True] * self.gen_batch + [False] * num_nat,
             data_loader=dataloader
         ).to(device)
-        
         
         return generator
     
@@ -165,30 +175,38 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             generator = self._get_generator_nat(
                 num_images=num_images,
                 batch_size=dataloader_bach,
-                target_shape=self.target_shape,
-                num_nat=num_nat
+                target_shape=self.target_shape
             )
             
-            out, msg = self.run_mock_inp(generator)
+            mask = [True]*self.gen_batch + [False]*num_nat
+            random.shuffle(mask)
+            
+            out, msg = self.run_mock_inp_with_nat(
+                generator=generator,
+                mask=mask
+            )
         
             self.assertEqual(out.shape, (self.gen_batch+num_nat, *self.target_shape))
             self.assertTrue(np.sum( msg.mask) == self.gen_batch)
             self.assertTrue(np.sum(~msg.mask) == num_nat)
 
-    def test_different_shape(self):
+    def test_errors(self):
         
-        num_images = 100
-        batch_size = 12
-        target_shape = (3, 242, 242) # wrong!
-        num_nat = 15
-        
+        # Wrong target shape
         generator = self._get_generator_nat(
-            num_images=num_images,
-            batch_size=batch_size,
-            target_shape=target_shape,
-            num_nat=num_nat
+            num_images=100,
+            batch_size=12,
+            target_shape=(3, 242, 242) # wrong!
         )
         
         with self.assertRaises(ValueError):
-            self.run_mock_inp(generator)
-    
+            self.run_mock_inp_with_nat(generator, mask=[True]*self.gen_batch + [False]*10)
+            
+        # Mask but no dataloader
+        generator = InverseAlexGenerator(
+            root=self.root,
+            variant='fc8'
+        ).to(device)
+        
+        with self.assertRaises(AssertionError):
+            self.run_mock_inp_with_nat(generator, mask=[True]*self.gen_batch + [False]*10)
