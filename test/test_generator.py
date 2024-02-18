@@ -43,24 +43,19 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         #       accordingly to proper local machine path
         self.root = test_settings['inverse_alex_net']
         
-        self.gen_batch = 2
+        self.gen_batch = 10
         self.target_shape = (3, 256, 256)
         
-    def run_mock_inp(self, generator : InverseAlexGenerator) -> Tuple[Stimuli, Message]:
-        # Test generator on mock input
-        inp_dim = generator.input_dim
-        mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
-        
-        return generator(mock_inp)
-    
-    def run_mock_inp_with_nat(self, generator : InverseAlexGenerator, mask: List[bool]) -> Tuple[Stimuli, Message]:
+    def run_mock_inp(
+            self, generator : InverseAlexGenerator, 
+            mask: List[bool] | None = None
+        ) -> Tuple[Stimuli, Message]:
         # Test generator on mock input
         inp_dim = generator.input_dim
         mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
         
         return generator(mock_inp, mask)
-    
-        
+
     def _get_generator_nat(
         self,
         num_images: int, 
@@ -81,7 +76,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         generator = InverseAlexGenerator(
             root=self.root,
             variant='fc8',
-            data_loader=dataloader
+            nat_img_loader=dataloader
         ).to(device)
         
         return generator
@@ -181,7 +176,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             mask = [True]*self.gen_batch + [False]*num_nat
             random.shuffle(mask)
             
-            out, msg = self.run_mock_inp_with_nat(
+            out, msg = self.run_mock_inp(
                 generator=generator,
                 mask=mask
             )
@@ -189,8 +184,18 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             self.assertEqual(out.shape, (self.gen_batch+num_nat, *self.target_shape))
             self.assertTrue(np.sum( msg.mask) == self.gen_batch)
             self.assertTrue(np.sum(~msg.mask) == num_nat)
+            self.assertTrue(list(msg.mask) == mask)
 
     def test_errors(self):
+        
+        # Mask but no dataloader
+        generator_no_dataloader = InverseAlexGenerator(
+            root=self.root,
+            variant='fc8'
+        ).to(device)
+        
+        with self.assertRaises(AssertionError):
+            self.run_mock_inp(generator_no_dataloader, mask=[True]*self.gen_batch + [False]*10)
         
         # Wrong target shape
         generator = self._get_generator_nat(
@@ -200,13 +205,17 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         )
         
         with self.assertRaises(ValueError):
-            self.run_mock_inp_with_nat(generator, mask=[True]*self.gen_batch + [False]*10)
-            
-        # Mask but no dataloader
-        generator = InverseAlexGenerator(
-            root=self.root,
-            variant='fc8'
-        ).to(device)
+            self.run_mock_inp(generator, mask=[True]*self.gen_batch + [False]*10)
         
-        with self.assertRaises(AssertionError):
-            self.run_mock_inp_with_nat(generator, mask=[True]*self.gen_batch + [False]*10)
+        # True mask with incorrect size
+        with self.assertRaises(ValueError):
+            self.run_mock_inp(generator, mask=[True]*(self.gen_batch-1))
+            
+        # True mask with batch size triggers default       
+        _, mess = self.run_mock_inp(generator, mask=[True]*(self.gen_batch))
+        self.assertTrue(np.all(mess.mask))
+        self.assertEqual(len(mess.mask), self.gen_batch)
+        
+        # True and False mask with incorrect number of True
+        with self.assertRaises(ValueError):
+            self.run_mock_inp(generator, mask=[True]*(self.gen_batch-1) + [False]*10)

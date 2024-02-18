@@ -9,7 +9,6 @@ from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
 from torch.utils.data import DataLoader
-from torch.utils.data.dataloader import _BaseDataLoaderIter
 from zdream.utils import device
 # from diffusers.models.unets.unet_2d import UNet2DModel
 
@@ -36,8 +35,12 @@ from .utils import Message
 class Generator(nn.Module):
     '''
     Base class for generic generators. A generator
-    implements a `generate` method that converts latent
-    codes (i.e. parameters from optimizers) into images.
+    implements its generative logic in the `_forward`
+    method that converts latent codes (i.e. parameters 
+    from optimizers) into images.
+    
+    A Generator allows to interleave synthetic images
+    with natural images by the specification of a mask.
 
     Generator are also responsible for tracking the
     history of generated images.
@@ -47,8 +50,22 @@ class Generator(nn.Module):
         self,
         name : str,
         output_pipe : Callable[[Tensor], Tensor] | None = None,
-        data_loader : DataLoader | None = None,
+        nat_img_loader: DataLoader | None = None,
     ) -> None:
+        '''
+        Create a new instance of a generator
+
+        :param name: _description_
+        :type name: str
+        :param output_pipe: Pipeline of postprocessing operation to be applied to 
+                            raw generated images.
+        :type output_pipe: Callable[[Tensor], Tensor] | None, optional
+        :param nat_img_loader: Dataloader for natural images to be interleaved with synthetic ones.
+                                In the case it is not specified at time of initialization if can be
+                                set or changed with a proper setter method.
+        :type nat_img_loader: DataLoader | None, optional
+        '''
+        
         super().__init__()
         
         self.name = name
@@ -59,14 +76,23 @@ class Generator(nn.Module):
         # List for tracking image history
         self._im_hist : List[Image.Image] = []
         
-        self.set_data_loader(data_loader=data_loader)
-        
         self._output_pipe = default(output_pipe, cast(Callable[[Tensor], Tensor], lambda x : x))
+        
+        # Settings dataloader
+        self.set_nat_img_loader(nat_img_loader=nat_img_loader)
 
-    def set_data_loader(self, data_loader: DataLoader | None):
-            
-        self._data_loader = data_loader
-        self._iter_loader = iter(self._data_loader) if self._data_loader else None
+    def set_nat_img_loader(self, nat_img_loader : DataLoader | None) -> None:
+        '''
+        Set a new data loader for natural images. 
+        It will also instantiate a new iterator.
+
+        :param data_loader: Data loader for natural images.
+        :type data_loader: DataLoader | None
+        '''
+        
+        # When no dataloader is set both variables takes None value
+        self._nat_img_loader = nat_img_loader
+        self._nat_img_iter   = iter(self._nat_img_loader) if self._nat_img_loader else None
 
     def find_code(
         self,
@@ -132,104 +158,161 @@ class Generator(nn.Module):
     
     def _masking_sanity_check(
         self, 
-        mixing_mask : List[bool] | None, 
-        inp_shape : int
+        mask : List[bool] | None, 
+        num_gen_img : int
     ) -> List[bool]:
+        '''
+        The method is an auxiliary routine for the forward method
+        responsible for checking consistency of the masking for 
+        synthetic and natural images, possibly raising errors.
+
+        :param mask: Binary mask specifying the order of synthetic and natural images
+                        in the stimuli (True for synthetic, False for natural).
+        :type mask: List[bool] | None
+        :param num_gen_img: Number of synthetic images.
+        :type num_gen_img: int
+        :return: Sanitized binary mask.
+        :rtype: List[bool]
+        '''
         
-        # In the case the mixing mask contains only True values
-        # no natural image is expected so we reset the default behavior
-        # with no mask (if with the same length of the batch)
-        if mixing_mask and all(mixing_mask):
-            if len(mixing_mask) == inp_shape: # default condition
-                mixing_mask = None
+        # In the case the mask contains only True values no 
+        # natural image is expected. This condition should be
+        # activated by no specifying a mask at all.
+        # In the case the mask length is coherent with the number of
+        # synthetic images we reset default condition, that is the mask to be None,
+        # otherwise we raise an error.
+        if mask and all(mask):
+            if len(mask) == num_gen_img: 
+                mask = None # default condition
             else:
-                err_msg = f'Input codes with batch size {inp_shape}, but {len(mixing_mask)} were indicated in the mask'
+                err_msg = f'{num_gen_img} images were generated, but {len(mask)} were indicated in the mask'
                 raise ValueError(err_msg)
         
-        # If natural images are expected but on dataloader is
-        # available it raises an error
-        if mixing_mask and self._data_loader is None:
-            err_msg =   "Mixing mask for natural images were provided but no dataloader is available. "\
-                        "Use set_data_loader() to set one."
+        # If natural images are expected but no dataloader is 
+        # available we raise an error
+        if mask and self._nat_img_loader is None:
+            err_msg =   "Mask for natural images were provided but no dataloader is available. "\
+                        "Use `set_nat_img_loader()` to set one."
             raise AssertionError(err_msg)
-        pass 
     
-        # In the mixing mask is None we set a trivial one only True and batch length
-        # mixing_mask = default(mixing_mask, [True] * b) -> better, but not for type checker :(
-        if not mixing_mask:
-            mixing_mask = [True] * inp_shape
+        # If the mixing mask was not specified we set the trivial one.
+        # mask = default(mask, [True] * b) -> better, but not for type checker :(
+        if not mask: mask = [True] * num_gen_img
             
-        return mixing_mask
+        return mask
     
-    def _generate_natural_images(self, 
-            num_nats: int, 
-            shape: Tuple[int, int , int]
-        ) -> Tensor:
+    def _load_natural_images(self, 
+            num_nat_img: int, 
+            gen_img_shape: Tuple[int, ...]
+        ) -> Stimuli:
+        '''
+        The method is an auxiliary routine for the forward method
+        responsible for loading a specified number of natural 
+        images from the dataloader.
+
+        :param num_nat_img: Number of natural images to load. 
+                            It also allow for zero natural images to be loaded
+                            resulting in an empty set of stimuli.
+        :type num_nat_img: int
+        :param gen_img_shape: Shape of synthetic images used to ensure size consistency
+                                for generated and natural images.
+        :type gen_img_shape: Tuple[int, ...]
+        :return: Loaded natural images stimuli.
+        :rtype: Stimuli
+        '''
         
-        # At this point of the flow we are sure
-        # data loader and iter can't be None
-        #data_loader = cast(DataLoader, self._data_loader)
-        #iter_loader = cast(_BaseDataLoaderIter, self._iter_loader)
-        
-        c, h, w = shape
-        
-        if num_nats != 0:
-            nats_list : List[Tensor] = []
+        if num_nat_img > 0:
             
-            if next(iter(self._data_loader)).shape[1:] != (c, h, w):
-                err_msg = 'Natural images have different dimensions than generated'
+            # NOTE: At this point of the execution flow the dataloader in ensured
+            #       to be not None after sanitization checks. The extra check 
+            #       is made for the type checker.
+            if not self._nat_img_loader or not self._nat_img_iter:
+                err_msg = 'No available data loader for natural images'
+                raise ValueError(err_msg)
+
+            # List were to save batches of images
+            nat_img_list : List[Tensor] = []
+            
+            # We create a new iterator on the fly to check shape consistency
+            # between synthetic and natural images, we raise an error if they disagree.
+            nat_img_shape = next(iter(self._nat_img_loader)).shape[1:]
+            if nat_img_shape != gen_img_shape:
+                err_msg = f'Natural images have shape {nat_img_shape}, '\
+                          f'but synthetic ones have shape {gen_img_shape}.'
                 raise ValueError(err_msg)
             
-            while len(nats_list) * cast(int, self._data_loader.batch_size) < num_nats :
+            # We continue extracting batches of natural images
+            # until the required number
+            batch_size = cast(int, self._nat_img_loader.batch_size)
+            while len(nat_img_list) * batch_size < num_nat_img:
                 try:
-                    image_batch = next(self._iter_loader)
-                    nats_list.append(image_batch)
+                    image_batch = next(self._nat_img_iter)
+                    nat_img_list.append(image_batch)
                 except StopIteration:
-                    self._iter_loader = iter(self._data_loader)
-            nats = torch.cat(nats_list)[:num_nats]
+                    # Circular iterator: when all images are loaded, we start back again.
+                    self.set_nat_img_loader(nat_img_loader=self._nat_img_loader)
+                    
+            # We combine the extracted batches in a single tensor
+            # NOTE: Since we necessary extract images in batches,
+            #       we can have extracted more than required, for this purpose
+            #       we may need to chop out the last few to match required number
+            nat_img = torch.cat(nat_img_list)[:num_nat_img]
+        
+        # In the case of no natural images we create an empty stimuli
         else:
-            nats = torch.empty(0, c, h, w, device=self.device)
-        
-        return nats
-        
-        
+            nat_img = torch.empty((0,) + gen_img_shape, device=self.device)
+            
+        return nat_img
+
     def forward(
         self, 
-        inp : Tensor | NDArray,
-        mixing_mask : List[bool] | None = None,
+        codes: Tensor | NDArray,
+        mask : List[bool] | None = None
     ) -> Tuple[Stimuli, Message]:
         '''
+        Produce the stimuli using latent image codes, along with some
+        auxiliary information in the form of a message.
+        The method of the possibility to specify a mask for interleaving 
+        synthetic images with natural ones.
+
+        :param codes: Latent images code for synthetic images generation.
+        :type codes: Tensor | NDArray
+        :param mask: Binary mask specifying the order of synthetic and natural images
+                        in the stimuli (True for synthetic, False for natural).
+        :type mask: List[bool] | None, optional
+        :return: Produced stimuli set and auxiliary information in the form of a message.
+        :rtype: Tuple[Stimuli, Message]
         '''
         
-        # Extract input batch size
-        inp_shape, *_ = inp.shape
+        # Extract the number of codes from batch size
+        num_gen_img, *_ = codes.shape
 
-        # Input sanity check
-        mixing_mask = self._masking_sanity_check(mixing_mask=mixing_mask, inp_shape=inp_shape)
+        # Mask sanity check
+        mask = self._masking_sanity_check(mask=mask, num_gen_img=num_gen_img)
     
-        # Get generated images
-        generated, message = self._forward(inp=inp)
+        # Get synthetic images form the _forward method
+        # which is specific for each subclass architecture
+        gen_img, message = self._forward(codes=codes)
     
-        # Cast
-        mask = torch.tensor(mixing_mask)
-    
-        # Number of gen and nat
-        num_gens = int(torch.sum( mask).item())
-        num_nats = int(torch.sum(~mask).item())
+        # We use a tensor version of the mask for the interleaving 
+        mask_ten = torch.tensor(mask)
+        num_gen_img = int(torch.sum( mask_ten).item())
+        num_nat_img = int(torch.sum(~mask_ten).item())
         
-        # Extract generated images dimension
-        _, c, h, w = generated.shape
+        # Extract synthetic images shape
+        _, *gen_img_shape = gen_img.shape
+        gen_img_shape = tuple(gen_img_shape)
         
-        # Generate natural images
-        nats = self._generate_natural_images(num_nats, shape = (c, h, w))
+        # Load natural images
+        nat_img = self._load_natural_images(num_nat_img=num_nat_img, gen_img_shape=gen_img_shape)
         
-        # Combine the two according to the mask
-        out = torch.empty(num_gens + num_nats, c, h, w, device=self.device)
-        out[ mask] = generated
-        out[~mask] = nats
+        # Interleave synthetic and generated according to the mask
+        out = torch.empty( ((num_nat_img + num_gen_img),) + gen_img_shape, device=self.device)
+        out[ mask_ten] = gen_img
+        out[~mask_ten] = nat_img
         
         # Attach information to the message
-        message.mask = np.array(mixing_mask)
+        message.mask = np.array(mask)
         
         return out, message
     
@@ -237,8 +320,18 @@ class Generator(nn.Module):
     @abstractmethod 
     def _forward(
         self, 
-        inp : Tensor | NDArray
+        codes : Tensor | NDArray
     ) -> Tuple[Stimuli, Message]:
+        '''
+        The abstract method will be implemented in each 
+        subclass that need to specify the architecture logic of 
+        image generation from a latent code.
+
+        :param codes: Latent images code for synthetic images generation.
+        :type codes: Tensor | NDArray
+        :return: Generated stimuli set and auxiliary information in the form of a message.
+        :rtype: Tuple[Stimuli, Message]
+        '''
         pass
 
     @property
@@ -262,12 +355,12 @@ class InverseAlexGenerator(Generator):
         root : str,
         variant : str | None = 'fc8',
         output_pipe : Callable[[Tensor], Tensor] | None = None,
-        data_loader : DataLoader | None = None,
+        nat_img_loader : DataLoader | None = None,
     ) -> None:
         super().__init__(
             name='inv_alexnet',
             output_pipe=output_pipe,
-            data_loader=data_loader
+            nat_img_loader=nat_img_loader
         )
         
         # Get the networks paths based on provided root folder
@@ -309,14 +402,23 @@ class InverseAlexGenerator(Generator):
     @torch.no_grad()
     def _forward(
         self, 
-        inp : Tensor | NDArray
+        codes : Tensor | NDArray
     ) -> Tuple[Stimuli, Message]:
+        '''
+        Generated synthetic images starting with their latent code
+
+        :param codes: Latent images code for synthetic images generation.
+        :type codes: Tensor | NDArray
+        :return: Generated stimuli set and auxiliary information in the form of a message.
+        :rtype: Tuple[Stimuli, Message]
+        '''
         
-        if isinstance(inp, np.ndarray):
-            inp = torch.from_numpy(inp).to(self.device).to(self.dtype)
+        # Convert codes to tensors in the case of Arrays
+        if isinstance(codes, np.ndarray):
+            codes = torch.from_numpy(codes).to(self.device).to(self.dtype)
             
         # Generate the synthetic images and apply the output pipe
-        gens = self._network(inp)
+        gens = self._network(codes)
         gens = self._output_pipe(gens)
 
         # TODO: @Lorenzo Why this scaling here?
@@ -325,7 +427,11 @@ class InverseAlexGenerator(Generator):
             gens *= 255
             
         # Generate message
-        message = Message(mask=np.array([])) 
+        # NOTE: The information regarding it's in practice useless as it
+        #       will be overloaded in the forward method.
+        # NOTE: At this moment it's trivial but it offers the possibility
+        #       to attach auxiliary information in the future.
+        message = Message(mask=np.array([True]*gens.shape[0])) 
 
         return gens, message
 
