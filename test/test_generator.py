@@ -19,6 +19,9 @@ test_settings_fp = path.join(test_folder, 'local_settings.json')
 test_settings: Dict[str, Any] = read_json(path=test_settings_fp)
 
 class _RandomImageDataset(Dataset):
+    '''
+    Random image dataset to simulate finite one.
+    '''
     
     def __init__(self, num_images: int, image_size: Tuple[int, ...]):
         self.num_images = num_images
@@ -27,13 +30,17 @@ class _RandomImageDataset(Dataset):
     def __len__(self):
         return self.num_images
     
-    def __getitem__(self, _) -> Tensor:
+    def __getitem__(self, idx) -> Tensor:
+        
+        # Simulate finite dataset
+        if idx < 0 or idx > len(self): raise ValueError("Invalid image idx: {idx}")
                 
-        return torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
+        random_img = torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
+        
+        return random_img
 
 class InverseAlexGeneratorTest(unittest.TestCase):
-    
-    
+
     def setUp(self) -> None:
         super().setUp()
         
@@ -63,9 +70,15 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         target_shape: Tuple[int, ...]
     ) -> InverseAlexGenerator:
         
+        generator = InverseAlexGenerator(
+            root=self.root,
+            variant='fc8'
+        ).to(device)
+        
         dataset = _RandomImageDataset(
             num_images=num_images,
-            image_size=target_shape
+            image_size=target_shape,
+            #image_size=generator.output_dim TODO
         )
         
         dataloader = DataLoader(
@@ -73,11 +86,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             batch_size=batch_size
         )
         
-        generator = InverseAlexGenerator(
-            root=self.root,
-            variant='fc8',
-            nat_img_loader=dataloader
-        ).to(device)
+        generator.set_nat_img_loader(nat_img_loader=dataloader)
         
         return generator
     
@@ -122,6 +131,11 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
+        # TODO problem for size with norms
+        # in InverseAlexGenerator.out_dim:
+        # case 'norm1': return (3, 240, 240) # TODO this makes the test fail
+        # case 'norm2': return (3, 240, 240) # TODO this makes the test fail
+        # case _: return (3, 256, 256)
         self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
 
@@ -134,6 +148,11 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
+        # TODO problem for size with norms
+        # in InverseAlexGenerator.out_dim:
+        # case 'norm1': return (3, 240, 240) # TODO this makes the test fail
+        # case 'norm2': return (3, 240, 240) # TODO this makes the test fail
+        # case _: return (3, 256, 256)
         self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
         self.assertTrue(all(msg.mask))
     
@@ -159,7 +178,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             (100, 10,  1), # single batch
             (100, 10,  2), # batch divisible for the natural images
             (100, 10,  3), # batch non divisible for the natural images
-            ( 71, 15, 12),
+            ( 1,   2,  1), # circular dataset
             ( 10, 10, 10), # same batch size as dataset
             ( 10, 20, 10), # more natural images than ones in the dataset
             ( 10,  0, 10), # no natural images
@@ -186,9 +205,8 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             self.assertTrue(np.sum(~msg.mask) == num_nat)
             self.assertTrue(list(msg.mask) == mask)
 
-    def test_errors(self):
+    def test_no_dataloader(self):
         
-        # Mask but no dataloader
         generator_no_dataloader = InverseAlexGenerator(
             root=self.root,
             variant='fc8'
@@ -197,7 +215,8 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.run_mock_inp(generator_no_dataloader, mask=[True]*self.gen_batch + [False]*10)
         
-        # Wrong target shape
+    def test_wrong_target(self):
+        
         generator = self._get_generator_nat(
             num_images=100,
             batch_size=12,
@@ -206,7 +225,14 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         with self.assertRaises(ValueError):
             self.run_mock_inp(generator, mask=[True]*self.gen_batch + [False]*10)
+    
+    def test_true_mask(self):
         
+        generator = self._get_generator_nat(
+            num_images=100,
+            batch_size=12,
+            target_shape=(3, 242, 242) # wrong!
+        )   
         # True mask with incorrect size
         with self.assertRaises(ValueError):
             self.run_mock_inp(generator, mask=[True]*(self.gen_batch-1))
@@ -215,6 +241,14 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         _, mess = self.run_mock_inp(generator, mask=[True]*(self.gen_batch))
         self.assertTrue(np.all(mess.mask))
         self.assertEqual(len(mess.mask), self.gen_batch)
+        
+    def test_inconsistent_mask(self):
+        
+        generator = self._get_generator_nat(
+            num_images=100,
+            batch_size=12,
+            target_shape=(3, 242, 242) # wrong!
+        ) 
         
         # True and False mask with incorrect number of True
         with self.assertRaises(ValueError):

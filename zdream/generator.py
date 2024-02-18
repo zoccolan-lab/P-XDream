@@ -451,8 +451,8 @@ class InverseAlexGenerator(Generator):
     @property
     def output_dim(self) -> Tuple[int, int, int]:
         match self.variant:
-            case 'norm1': return (3, 240, 240)
-            case 'norm2': return (3, 240, 240)
+            case 'norm1': return (3, 240, 240) # TODO this makes the test fail
+            case 'norm2': return (3, 240, 240) # TODO this makes the test fail
             case _: return (3, 256, 256)
 
     def _build(self, variant : str = 'fc8') -> nn.Module:
