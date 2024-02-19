@@ -1,5 +1,5 @@
 {
     "inverse_alex_net": "path/to/your/root"
-    "test_image": "path/to/you/test/image"
     "image_out": "path/to/store/images"
+    "test_image": "path/to/your/image"
 }

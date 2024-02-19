@@ -22,7 +22,6 @@ from collections import OrderedDict
 from typing import Iterable, List, Dict, cast, Callable, Tuple
 from numpy.typing import NDArray
 
-from .utils import exists
 from .utils import default
 from .utils import lazydefault
 from .utils import multichar_split
