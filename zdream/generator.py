@@ -353,7 +353,6 @@ class Generator(nn.Module):
     def input_dim(self) -> Tuple[int, ...]:
         pass
 
-# TODO: This is @Lorenzo's job!
 class InverseAlexGenerator(Generator):
 
     def __init__(
@@ -457,8 +456,8 @@ class InverseAlexGenerator(Generator):
     @property
     def output_dim(self) -> Tuple[int, int, int]:
         match self.variant:
-            case 'norm1': return (3, 240, 240) # TODO this makes the test fail
-            case 'norm2': return (3, 240, 240) # TODO this makes the test fail
+            case 'norm1': return (3, 240, 240)
+            case 'norm2': return (3, 240, 240)
             case _: return (3, 256, 256)
 
     def _build(self, variant : str = 'fc8') -> nn.Module:

@@ -139,12 +139,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         ).to(device)
         
         out, msg = self.run_mock_inp(generator)
-    
-        # TODO problem for size with norms
-        # in InverseAlexGenerator.out_dim:
-        # case 'norm1': return (3, 240, 240) # TODO this makes the test fail
-        # case 'norm2': return (3, 240, 240) # TODO this makes the test fail
-        # case _: return (3, 256, 256)
+
         self.assertEqual(out.shape, (self.num_gen, *generator.output_dim))
         self.assertTrue(all(msg.mask))
 
@@ -156,12 +151,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         ).to(device)
         
         out, msg = self.run_mock_inp(generator)
-    
-        # TODO problem for size with norms
-        # in InverseAlexGenerator.out_dim:
-        # case 'norm1': return (3, 240, 240) # TODO this makes the test fail
-        # case 'norm2': return (3, 240, 240) # TODO this makes the test fail
-        # case _: return (3, 256, 256)
+        
         self.assertEqual(out.shape, (self.num_gen, *generator.output_dim))
         self.assertTrue(all(msg.mask))
     
