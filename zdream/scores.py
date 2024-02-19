@@ -19,7 +19,9 @@ from einops.einops import Reduction
 ScoringFunction   = Callable[[SubjectState], Dict[str, SubjectScore]]
 AggregateFunction = Callable[[Dict[str, SubjectScore]], SubjectScore]
 
-MetricKind = Literal[
+# NOTE: This is the same type of _MetricKind from scipy.spatial.distance
+#       which we need to redefine for issues with importing private variables from modules.
+_MetricKind = Literal[
     'braycurtis', 'canberra', 'chebychev', 'chebyshev',
     'cheby', 'cheb', 'ch', 'cityblock', 'cblock', 'cb',
     'c', 'correlation', 'co', 'cosine', 'cos', 'dice',
@@ -150,7 +152,7 @@ class WeightedPairSimilarityScore(Score):
     def __init__(
         self,
         signature : Dict[str, float],
-        metric : MetricKind = 'euclidean',
+        metric : _MetricKind = 'euclidean',
         filter_distance_fn : Callable[[NDArray], NDArray] | None = None,
     ) -> None: 
         '''

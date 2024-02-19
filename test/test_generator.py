@@ -14,63 +14,83 @@ from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
 from zdream.utils import device, read_json
 
+# Loading `local_settings.json` for custom local settings
 test_folder = path.dirname(path.abspath(__file__))
 test_settings_fp = path.join(test_folder, 'local_settings.json')
 test_settings: Dict[str, Any] = read_json(path=test_settings_fp)
 
 class _RandomImageDataset(Dataset):
+    '''
+    Random image dataset to simulate natural images to be interleaved
+    in the stimuli with synthetic ones.
+    '''
     
-    def __init__(self, num_images: int, image_size: Tuple[int, ...]):
-        self.num_images = num_images
-        self.image_size = image_size
+    def __init__(self, n_img: int, img_size: Tuple[int, ...]):
+        self.n_img = n_img
+        self.image_size = img_size
     
     def __len__(self):
-        return self.num_images
+        return self.n_img
     
-    def __getitem__(self, _) -> Tensor:
-                
-        return torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
+    def __getitem__(self, idx) -> Tensor:
+        
+        # Simulate finite dataset
+        if idx < 0 or idx >= len(self): raise ValueError(f"Invalid image idx: {idx} not in [0, {len(self)})")
+
+        rand_img = torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
+        
+        return rand_img
 
 class InverseAlexGeneratorTest(unittest.TestCase):
     
+    rand_seed = 123
+    num_gen = 10
+    out_shape = (3, 256, 256)
     
+    # NOTE: One must edit the `local_settings.json` in test dir
+    #       accordingly to proper local machine path
+    root = test_settings['inverse_alex_net']
+
     def setUp(self) -> None:
+        
         super().setUp()
         
-        random.seed = 123
+        # Seed for pseudo random generation for 
+        # random image generation and mask shuffling
+        random.seed = self.rand_seed
+        np.random.seed = self.rand_seed
         
-        # NOTE: One must edit the test_local_settings.json in test dir
-        #       accordingly to proper local machine path
-        self.root = test_settings['inverse_alex_net']
+    def run_mock_inp(
+            self, 
+            generator : InverseAlexGenerator, 
+            mask: List[bool] | None = None
+        ) -> Tuple[Stimuli, Message]:
         
-        self.gen_batch = 2
-        self.target_shape = (3, 256, 256)
-        
-    def run_mock_inp(self, generator : InverseAlexGenerator) -> Tuple[Stimuli, Message]:
-        # Test generator on mock input
+        # Test generator on mock input with an optional mask
         inp_dim = generator.input_dim
-        mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
-        
-        return generator(mock_inp)
-    
-    def run_mock_inp_with_nat(self, generator : InverseAlexGenerator, mask: List[bool]) -> Tuple[Stimuli, Message]:
-        # Test generator on mock input
-        inp_dim = generator.input_dim
-        mock_inp = torch.randn(self.gen_batch, *inp_dim, device=generator.device)
+        mock_inp = torch.randn(self.num_gen, *inp_dim, device=generator.device)
         
         return generator(mock_inp, mask)
-    
-        
-    def _get_generator_nat(
+
+    def _get_generator_with_nat_img(
         self,
-        num_images: int, 
-        batch_size: int,
-        target_shape: Tuple[int, ...]
+        n_img : int, 
+        batch_size : int,
+        img_size : Tuple[int, ...]
     ) -> InverseAlexGenerator:
         
+        # Create a generator with a data loader, for which  
+        # number of images, images size and batch size are required.
+        
+        generator = InverseAlexGenerator(
+            root=self.root,
+            variant='fc8'
+        ).to(device)
+        
         dataset = _RandomImageDataset(
-            num_images=num_images,
-            image_size=target_shape
+            n_img=n_img,
+            img_size=img_size,
+            #img_size=generator.input_dim  # TODO, this should be the correct shape
         )
         
         dataloader = DataLoader(
@@ -78,11 +98,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             batch_size=batch_size
         )
         
-        generator = InverseAlexGenerator(
-            root=self.root,
-            variant='fc8',
-            data_loader=dataloader
-        ).to(device)
+        generator.set_nat_img_loader(nat_img_loader=dataloader)
         
         return generator
     
@@ -94,7 +110,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.num_gen, *self.out_shape))
         self.assertTrue(all(msg.mask))
     
     def test_loading_fc7(self):
@@ -105,7 +121,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.num_gen, *self.out_shape))
         self.assertTrue(all(msg.mask))
 
     def test_loading_conv(self):
@@ -116,7 +132,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
 
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.num_gen, *self.out_shape))
         self.assertTrue(all(msg.mask))
 
     def test_loading_norm1(self):
@@ -127,7 +143,12 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
+        # TODO problem for size with norms
+        # in InverseAlexGenerator.out_dim:
+        # case 'norm1': return (3, 240, 240) # TODO this makes the test fail
+        # case 'norm2': return (3, 240, 240) # TODO this makes the test fail
+        # case _: return (3, 256, 256)
+        self.assertEqual(out.shape, (self.num_gen, *self.out_shape))
         self.assertTrue(all(msg.mask))
 
     
@@ -139,7 +160,12 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
+        # TODO problem for size with norms
+        # in InverseAlexGenerator.out_dim:
+        # case 'norm1': return (3, 240, 240) # TODO this makes the test fail
+        # case 'norm2': return (3, 240, 240) # TODO this makes the test fail
+        # case _: return (3, 256, 256)
+        self.assertEqual(out.shape, (self.num_gen, *self.out_shape))
         self.assertTrue(all(msg.mask))
     
     def test_loading_pool(self):
@@ -150,63 +176,114 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         out, msg = self.run_mock_inp(generator)
     
-        self.assertEqual(out.shape, (self.gen_batch, *self.target_shape))
+        self.assertEqual(out.shape, (self.num_gen, *self.out_shape))
         self.assertTrue(all(msg.mask))
         
     def test_natural_images(self):
         
-        # We run different cases for the number of images in the dataset,
-        # the number of natural images in the generator and the number
-        # of batches of the dataloader
+        # We run multiple versions of the generator with natural images
+        # by specifying different combination of parameters.
         
-        # num_images, num_nat, dataloader_bach
+        # Triples (n_img, num_nat, dataloader_batch)
         parameters = [
             (100, 10,  1), # single batch
             (100, 10,  2), # batch divisible for the natural images
             (100, 10,  3), # batch non divisible for the natural images
-            ( 71, 15, 12),
+            ( 1,   2,  1), # circular dataset
             ( 10, 10, 10), # same batch size as dataset
             ( 10, 20, 10), # more natural images than ones in the dataset
             ( 10,  0, 10), # no natural images
         ]
         
-        for num_images, num_nat, dataloader_bach in parameters:
+        for n_img, num_nat, dataloader_batch in parameters:
                 
-            generator = self._get_generator_nat(
-                num_images=num_images,
-                batch_size=dataloader_bach,
-                target_shape=self.target_shape
+            # Create a generator
+            generator = self._get_generator_with_nat_img(
+                n_img=n_img,
+                img_size=self.out_shape,
+                batch_size=dataloader_batch,
             )
             
-            mask = [True]*self.gen_batch + [False]*num_nat
+            # Create a correct mask and shuffle (random seed is set)
+            mask = [True]*self.num_gen + [False]*num_nat
             random.shuffle(mask)
             
-            out, msg = self.run_mock_inp_with_nat(
+            # Run a mock input
+            out, msg = self.run_mock_inp(
                 generator=generator,
                 mask=mask
             )
         
-            self.assertEqual(out.shape, (self.gen_batch+num_nat, *self.target_shape))
-            self.assertTrue(np.sum( msg.mask) == self.gen_batch)
+            # Check if 1) the output shape matches, 2) the mask is preserved,
+            #          3) the flags in the mask match number of synthetic and natural images
+            self.assertEqual(out.shape, (self.num_gen+num_nat, *self.out_shape))
+            self.assertTrue(list(msg.mask) == mask)
+            self.assertTrue(np.sum( msg.mask) == self.num_gen)
             self.assertTrue(np.sum(~msg.mask) == num_nat)
 
-    def test_errors(self):
+    def test_no_dataloader(self):
         
-        # Wrong target shape
-        generator = self._get_generator_nat(
-            num_images=100,
-            batch_size=12,
-            target_shape=(3, 242, 242) # wrong!
-        )
+        # We check an error is raised if the mask requires 
+        # natural images but no dataloader is provided
         
-        with self.assertRaises(ValueError):
-            self.run_mock_inp_with_nat(generator, mask=[True]*self.gen_batch + [False]*10)
-            
-        # Mask but no dataloader
-        generator = InverseAlexGenerator(
+        generator_no_dataloader = InverseAlexGenerator(
             root=self.root,
             variant='fc8'
         ).to(device)
         
         with self.assertRaises(AssertionError):
-            self.run_mock_inp_with_nat(generator, mask=[True]*self.gen_batch + [False]*10)
+            self.run_mock_inp(generator_no_dataloader, mask=[True]*self.num_gen + [False]*10)
+        
+    def test_wrong_target(self):
+        
+        # We check an error is raised in the case natural
+        # and synthetic images have different shapes.
+        
+        generator = self._get_generator_with_nat_img(
+            n_img=100,
+            batch_size=12,
+            img_size=(3, 242, 242) # wrong!
+        )
+        
+        with self.assertRaises(ValueError):
+            self.run_mock_inp(generator, mask=[True]*self.num_gen + [False]*10)
+    
+    def test_true_mask(self):
+        
+        # We check the two conditions providing a True-only mask
+        
+        generator = self._get_generator_with_nat_img(
+            n_img=100,
+            batch_size=12,
+            img_size=self.out_shape
+        )   
+        
+        # In the case the number of True doesn't match the number
+        # of synthetic images an error is expected
+        with self.assertRaises(ValueError):
+            self.run_mock_inp(generator, mask=[True]*(self.num_gen-1))
+            
+        # In the case the number of True matches the number of synthetic images
+        # we expect the exact behavior as if the masking was not provided  
+        
+        mock_inp = torch.randn(self.num_gen, *generator.input_dim, device=generator.device)
+        
+        stimuli_1, _ = generator(mock_inp, [True]*(self.num_gen))
+        stimuli_2, _ = generator(mock_inp)
+        
+        self.assertTrue(torch.equal(stimuli_1, stimuli_2))
+        
+    def test_inconsistent_mask(self):
+        
+        # In the case the True flags doesn't match the number of 
+        # generated images, an error is raised.
+        
+        generator = self._get_generator_with_nat_img(
+            n_img=100,
+            batch_size=12,
+            img_size=self.out_shape
+        ) 
+        
+        # True and False mask with incorrect number of True
+        with self.assertRaises(ValueError):
+            self.run_mock_inp(generator, mask=[True]*(self.num_gen-1) + [False]*10)
