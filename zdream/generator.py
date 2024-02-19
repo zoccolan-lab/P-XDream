@@ -191,13 +191,19 @@ class Generator(nn.Module):
         # If natural images are expected but no dataloader is 
         # available we raise an error
         if mask and self._nat_img_loader is None:
-            err_msg =   "Mask for natural images were provided but no dataloader is available. "\
-                        "Use `set_nat_img_loader()` to set one."
+            err_msg =   'Mask for natural images were provided but no dataloader is available. '\
+                        'Use `set_nat_img_loader()` to set one.'
             raise AssertionError(err_msg)
     
         # If the mixing mask was not specified we set the trivial one.
         # mask = default(mask, [True] * b) -> better, but not for type checker :(
         if not mask: mask = [True] * num_gen_img
+        
+        # If the number of True values in the mask doesn't match 
+        # the number of synthetic images we raise a error.
+        if sum(mask) != num_gen_img:
+            err_msg = f'Mask expects {num_gen_img} True values, but {sum(mask)} were provided'
+            raise ValueError(err_msg)
             
         return mask
     
