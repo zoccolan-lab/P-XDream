@@ -8,7 +8,7 @@ import numpy as np
 from itertools import combinations
 
 from zdream.utils import Message
-from zdream.scores import MSEScore, WeightedPairSimilarityScore
+from zdream.scores import MSEScore, WeightedPairSimilarityScore, MaxActivityScore
 
 class MSEScoreTest(unittest.TestCase):
     
@@ -21,8 +21,9 @@ class MSEScoreTest(unittest.TestCase):
         
         self.msg = Message(mask=np.ones(self.batch, dtype=bool))
         
-    def test_state_array(self):
+    def test_score(self):
         
+        # Define random target and state        
         target = {
             f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
             for i in range(self.nkeys)
@@ -31,7 +32,6 @@ class MSEScoreTest(unittest.TestCase):
             f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
             for i in range(self.nkeys)
         }
-        
         
         mse_score = MSEScore(target=target)
         score, _ = mse_score(data=(state, self.msg))
@@ -47,6 +47,7 @@ class MSEScoreTest(unittest.TestCase):
         
     def test_state_dict(self):
         
+        # Define random target and state  
         target = {
             f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
             for i in range(self.nkeys)
@@ -129,3 +130,30 @@ class WeightedPairSimilarityScoreTest(unittest.TestCase):
         
         # Second scores has ensured similarity in late conv8 so that  
         self.assertTrue(np.all(score_2 > score_1))
+        
+class MaxActivityScoreTest(unittest.TestCase):
+    
+    num_imgs = 5
+    random_state = 31415
+    
+    def setUp(self) -> None:
+        self.rng = np.random.default_rng(self.random_state)
+        self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
+        
+    def test_score_format(self):
+                
+        scorer = MaxActivityScore(
+            neurons={'one': [4, 100], 'two': [45, 78]},
+            aggregate=lambda x: np.sum(np.stack(list(x.values())), axis=1)
+        )
+        
+        mock_activations = {
+            'one': np.random.randn(self.num_imgs, 200),
+            'two': np.random.randn(self.num_imgs, 200)
+        }
+        
+        score, _ = scorer(data=(mock_activations, self.msg))
+        
+        self.assertEqual(score.ndim, 1)
+        self.assertEqual(score.dtype, np.float32)
+        self.assertEqual(len(score), self.num_imgs)
