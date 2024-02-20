@@ -125,6 +125,7 @@ class Optimizer:
             'best_param' : self._param[best_gen][best_idx],
             'curr_score' : self._score[-1],
             'curr_param' : self._param[-1],
+            'mean_shist' : np.array([np.mean(s) for s in self._score]),
             'best_shist' : [score[idx] for score, idx in zip(self._score, hist_idx)],
             'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)],
         }
