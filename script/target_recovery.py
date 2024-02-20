@@ -1,3 +1,5 @@
+from os import path
+import os
 import torch
 import numpy as np
 from PIL import Image
@@ -14,9 +16,8 @@ from numpy.typing import NDArray
 
 from zdream.utils import Stimuli
 from zdream.utils import SubjectState
-from zdream.utils import SubjectScore
 
-from zdream.utils import Message
+from zdream.utils import Message, read_json
 from zdream.scores import MSEScore
 from zdream.optimizer import GeneticOptimizer
 from zdream.generator import InverseAlexGenerator
@@ -49,7 +50,7 @@ def main(args):
     img_size = args.img_size
     gen_root = args.gen_root
 
-    target_image = Image.open('/home/pmurator/Downloads/test_image.jpg')
+    target_image = Image.open(args.test_img).convert("RGB")
     target_image = np.asarray(target_image.resize(img_size)) / 255.
     target_image = rearrange(target_image, 'h w c -> 1 c h w')
 
@@ -115,28 +116,43 @@ def main(args):
 
     save_image = make_grid([*torch.from_numpy(target_image), *best_image.cpu()], nrow=2)
     save_image = cast(Image.Image, to_pil_image(save_image))
+    
+    save_dir_fp = path.join(args.save_dir, 'target_recovery')
+    os.makedirs(save_dir_fp, exist_ok=True)
+    
+    img_name = path.splitext(path.basename(args.test_img))[0]
+    save_img_fp = path.join(save_dir_fp, f'{img_name}_{args.gen_variant}.png')
 
-    save_image.save(args.save_name)
+    save_image.save(save_img_fp)
+    
+    Image.open(save_img_fp).show()
     
 if __name__ == '__main__':
-    gen_root = '/media/pmurator/archive/InverseAlexGenerator'
+    
+    # Loading `local_settings.json` for custom local settings
+    local_folder = path.dirname(path.abspath(__file__))
+    script_settings_fp = path.join(local_folder, 'local_settings.json')
+    script_settings = read_json(path=script_settings_fp)
+    
+    gen_root   = script_settings['inverse_alex_net']
+    test_image = script_settings['test_image']
+    image_out  = script_settings['image_out']
     
     parser = ArgumentParser()
     
-    parser.add_argument('-num_imgs', type=int, default=20,  help='Number of images per generation')
-    parser.add_argument('-num_gens', type=int, default=250, help='Number of total generations to evolve')
-    parser.add_argument('-img_size', type=tuple, nargs=2, default=(256, 256), help='Size of a given image')
+    parser.add_argument('-num_imgs',       type=int,   default=20,           help='Number of images per generation')
+    parser.add_argument('-num_gens',       type=int,   default=1,          help='Number of total generations to evolve')
+    parser.add_argument('-img_size',       type=tuple, default=(256, 256),   help='Size of a given image', nargs=2)
+    parser.add_argument('-gen_variant',    type=str,   default='fc8',        help='Variant of InverseAlexGenerator to use')
+    parser.add_argument('-optimizer_seed', type=int,   default=31415,        help='Random seed in GeneticOptimizer')
+    parser.add_argument('-mutation_rate',  type=float, default=0.3,          help='Mutation rate in GeneticOptimizer')
+    parser.add_argument('-mutation_size',  type=float, default=0.3,          help='Mutation size in GeneticOptimizer')
+    parser.add_argument('-num_parents',    type=int,   default=2,            help='Number of parents in GeneticOptimizer')
+    parser.add_argument('-temperature',    type=float, default=1.0,          help='Temperature in GeneticOptimizer')
     
-    parser.add_argument('-gen_root', type=str, default=gen_root, help='Path to root folder of generator checkpoints')
-    parser.add_argument('-gen_variant', type=str, default='fc7', help='Variant of InverseAlexGenerator to use')
-    
-    parser.add_argument('-optimizer_seed', type=int, default=31415, help='Random seed in GeneticOptimizer')
-    parser.add_argument('-mutation_rate', type=float, default=0.3, help='Mutation rate in GeneticOptimizer')
-    parser.add_argument('-mutation_size', type=float, default=0.3, help='Mutation size in GeneticOptimizer')
-    parser.add_argument('-temperature', type=float, default=1.0, help='Temperature in GeneticOptimizer')
-    parser.add_argument('-num_parents', type=int, default=2, help='Number of parents in GeneticOptimizer')
-    
-    parser.add_argument('-save_name', type=str, default='result/output/target_recovery.jpg', help='Path to store best solution')
+    parser.add_argument('-gen_root',       type=str,   default=gen_root,     help='Path to root folder of generator checkpoints')
+    parser.add_argument('-test_img',       type=str,   default=test_image,   help='Path to test image')
+    parser.add_argument('-save_dir',       type=str,   default=image_out,    help='Path to store best solution')
     
     args = parser.parse_args()
     
