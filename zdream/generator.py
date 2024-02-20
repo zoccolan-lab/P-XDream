@@ -16,10 +16,11 @@ from torch.optim import AdamW
 
 from tqdm.auto import trange
 
+from einops import rearrange
 from functools import partial
 from collections import OrderedDict
 
-from typing import Iterable, List, Dict, cast, Callable, Tuple
+from typing import List, Dict, cast, Callable, Tuple, Literal
 from numpy.typing import NDArray
 
 from .utils import default
@@ -30,6 +31,7 @@ from .utils import multioption_prompt
 from .utils import Stimuli
 from .utils import Message
 
+InverseAlexVariant = Literal['conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8']
 
 class Generator(nn.Module):
     '''
@@ -357,30 +359,30 @@ class InverseAlexGenerator(Generator):
     def __init__(
         self,
         root : str,
-        variant : str | None = 'fc8',
+        variant : InverseAlexVariant | None = 'fc8',
         output_pipe : Callable[[Tensor], Tensor] | None = None,
         nat_img_loader : DataLoader | None = None,
     ) -> None:
+        # Get the networks paths based on provided root folder
+        nets_path = self._get_net_paths(base_nets_dir=root)
+        
+        # If variant is not provided at initialization, we ask the experimenter
+        # for generator variant of choice (from option list).
+        user_in = partial(
+                    multioption_prompt,
+                    opt_list=list(nets_path.keys()),
+                    in_prompt='select your generator:',
+                )
+        
+        self.variant = cast(InverseAlexVariant, lazydefault(variant, user_in))
+        
+        output_pipe = default(output_pipe, self._get_pipe(self.variant))
+        
         super().__init__(
             name='inv_alexnet',
             output_pipe=output_pipe,
             nat_img_loader=nat_img_loader
         )
-        
-        # Get the networks paths based on provided root folder
-        nets_path = self._get_net_paths(base_nets_dir=root)
-
-        # If variant is not provided at initialization, we ask the experimenter
-        # for generator variant of choice (from option list).
-        user_in = cast(
-                Callable[[], str],
-                partial(
-                    multioption_prompt,
-                    opt_list=list(nets_path.keys()),
-                    in_prompt='select your generator:',
-                )
-            )
-        self.variant = lazydefault(variant, user_in)
         
         # Build the network layers based on provided generator variant
         self._network = self._build(self.variant)
@@ -458,6 +460,23 @@ class InverseAlexGenerator(Generator):
             case 'norm1': return (3, 240, 240)
             case 'norm2': return (3, 240, 240)
             case _: return (3, 256, 256)
+            
+    def _get_pipe(self, variant : InverseAlexVariant) -> Callable[[Tensor], Tensor]:
+        def _opt1(imgs : Tensor) -> Tensor:
+            mean = torch.tensor((104.0, 117.0, 123.0), device=imgs.device)
+            mean = rearrange(mean, 'c -> c 1 1')
+            imgs = imgs + mean
+            imgs = imgs / 255.
+
+            return imgs.clamp(0, 1)
+        
+        def _opt2(imgs : Tensor) -> Tensor:
+            return 0.5 * (1 + imgs)
+        
+        match variant:    
+            case 'norm1' | 'norm2': return _opt2
+            case 'conv3' | 'conv4': return _opt2
+            case _: return _opt1 
 
     def _build(self, variant : str = 'fc8') -> nn.Module:
         # Get type of network (i.e: norm, conv, pool, fc)
