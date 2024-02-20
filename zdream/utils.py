@@ -6,6 +6,10 @@ import re
 from numpy.typing import NDArray
 from torch import Tensor
 import torch
+import glob
+from torchvision.datasets import ImageFolder
+from torchvision import transforms
+import os
 
 from dataclasses import dataclass
 
@@ -121,3 +125,17 @@ def read_json(path: str) -> Dict[str, Any]:
         return data
     except FileNotFoundError:
         raise FileNotFoundError(f'File not found at path: {path}')
+    
+class MiniImagenNet(ImageFolder):
+    def __init__(self, root, transform=transforms.Compose([transforms.Resize((256, 256)),  
+    transforms.ToTensor()]), target_transform=None):
+        super().__init__(root, transform=transform, target_transform=target_transform)
+        #load the .txt file containing imagenet labels (all 1000 categories)
+        lbls_txt = glob.glob(os.path.join(root, '*.txt'))
+        with open(lbls_txt[0], "r") as f:
+            lines = f.readlines()
+        self.label_dict = {line.split()[0]: 
+                        line.split()[2].replace('_', ' ')for line in lines}
+    #maintain this method here?
+    def class_to_lbl(self,lbls : Tensor): #takes in input the labels and outputs their categories
+        return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
