@@ -25,10 +25,7 @@ from zdream.optimizer import GeneticOptimizer
 population_size = 20
 
 
-
-# %%
-#I instantiate the generator
-
+#instantiate generator with appropriate transformation and mini imagenet loader
 def transform(
     imgs : Tensor,
     mean : Tuple[int, ...] = (104.0, 117.0, 123.0), # type: ignore
@@ -45,7 +42,6 @@ mini_IN = MiniImageNet(root="/home/lorenzo/Desktop/Datafolders/tiny imagenet")
 mini_IN_loader = DataLoader(mini_IN, batch_size=2, shuffle=True)
 mask = repeat_pattern(n = population_size, base_seq = [True, False, False, False, False,False,False], rand = False)
 
-
 gen = InverseAlexGenerator(
         root='/home/lorenzo/Desktop/Datafolders/ZXDREAM/Kreiman_Generators',
         variant='fc8',
@@ -54,7 +50,6 @@ gen = InverseAlexGenerator(
 ).to(device)
 
 
-# %%
 #initialize the network subject (alexnet) with a recording probe
 l = '20_linear_03' #layer you want to record from
 record_dict = {l: None} #i.e. fc8
@@ -63,13 +58,10 @@ sbj_net = NetworkSubject(record_probe = my_probe, network_name = 'alexnet')
 sbj_net._network.eval()
 # print(sbj_net.layer_names) #print to see layer names for the probe
 
-# %%
+
 #define a scorer
 n_dict = {l: range(10)} # list of neurons to be scored
 scorer = MaxActivityScorer(neurons = n_dict, aggregate=lambda x: np.stack(list(x.values())))
-
-
-# %%
 
 #initialize the optimizer
 optim = GeneticOptimizer(
@@ -82,16 +74,14 @@ optim = GeneticOptimizer(
     num_parents=2,
 )
 
-# Initialize optimizer with random condition
-# and produce initial (stimuli, msg)
+# produce initial (stimuli, msg)
 opt_state = optim.init()
 
-# %%
+
 #optimization loop
 num_gens = 1000
-rec_dict = defaultdict(list)
-best_nat =0; best_gen = 0
-
+rec_dict = defaultdict(list) #record dict will save layerwise as a list the activations of interest of the subject
+best_nat =0; best_gen = 0 #initialize the best scores for nat and gen imgs
 
 progress = trange(num_gens, desc='Generation 0 | best score: --- | avg score: --- ')
 for g in progress:
@@ -101,6 +91,7 @@ for g in progress:
     # Convert stimuli to subject state using the subject
     sub_state, msg =  sbj_net(data=(stimuli,msg))
     
+    #update the keys of rec_dict
     for k, v in sub_state.items():
         rec_dict[k].append(v)
 
@@ -109,12 +100,12 @@ for g in progress:
         data=(sub_state, msg)
     )
     
+    #get for both nat and gen imgs maximal activation and argmax (the following lines can  be implemented more elegantly)
     max_gen, max_nat = logicwise_function(f = [np.amax, np.argmax], np_arr= sub_score[0], np_l= msg.mask)
-
+    #update the best images
     if max_gen[0] > best_gen:
         best_gen = max_gen[0]
         best_gen_img = stimuli[msg.mask][max_gen[1]]
-        
     if max_nat[0] > best_nat:
         best_nat = max_nat[0]
         best_nat_img = stimuli[~msg.mask][max_nat[1]]
@@ -134,7 +125,7 @@ for g in progress:
     
 
 
-# %%
+#simple plotting of the output (Ponce 2019 style)
 import matplotlib.pyplot as plt
 
 fix, ax = plt.subplots(1, 2, figsize=(12, 6))
@@ -155,18 +146,11 @@ ax[1].legend()
 
 plt.show()
 
-# %% [markdown]
-# import matplotlib.pyplot as plt
-# plt.plot(optim.stats['mean_shist'])
-# plt.plot(optim.stats_nat['mean_shist'])
-
-# %%
+#see best nat and gen image
 to_pil_image(best_gen_img)
 
-# %%
 to_pil_image(best_nat_img)
 
-# %%
 print(best_nat, best_gen)
 
 
