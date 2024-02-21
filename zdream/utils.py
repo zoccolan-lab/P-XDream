@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import torch.nn as nn
-from typing import Tuple, TypeVar, Callable, Dict, List, Any
+from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union
 import re
 from numpy.typing import NDArray
 from torch import Tensor
@@ -161,3 +161,17 @@ def repeat_pattern(n : int, base_seq: List[Any] = [True, False],
         bool_l = bool_l+base_seq
         c += sum(base_seq)    
     return bool_l
+
+def logicwise_function(f: Union[Callable[[NDArray], NDArray], List[Callable[[NDArray], NDArray]]], 
+                       np_arr: NDArray, 
+                       np_l: NDArray) -> Union [Tuple[Tuple[NDArray, ...], Tuple[NDArray, ...]] ,Tuple[NDArray,NDArray] ]:
+    
+    if isinstance(f, list):
+        results_l = tuple(f_func(np_arr[np_l]) for f_func in f)
+        results_not_l = tuple(f_func(np_arr[~np_l]) for f_func in f)
+    else:
+        results_l = f(np_arr[np_l])
+        results_not_l = f(np_arr[~np_l])
+    
+    return results_l, results_not_l
+
