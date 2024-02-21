@@ -141,7 +141,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     
     parser.add_argument('-num_imgs',       type=int,   default=20,           help='Number of images per generation')
-    parser.add_argument('-num_gens',       type=int,   default=1,          help='Number of total generations to evolve')
+    parser.add_argument('-num_gens',       type=int,   default=250,          help='Number of total generations to evolve')
     parser.add_argument('-img_size',       type=tuple, default=(256, 256),   help='Size of a given image', nargs=2)
     parser.add_argument('-gen_variant',    type=str,   default='fc8',        help='Variant of InverseAlexGenerator to use')
     parser.add_argument('-optimizer_seed', type=int,   default=31415,        help='Random seed in GeneticOptimizer')
