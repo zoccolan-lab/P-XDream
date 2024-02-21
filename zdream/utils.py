@@ -19,19 +19,23 @@ T = TypeVar('T')
 D = TypeVar('D')
 
 # Type Aliases
-
-# TODO: Create StimulusSet Dataclass
 Stimuli = Tensor
-
+Codes = NDArray | Tensor
 SubjectState = Dict[str, NDArray]   # State of a subject mapping each layer to its batch of activation
 SubjectScore = NDArray[np.float32]  # 1-dimensional array with the length of the batch assigning a score to each tested stimulus
-
-ObjectiveFunction = Callable[[SubjectState], SubjectScore]
 
 @dataclass
 class Message:
     mask    : NDArray[np.bool_]
     label   : List[str] | None = None
+    
+class Logger:
+    
+    def info(self, message: str): print(message)
+            
+    def warn(self, message: str): print(message)
+
+    def error(self, message: str): print(message)
 
 def exists(var: Any | None) -> bool:
     return var is not None
@@ -42,6 +46,7 @@ def default(var : T | None, val : D) -> T | D:
 
 def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
     return expr() if var is None else var
+
 
 # Torch function utils
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

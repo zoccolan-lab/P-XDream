@@ -3,12 +3,16 @@ from abc import abstractmethod
 
 from scipy.special import softmax
 
-from .utils import default
-from .utils import lazydefault
-from .utils import Message, SubjectScore
+from .utils import SubjectScore
+
+from .utils import Codes, SubjectState
+from .utils import default, lazydefault
+from .utils import Message
 
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
+
+ObjectiveFunction = Callable[[SubjectState], SubjectScore]
 
 class Optimizer:
     '''
@@ -60,7 +64,12 @@ class Optimizer:
         # Initialize the internal random number generator for reproducibility
         self._rng = np.random.default_rng(random_state)
         
-    def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> NDArray:
+    @property
+    def n_states(self) -> int:
+        return 1
+    
+        
+    def init(self, init_cond : str | NDArray = 'normal', **kwargs) -> Codes:
         '''
         Initialize the optimizer parameters. If initial parameters
         are provided they should have matching dimensionality as 
@@ -82,12 +91,12 @@ class Optimizer:
             self._param = [init_cond.copy()]
         else:
             self._distr = init_cond
-            self._param = [self.rnd_sample(size=self._shape, **kwargs)]
+            self._param = [self.rnd_sample(size=(self.n_states, *self._shape), **kwargs)]
 
         return self.param
     
     @abstractmethod
-    def step(self, states : SubjectScore) -> NDArray:
+    def step(self, states : SubjectScore) -> Codes:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the
@@ -114,23 +123,6 @@ class Optimizer:
             case 'logistic': return self._rng.logistic
             case _: raise ValueError(f'Unrecognized distribution: {self._distr}')
     
-    """ @property
-    def stats(self) -> Dict[str, NDArray | List[NDArray]]:
-        flat_idx : np.intp    = np.argmax(self._score)
-        hist_idx : List[int]  = np.argmax(self._score, axis=1)
-
-        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._score))
-        
-        return {
-            'best_score' : self._score[best_gen][best_idx],
-            'best_param' : self._param[best_gen][best_idx],
-            'curr_score' : self._score[-1],
-            'curr_param' : self._param[-1],
-            'mean_shist' : np.array([np.mean(s) for s in self._score]),
-            'best_shist' : [score[idx] for score, idx in zip(self._score, hist_idx)],
-            'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)],
-        } """
-        
     def _get_stats(self, score: List[NDArray]):
         
         flat_idx : np.intp    = np.argmax(score)
@@ -170,7 +162,7 @@ class Optimizer:
     
     @property
     def param(self) -> NDArray:
-        return self._param[-1]
+        return self._param[-1] if self._param else np.array([])
     
 class GeneticOptimizer(Optimizer):
     '''
@@ -229,17 +221,19 @@ class GeneticOptimizer(Optimizer):
         self.temperature = temperature
         self.mutation_size = mutation_size
         self.mutation_rate = mutation_rate
-        self.population_size = population_size
+        self.init_pop_size = population_size
 
-        # NOTE: Shape now includes population size!
-        self._shape = (population_size, *self._shape)
+    @property
+    def n_states(self) -> int:
+        return len(self.param) if self._param else self.init_pop_size
     
     def step(
         self,
         data : Tuple[SubjectScore, Message],
+        out_size: int | None = None,
         temperature : float | None = None, 
         save_topk : int = 2,   
-    ) -> NDArray:
+    ) -> Codes:
         '''
         Optimizer step function where current observable (states)
         are scored using the internal objective function and a
@@ -249,8 +243,7 @@ class GeneticOptimizer(Optimizer):
         # TODO: Update doc
         :param data: Set of computed scores (gather from a
             scorer that evaluated for example some ANN activations).
-        :type curr_scores: SubjectScore (i.e. NDArray[np.float32] |
-            Dict[str, NDArray[np.float32]])
+        :param out_size: TODO
         :param temperature: Temperature in the softmax conversion
             from scores to fitness, i.e. the actual probabilities of
             selecting a given subject for reproduction
@@ -264,16 +257,18 @@ class GeneticOptimizer(Optimizer):
         :rtype: Numpy array
         '''
         
+        
         # Use Message mask to filter for generated data
         curr_scores, msg = data
         nat_scores  =  curr_scores[~msg.mask]
         curr_scores = curr_scores[msg.mask]
         
-        pop_size, *_ = self._shape
+        pop_size    = default(out_size, self.n_states)
+
         temperature = default(temperature, self.temperature)
 
         # Prepare new parameter (population) set
-        new_param = np.empty(shape=self._shape)
+        new_param = np.empty(shape=(pop_size, *self._shape))
 
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring subject
@@ -368,8 +363,8 @@ class GeneticOptimizer(Optimizer):
 
         # Identify which parent contributes which genes for every child
         # NOTE: First dimension of self._shape is the total population size
-        parentage = self._rng.choice(self.num_parents, size=(num_children, *self._shape[1:]), replace=True)
-        children = np.empty(shape=(num_children, *self._shape[1:]))
+        parentage = self._rng.choice(self.num_parents, size=(num_children, *self._shape), replace=True)
+        children = np.empty(shape=(num_children, *self._shape))
 
         for c, (child, family, lineage) in enumerate(zip(children, families, parentage)):
             for parent in family:

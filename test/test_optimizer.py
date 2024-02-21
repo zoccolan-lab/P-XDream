@@ -7,11 +7,11 @@ import numpy as np
 from numpy.typing import NDArray
 from zdream.optimizer import GeneticOptimizer
 
-from zdream.utils import Message
+from zdream.utils import Codes, Message
 
 from typing import cast
 
-def ackley_function(state : NDArray) -> NDArray:
+def ackley_function(state : Codes) -> Codes:
     x, y = cast(NDArray, state)
 
     a1 = -20 * np.exp(-0.2 * np.sqrt(0.5 * (x * x + y * y)))
@@ -19,7 +19,7 @@ def ackley_function(state : NDArray) -> NDArray:
     score = -a1 - a2 + 20
     return score
 
-def beale_function(state : NDArray) -> NDArray:
+def beale_function(state : Codes) -> Codes:
     '''
     Beale function. Global minimum f(x = 3, y = 0.5) = 0
     In the domain -4.5 < x, y < +4.5
@@ -45,7 +45,7 @@ class GeneticOptimizerTest(unittest.TestCase):
 
         self.num_iteration = 200
 
-    def non_convex_score(self, state : NDArray) -> NDArray:
+    def non_convex_score(self, state : Codes) -> NDArray:
         # Scorer each subject in the population individually
         scores = [beale_function(subj) for subj in state]
 
@@ -65,7 +65,7 @@ class GeneticOptimizerTest(unittest.TestCase):
 
         # Initialize optimizer with random condition
         state = optim.init()
-
+        
         # Compute the score of the initial state
         score = self.non_convex_score(state)
         init_score = score.copy()

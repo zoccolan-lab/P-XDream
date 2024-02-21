@@ -8,9 +8,11 @@ from numpy.typing import NDArray
 
 from scipy.spatial.distance import pdist
 
+from .utils import SubjectState
+
 from .utils import default
 from .utils import Message
-from .utils import SubjectScore, SubjectState
+from .utils import SubjectScore
 
 from einops import reduce
 from einops import rearrange

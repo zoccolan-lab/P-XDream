@@ -6,8 +6,9 @@ import unittest
 import numpy as np
 
 from itertools import combinations
+from zdream.utils import SubjectState
 
-from zdream.utils import Message, SubjectState
+from zdream.utils import Message
 from zdream.scores import MSEScorer, WeightedPairSimilarityScorer, MaxActivityScorer
 
 class MSEScorerTest(unittest.TestCase):
@@ -17,7 +18,8 @@ class MSEScorerTest(unittest.TestCase):
     nkeys = 3
     
     def setUp(self) -> None:
-        np.random.seed(self.rseed)
+        
+        self.rng = np.random.default_rng(self.rseed)
         
         self.msg = Message(mask=np.ones(self.batch, dtype=bool))
         
@@ -25,11 +27,11 @@ class MSEScorerTest(unittest.TestCase):
         
         # Define random target and state        
         target = {
-            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            f'key-{i}': self.rng.random((self.batch, 3, 224, 224))
             for i in range(self.nkeys)
         }
         state = {
-            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            f'key-{i}': self.rng.random((self.batch, 3, 224, 224))
             for i in range(self.nkeys)
         }
         
@@ -49,16 +51,16 @@ class MSEScorerTest(unittest.TestCase):
         
         # Define random target and state  
         target = {
-            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            f'key-{i}': self.rng.random((self.batch, 3, 224, 224))
             for i in range(self.nkeys)
         }
         state = {
-            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            f'key-{i}': self.rng.random((self.batch, 3, 224, 224))
             for i in range(self.nkeys)
         }
         
         # Check if target can have more key then the subject state has
-        target["new_key"] = np.random.rand(self.batch, 3, 224, 224)
+        target["new_key"] = self.rng.random((self.batch, 3, 224, 224))
         
         mse_score = MSEScorer(target=target)
         
@@ -67,7 +69,7 @@ class MSEScorerTest(unittest.TestCase):
         
         # Check if subject state raises errors when it has unexpected
         # keys for the target
-        state["new_key2"] = np.random.rand(self.batch, 3, 224, 224)
+        state["new_key2"] = self.rng.random((self.batch, 3, 224, 224))
         
         with self.assertRaises(ValueError):
             mse_score(data=(state, self.msg))
@@ -75,7 +77,7 @@ class MSEScorerTest(unittest.TestCase):
     def test_target_dict(self):
         
         target = {
-            f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
+            f'key-{i}': self.rng.random((self.batch, 3, 224, 224))
             for i in range(self.nkeys)
         }
         mse_score = MSEScorer(target=target)

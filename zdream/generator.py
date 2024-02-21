@@ -9,7 +9,7 @@ from einops.layers.torch import Rearrange
 from abc import abstractmethod
 from PIL import Image
 from torch.utils.data import DataLoader
-from zdream.utils import device
+from zdream.utils import Stimuli, device
 # from diffusers.models.unets.unet_2d import UNet2DModel
 
 from torch.optim import AdamW
@@ -28,7 +28,7 @@ from .utils import lazydefault
 from .utils import multichar_split
 from .utils import multioption_prompt
 
-from .utils import Stimuli
+from .utils import Codes
 from .utils import Message
 
 InverseAlexVariant = Literal['conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8']
@@ -273,7 +273,7 @@ class Generator(nn.Module):
 
     def forward(
         self, 
-        codes: Tensor | NDArray,
+        codes: Codes,
         mask : List[bool] | None = None
     ) -> Tuple[Stimuli, Message]:
         '''
@@ -283,7 +283,7 @@ class Generator(nn.Module):
         synthetic images with natural ones.
 
         :param codes: Latent images code for synthetic images generation.
-        :type codes: Tensor | NDArray
+        :type codes: Codes
         :param mask: Binary mask specifying the order of synthetic and natural images
                         in the stimuli (True for synthetic, False for natural).
         :type mask: List[bool] | None, optional
@@ -328,7 +328,7 @@ class Generator(nn.Module):
     @abstractmethod 
     def _forward(
         self, 
-        codes : Tensor | NDArray
+        codes : Codes
     ) -> Tuple[Stimuli, Message]:
         '''
         The abstract method will be implemented in each 
@@ -409,7 +409,7 @@ class InverseAlexGenerator(Generator):
     @torch.no_grad()
     def _forward(
         self, 
-        codes : Tensor | NDArray
+        codes : Codes
     ) -> Tuple[Stimuli, Message]:
         '''
         Generated synthetic images starting with their latent code
@@ -421,6 +421,7 @@ class InverseAlexGenerator(Generator):
         '''
         
         # Convert codes to tensors in the case of Arrays
+        # if isinstance(codes, np.ndarray):
         if isinstance(codes, np.ndarray):
             codes = torch.from_numpy(codes).to(self.device).to(self.dtype)
             
