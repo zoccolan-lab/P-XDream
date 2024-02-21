@@ -123,26 +123,29 @@ class Optimizer:
             case 'logistic': return self._rng.logistic
             case _: raise ValueError(f'Unrecognized distribution: {self._distr}')
     
-    def _get_stats(self, score: List[NDArray]):
+    def _get_stats(self, score: List[NDArray], param: bool = False):
+        #TO DO: i just quickfixed the issue when nr generated imgs != nr nat imgs
+        #we can probably find  a more elegant solution
         
         flat_idx : np.intp    = np.argmax(score)
         hist_idx : List[int]  = np.argmax(score, axis=1)
 
-        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._score))
+        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(score))
         
         return {
             'best_score' : score[best_gen][best_idx],
-            'best_param' : self._param[best_gen][best_idx],
+            'best_param' : self._param[best_gen][best_idx] if param else None,
             'curr_score' : score[-1],
-            'curr_param' : self._param[-1],
+            'curr_param' : self._param[-1] if param else None,
             'mean_shist' : np.array([np.mean(s) for s in score]),
             'best_shist' : [score[idx] for score, idx in zip(score, hist_idx)],
-            'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)],
+            'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)]
+                if param else None,
         }
         
     @property
     def stats(self):
-        return self._get_stats(score=self._score)
+        return self._get_stats(score=self._score, param = True)
     
     @property
     def stats_nat(self):
