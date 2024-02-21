@@ -52,8 +52,9 @@ class Optimizer:
         self._space = lazydefault(states_space, lambda : {i : (None, None) for i in range(len(states_shape))}) # type: ignore
         self._shape = lazydefault(states_shape, lambda : (len(states_space),))                                 # type: ignore
         
-        self._param : List[NDArray] = []
-        self._score : List[NDArray] = []
+        self._param     : List[NDArray] = []
+        self._score     : List[NDArray] = []
+        self._score_nat : List[NDArray] = []
         self._distr = random_distr
         
         # Initialize the internal random number generator for reproducibility
@@ -113,7 +114,7 @@ class Optimizer:
             case 'logistic': return self._rng.logistic
             case _: raise ValueError(f'Unrecognized distribution: {self._distr}')
     
-    @property
+    """ @property
     def stats(self) -> Dict[str, NDArray | List[NDArray]]:
         flat_idx : np.intp    = np.argmax(self._score)
         hist_idx : List[int]  = np.argmax(self._score, axis=1)
@@ -128,7 +129,33 @@ class Optimizer:
             'mean_shist' : np.array([np.mean(s) for s in self._score]),
             'best_shist' : [score[idx] for score, idx in zip(self._score, hist_idx)],
             'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)],
+        } """
+        
+    def _get_stats(self, score: List[NDArray]):
+        
+        flat_idx : np.intp    = np.argmax(score)
+        hist_idx : List[int]  = np.argmax(score, axis=1)
+
+        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._score))
+        
+        return {
+            'best_score' : score[best_gen][best_idx],
+            'best_param' : self._param[best_gen][best_idx],
+            'curr_score' : score[-1],
+            'curr_param' : self._param[-1],
+            'mean_shist' : np.array([np.mean(s) for s in score]),
+            'best_shist' : [score[idx] for score, idx in zip(score, hist_idx)],
+            'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)],
         }
+        
+    @property
+    def stats(self):
+        return self._get_stats(score=self._score)
+    
+    @property
+    def stats_nat(self):
+        return self._get_stats(score=self._score_nat)
+        
         
     @property
     def solution(self) -> NDArray:
@@ -239,6 +266,7 @@ class GeneticOptimizer(Optimizer):
         
         # Use Message mask to filter for generated data
         curr_scores, msg = data
+        nat_scores  =  curr_scores[~msg.mask]
         curr_scores = curr_scores[msg.mask]
         
         pop_size, *_ = self._shape
@@ -280,7 +308,9 @@ class GeneticOptimizer(Optimizer):
         #       to last parameter set and we are devising
         #       the new one right now (hence why old_score)
         self._score.append(curr_scores)
+        self._score_nat.append(nat_scores)
         self._param.append(new_param)
+        
 
         return new_param
     

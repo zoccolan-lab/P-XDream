@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import torch.nn as nn
-from typing import TypeVar, Callable, Dict, List, Any
+from typing import Tuple, TypeVar, Callable, Dict, List, Any
 import re
 from numpy.typing import NDArray
 from torch import Tensor
@@ -10,6 +10,7 @@ import glob
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 import os
+import random
 
 from dataclasses import dataclass
 
@@ -126,7 +127,8 @@ def read_json(path: str) -> Dict[str, Any]:
     except FileNotFoundError:
         raise FileNotFoundError(f'File not found at path: {path}')
     
-class MiniImagenNet(ImageFolder):
+class MiniImageNet(ImageFolder):
+
     def __init__(self, root, transform=transforms.Compose([transforms.Resize((256, 256)),  
     transforms.ToTensor()]), target_transform=None):
         super().__init__(root, transform=transform, target_transform=target_transform)
@@ -139,3 +141,18 @@ class MiniImagenNet(ImageFolder):
     #maintain this method here?
     def class_to_lbl(self,lbls : Tensor): #takes in input the labels and outputs their categories
         return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
+    
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        return super().__getitem__(index)[0]
+    
+    
+    
+def repeat_pattern(n : int, base_seq: List[Any] = [True, False], 
+                   rand: bool = True) -> List[Any]:
+    bool_l = []; c = 0
+    while c<n:
+        if rand:
+            random.shuffle(base_seq)
+        bool_l = bool_l+base_seq
+        c += sum(base_seq)    
+    return bool_l

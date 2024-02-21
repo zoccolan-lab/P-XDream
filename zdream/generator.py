@@ -263,7 +263,7 @@ class Generator(nn.Module):
             # NOTE: Since we necessary extract images in batches,
             #       we can have extracted more than required, for this purpose
             #       we may need to chop out the last few to match required number
-            nat_img = torch.cat(nat_img_list)[:num_nat_img]
+            nat_img = torch.cat(nat_img_list)[:num_nat_img].to(self.device)
         
         # In the case of no natural images we create an empty stimuli
         else:
@@ -300,9 +300,10 @@ class Generator(nn.Module):
         # Get synthetic images form the _forward method
         # which is specific for each subclass architecture
         gen_img, message = self._forward(codes=codes)
+        gen_img.to(self.device)
     
         # We use a tensor version of the mask for the interleaving 
-        mask_ten = torch.tensor(mask)
+        mask_ten = torch.tensor(mask, device = self.device)
         num_gen_img = int(torch.sum( mask_ten).item())
         num_nat_img = int(torch.sum(~mask_ten).item())
         
@@ -402,7 +403,7 @@ class InverseAlexGenerator(Generator):
         '''
         
         self._network.load_state_dict(
-            torch.load(path, map_location=device)
+            torch.load(path, map_location=self.device)
         )
         
     @torch.no_grad()
