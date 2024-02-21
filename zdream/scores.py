@@ -33,7 +33,7 @@ _MetricKind = Literal[
     'sqeuclidean', 'sqe', 'sqeuclid', 'yule'
 ]
 
-class Score(ABC):
+class Scorer(ABC):
     '''
     Abstract class for computing subject scores.
     '''
@@ -61,7 +61,7 @@ class Score(ABC):
         
         return (self.aggregate(scores), msg)
     
-class MSEScore(Score):
+class MSEScorer(Scorer):
     '''
         Class simulating a neuron score which target state 
         across one or multiple layers can be set.
@@ -84,7 +84,7 @@ class MSEScore(Score):
         
         self._target : SubjectState = target
         
-        # MSEScore criterion is the mse between the measured subject
+        # MSEScorer criterion is the mse between the measured subject
         # state and a given fixed target. This is accomplished via the
         # partial higher order function that fixes the second input to
         # the _score method of the class
@@ -112,7 +112,7 @@ class MSEScore(Score):
                 
         return scores
     
-class MaxActivityScore(Score):
+class MaxActivityScorer(Scorer):
     
     def __init__(
             self, 
@@ -141,7 +141,7 @@ class MaxActivityScore(Score):
         return scores    
     
     
-class WeightedPairSimilarityScore(Score):
+class WeightedPairSimilarityScorer(Scorer):
     '''
     This scorer computes weighted similarities (negative distances)
     between groups of subject states. Weights can either be positive

@@ -18,7 +18,7 @@ from zdream.utils import Stimuli
 from zdream.utils import SubjectState
 
 from zdream.utils import Message, read_json
-from zdream.scores import MSEScore
+from zdream.scores import MSEScorer
 from zdream.optimizer import GeneticOptimizer
 from zdream.generator import InverseAlexGenerator
 
@@ -54,7 +54,7 @@ def main(args):
     target_image = np.asarray(target_image.resize(img_size)) / 255.
     target_image = rearrange(target_image, 'h w c -> 1 c h w')
 
-    score = MSEScore(
+    score = MSEScorer(
         target={'image' : target_image}
     )
 

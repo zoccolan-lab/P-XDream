@@ -46,7 +46,7 @@ class GeneticOptimizerTest(unittest.TestCase):
         self.num_iteration = 200
 
     def non_convex_score(self, state : NDArray) -> NDArray:
-        # Score each subject in the population individually
+        # Scorer each subject in the population individually
         scores = [beale_function(subj) for subj in state]
 
         return np.array(scores)

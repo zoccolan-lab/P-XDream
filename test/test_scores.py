@@ -7,10 +7,10 @@ import numpy as np
 
 from itertools import combinations
 
-from zdream.utils import Message
-from zdream.scores import MSEScore, WeightedPairSimilarityScore, MaxActivityScore
+from zdream.utils import Message, SubjectState
+from zdream.scores import MSEScorer, WeightedPairSimilarityScorer, MaxActivityScorer
 
-class MSEScoreTest(unittest.TestCase):
+class MSEScorerTest(unittest.TestCase):
     
     rseed = 123 
     batch = 5  
@@ -33,7 +33,7 @@ class MSEScoreTest(unittest.TestCase):
             for i in range(self.nkeys)
         }
         
-        mse_score = MSEScore(target=target)
+        mse_score = MSEScorer(target=target)
         score, _ = mse_score(data=(state, self.msg))
         
         # Check if it's a one-dimensional array of float32
@@ -60,7 +60,7 @@ class MSEScoreTest(unittest.TestCase):
         # Check if target can have more key then the subject state has
         target["new_key"] = np.random.rand(self.batch, 3, 224, 224)
         
-        mse_score = MSEScore(target=target)
+        mse_score = MSEScorer(target=target)
         
         score, _ = mse_score(data=(state, self.msg))
         self.assertIsNotNone(score)
@@ -78,13 +78,13 @@ class MSEScoreTest(unittest.TestCase):
             f'key-{i}': np.random.rand(self.batch, 3, 224, 224)
             for i in range(self.nkeys)
         }
-        mse_score = MSEScore(target=target)
+        mse_score = MSEScorer(target=target)
         score, _ = mse_score(data=(target, self.msg))
         
         # Check all targets score to be zero
         self.assertTrue(np.allclose(score, 0))
         
-class WeightedPairSimilarityScoreTest(unittest.TestCase):
+class WeightedPairSimilarityScorerTest(unittest.TestCase):
     
     num_imgs = 5
     random_state = 31415
@@ -100,7 +100,7 @@ class WeightedPairSimilarityScoreTest(unittest.TestCase):
         }
 
         # Initialize scorer and create mock up data to test
-        score = WeightedPairSimilarityScore(
+        score = WeightedPairSimilarityScorer(
             signature=signature,
             metric='euclidean',
             filter_distance_fn=None,
@@ -119,7 +119,7 @@ class WeightedPairSimilarityScoreTest(unittest.TestCase):
             'conv8' : np.random.uniform(-1, +1, size=(self.num_imgs, num_unit_conv8)),
         }
         
-        # Score these states via scoring function. We should get a score for
+        # Scorer these states via scoring function. We should get a score for
         # each pair of images, i.e. expected output has shape (num_images,)
         score_1, _ = score(data=(state_1, self.msg))
         score_2, _ = score(data=(state_2, self.msg))
@@ -131,7 +131,7 @@ class WeightedPairSimilarityScoreTest(unittest.TestCase):
         # Second scores has ensured similarity in late conv8 so that  
         self.assertTrue(np.all(score_2 > score_1))
         
-class MaxActivityScoreTest(unittest.TestCase):
+class MaxActivityScorerTest(unittest.TestCase):
     
     num_imgs = 5
     random_state = 31415
@@ -141,15 +141,16 @@ class MaxActivityScoreTest(unittest.TestCase):
         self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
         
     def test_score_format(self):
-                
-        scorer = MaxActivityScore(
-            neurons={'one': [4, 100], 'two': [45, 78]},
-            aggregate=lambda x: np.sum(np.stack(list(x.values())), axis=1)
+        
+        scorer = MaxActivityScorer(
+            neurons={'one': [4, 100], 'two': [45, 78], 'three': [1]},
+            aggregate=lambda x: np.sum(np.stack(list(x.values())), axis=0).astype(np.float32)
         )
         
-        mock_activations = {
+        mock_activations: SubjectState = {
             'one': np.random.randn(self.num_imgs, 200),
-            'two': np.random.randn(self.num_imgs, 200)
+            'two': np.random.randn(self.num_imgs, 200),
+            'three': np.random.randn(self.num_imgs, 200),
         }
         
         score, _ = scorer(data=(mock_activations, self.msg))
