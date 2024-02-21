@@ -23,7 +23,7 @@ from collections import OrderedDict
 from typing import List, Dict, cast, Callable, Tuple, Literal
 from numpy.typing import NDArray
 
-from .utils import default
+from .utils import Mask, default
 from .utils import lazydefault
 from .utils import multichar_split
 from .utils import multioption_prompt
@@ -159,7 +159,7 @@ class Generator(nn.Module):
     
     def _masking_sanity_check(
         self, 
-        mask : List[bool] | None, 
+        mask : Mask | None, 
         num_gen_img : int
     ) -> List[bool]:
         '''
@@ -169,11 +169,11 @@ class Generator(nn.Module):
 
         :param mask: Binary mask specifying the order of synthetic and natural images
                         in the stimuli (True for synthetic, False for natural).
-        :type mask: List[bool] | None
+        :type mask: Mask | None
         :param num_gen_img: Number of synthetic images.
         :type num_gen_img: int
         :return: Sanitized binary mask.
-        :rtype: List[bool]
+        :rtype: Mask
         '''
         
         # In the case the mask contains only True values no 
@@ -270,11 +270,22 @@ class Generator(nn.Module):
             nat_img = torch.empty((0,) + gen_img_shape, device=self.device)
             
         return nat_img
+    
+    def __call__(
+        self, 
+        codes: Codes,
+        mask : Mask | None = None
+    ) -> Tuple[Stimuli, Message]:
+        
+        return self.forward(
+            codes=codes,
+            mask=mask
+        )
 
     def forward(
         self, 
         codes: Codes,
-        mask : List[bool] | None = None
+        mask : Mask | None = None
     ) -> Tuple[Stimuli, Message]:
         '''
         Produce the stimuli using latent image codes, along with some
@@ -286,7 +297,7 @@ class Generator(nn.Module):
         :type codes: Codes
         :param mask: Binary mask specifying the order of synthetic and natural images
                         in the stimuli (True for synthetic, False for natural).
-        :type mask: List[bool] | None, optional
+        :type mask: Mask | None, optional
         :return: Produced stimuli set and auxiliary information in the form of a message.
         :rtype: Tuple[Stimuli, Message]
         '''

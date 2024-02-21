@@ -35,8 +35,19 @@ class Subject(ABC):
     #     pass
     
     
+# TODO discuss together what to do
+class NetworkSubjectAbstract(Subject, nn.Module):
     
-class NetworkSubject(Subject, nn.Module):
+    def __call__(
+        self,
+        data : Tuple[Stimuli, Message]
+    ) -> Tuple[SubjectState, Message]:
+        
+        raise NotImplementedError("Cannot call an NetworkSubjectAbstract")
+    
+    
+    
+class NetworkSubject(NetworkSubjectAbstract, nn.Module):
     '''
         Class representing an artificial network involved in
         a visual task experiment as an artificial counterpart 
@@ -98,6 +109,18 @@ class NetworkSubject(Subject, nn.Module):
 
         # If provided, attach the recording probe to the network
         if record_probe: self.register(record_probe)
+        
+    def __call__(
+        self,
+        data : Tuple[Stimuli, Message],
+        probe : RecordingProbe | None = None,
+        auto_clean : bool = True
+    ) -> Tuple[SubjectState, Message]:
+        return self.forward(
+            data=data,
+            probe=probe,
+            auto_clean=auto_clean
+        )
 
     @torch.no_grad()
     def forward(

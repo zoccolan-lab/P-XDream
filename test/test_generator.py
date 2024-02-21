@@ -8,7 +8,7 @@ import unittest
 import torch
 import numpy as np
 from typing import List, Tuple, Dict, Any
-from zdream.utils import Stimuli
+from zdream.utils import Mask, Stimuli
 from zdream.generator import InverseAlexGenerator
 from zdream.utils import Message
 from torch.utils.data import Dataset, DataLoader
@@ -63,7 +63,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
     def run_mock_inp(
             self, 
             generator : InverseAlexGenerator, 
-            mask: List[bool] | None = None
+            mask: Mask | None = None
         ) -> Tuple[Stimuli, Message]:
         
         # Test generator on mock input with an optional mask

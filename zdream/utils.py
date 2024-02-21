@@ -1,4 +1,5 @@
 import json
+from einops import rearrange
 import numpy as np
 import torch.nn as nn
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union
@@ -10,6 +11,7 @@ import glob
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 import os
+from PIL import Image
 import random
 
 from dataclasses import dataclass
@@ -19,6 +21,7 @@ T = TypeVar('T')
 D = TypeVar('D')
 
 # Type Aliases
+Mask = List[bool]
 Stimuli = Tensor
 Codes = NDArray | Tensor
 SubjectState = Dict[str, NDArray]   # State of a subject mapping each layer to its batch of activation
@@ -174,4 +177,14 @@ def logicwise_function(f: Union[Callable[[NDArray], NDArray], List[Callable[[NDA
         results_not_l = f(np_arr[~np_l])
     
     return results_l, results_not_l
+
+def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
+    
+    img = Image.open(image_fp).convert("RGB")
+    if resize:
+        img = img.resize(resize)
+    img =np.asarray(img) / 255.
+    img = rearrange(img, 'h w c -> 1 c h w')
+    
+    return img
 

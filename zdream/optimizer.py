@@ -96,7 +96,7 @@ class Optimizer:
         return self.param
     
     @abstractmethod
-    def step(self, states : SubjectScore) -> Codes:
+    def step(self, data: Tuple[SubjectScore, Message]) -> Codes:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the

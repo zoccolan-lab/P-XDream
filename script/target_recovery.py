@@ -13,24 +13,45 @@ from tqdm import trange
 from torch import Tensor
 from typing import cast, Tuple
 from numpy.typing import NDArray
+from zdream.experiment import Experiment, ExperimentConfig
 
-from zdream.utils import Stimuli
+from zdream.utils import Logger, Stimuli, preprocess_image
 from zdream.utils import SubjectState
 
 from zdream.utils import Message, read_json
 from zdream.scores import MSEScorer
 from zdream.optimizer import GeneticOptimizer
 from zdream.generator import InverseAlexGenerator
+from zdream.subject import NetworkSubjectAbstract
 
 from zdream.utils import device
 
-def trivial_subj(
-    data : Tuple[Stimuli, Message],
-    name : str = 'image',
-) -> Tuple[SubjectState, Message]:
-    img, msg = data
+class TrivialSubject(NetworkSubjectAbstract):
     
-    return {name : img.cpu().numpy()}, msg
+    def __init__(self, name: str) -> None:
+        super().__init__()
+        self._name = name
+    
+    def __call__(
+        self,
+        data : Tuple[Stimuli, Message]
+    ) -> Tuple[SubjectState, Message]:
+        
+        img, msg = data
+    
+        return {self._name : img.cpu().numpy()}, msg
+    
+""" TODO include in the experiment
+# Compute the MSE loss to show feedback to used
+mse = min([mean_squared_error(img, target_image[0]) for img in sub_state['image']])
+
+# Get the current best score to update the progress bar
+stat = optim.stats
+best = cast(NDArray, stat['best_score']).mean()
+curr = cast(NDArray, stat['curr_score']).mean()
+desc = f'Generation {gen} | best score: {best:.1f} | avg score: {curr:.1f} | MSE: {mse:.3f}'
+progress.set_description(desc) 
+"""
 
 def transform(
     imgs : Tensor,
@@ -49,12 +70,10 @@ def main(args):
     num_gens = args.num_gens
     img_size = args.img_size
     gen_root = args.gen_root
+    
+    target_image = preprocess_image(image_fp=args.test_img, resize=img_size)
 
-    target_image = Image.open(args.test_img).convert("RGB")
-    target_image = np.asarray(target_image.resize(img_size)) / 255.
-    target_image = rearrange(target_image, 'h w c -> 1 c h w')
-
-    score = MSEScorer(
+    scorer = MSEScorer(
         target={'image' : target_image}
     )
 
@@ -74,45 +93,25 @@ def main(args):
         temperature=args.temperature,
         num_parents=args.num_parents,
     )
+    
+    subject=TrivialSubject(name='image')
+    
+    experiment_config = ExperimentConfig(
+        generator=generator,
+        scorer=scorer,
+        optimizer=optim,
+        subject=subject,
+        logger=Logger(),
+        num_gen=num_gens
+    )
+    
+    experiment = Experiment(config=experiment_config)
+    
+    experiment.run()
 
-    # Initialize optimizer with random condition
-    # and produce initial (stimuli, msg)
-    opt_state = optim.init()
-
-    progress = trange(num_gens, desc='Generation 0 | best score: --- | avg score: --- | MSE: ---')
-    for gen in progress:
-        # Use current optimizer states to produce new images
-        stimuli, msg = generator(opt_state)
-        
-        # Convert stimuli to subject state using the trivial subject
-        sub_state, msg = trivial_subj(
-            data=(stimuli, msg),
-            name='image'
-        )
-
-        # Use scorer to score the newly computed subject states
-        sub_score, msg = score(
-            data=(sub_state, msg)
-        )
-        
-        # Use the score to step the optimizer
-        opt_state = optim.step(
-            data=(sub_score, msg)
-        )
-
-        # Compute the MSE loss to show feedback to used
-        mse = min([mean_squared_error(img, target_image[0]) for img in sub_state['image']])
-        
-        # Get the current best score to update the progress bar
-        stat = optim.stats
-        best = cast(NDArray, stat['best_score']).mean()
-        curr = cast(NDArray, stat['curr_score']).mean()
-        desc = f'Generation {gen} | best score: {best:.1f} | avg score: {curr:.1f} | MSE: {mse:.3f}'
-        progress.set_description(desc)
-        
     # Save the best performing image to file
-    best_state = optim.solution
-    best_image, msg = generator(best_state)
+    best_state = experiment.optimizer.solution
+    best_image, msg = experiment.generator(best_state)
 
     save_image = make_grid([*torch.from_numpy(target_image), *best_image.cpu()], nrow=2)
     save_image = cast(Image.Image, to_pil_image(save_image))
