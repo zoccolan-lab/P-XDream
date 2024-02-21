@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from argparse import BooleanOptionalAction
 import os
 from os import path
 import numpy as np
@@ -11,7 +12,7 @@ from typing import Any, Dict, cast, Tuple
 
 from zdream.generator import InverseAlexGenerator
 from zdream.subject import NetworkSubject
-from zdream.utils import Message, read_json, device
+from zdream.utils import Message, read_json, device, default
 from zdream.probe import RecordingProbe
 
 
@@ -44,11 +45,10 @@ def main(args):
     # Compute activations
     message = Message(mask=np.ones(img.shape[0], dtype=bool))
     activations, _ = net_sbj((img, message))
-
-    # Generate syntethic images
-    synthetic_images, _ = generator(activations[layer_name])
-    synthetic_images += torch.tensor((104.0, 117.0, 123.0)).reshape(-1, 1, 1)
-    synthetic_images /= 255.
+    activation = activations[layer_name]
+    
+    activation = activation.reshape(1, *generator.input_dim)
+    synthetic_images, _ = generator(activation)
 
     # Save images
     out_dir = path.join(out_dir, 'inverse_generation')
@@ -64,36 +64,25 @@ def main(args):
     
     Image.open(fp).show()
 
-"""
-00_conv2d_01
-01_relu_01
-02_maxpool2d_01
-03_conv2d_02
-04_relu_02
-05_maxpool2d_02
-06_conv2d_03
-07_relu_03
-08_conv2d_04
-09_relu_04
-10_conv2d_05
-11_relu_05
-12_maxpool2d_03
-13_adaptiveavgpool2d_01
-14_dropout_01
-15_linear_01
-16_relu_06
-17_dropout_02
-18_linear_02
-19_relu_07
-20_linear_03
-""" 
-
-# ('20_linear_03', 'fc8'),
-# ('19_relu_07', 'fc7'),
-# ('18_linear_02', 'fc7'),
-# ('17_dropout_02', 'fc7'),
-# ('16_relu_06', 'fc7'),
-# ('15_linear_01', 'fc7')
+valid_config = [
+    ('06_conv2d_03', 'conv3'),
+    ('06_conv2d_03', 'conv4'),
+    ('07_relu_03', 'conv3'),
+    ('07_relu_03', 'conv4'),
+    ('12_maxpool2d_03', 'pool5'),
+    ('13_adaptiveavgpool2d_01', 'pool5'),
+    ('15_linear_01', 'fc6'),
+    ('15_linear_01', 'fc7'),
+    ('16_relu_06', 'fc6'),
+    ('16_relu_06', 'fc7'),
+    ('17_dropout_02', 'fc6'),
+    ('17_dropout_02', 'fc7'),
+    ('18_linear_02', 'fc6'),
+    ('18_linear_02', 'fc7'),
+    ('19_relu_07', 'fc6'),
+    ('19_relu_07', 'fc7'),
+    ('20_linear_03', 'fc8')
+]
 
 if __name__ == "__main__":
     
@@ -108,14 +97,31 @@ if __name__ == "__main__":
     
     parser = ArgumentParser()
         
-    parser.add_argument('-net_name',    type=str,   default='alexnet',      help='Name of the network')
-    parser.add_argument('-layer',       type=str,   default='20_linear_03', help='Activations layer name')
+    parser.add_argument('-net_name',    type=str,   default='alexnet',      help='Name of the network')    
+    parser.add_argument('-layer',       type=str,   default='20_linear_03',          help='Activations layer name')
     parser.add_argument('-img_size',    type=tuple, default=(256, 256),     help='Size of a given image', nargs=2)
-    parser.add_argument('-gen_variant', type=str,   default='fc8',          help='Variant of InverseAlexGenerator to use')
+    parser.add_argument('-gen_variant', type=str,   default='fc8', help='Variant of InverseAlexGenerator to use')
     parser.add_argument('-gen_root',    type=str,   default=gen_root,       help='Path to root folder of generator checkpoints')
     parser.add_argument('-test_img',    type=str,   default=test_image,     help='Path to test image')
     parser.add_argument('-save_dir',    type=str,   default=image_out,      help='Path to store synthetic image')
     
-    args = parser.parse_args()
+    # If to evaluate all possible combinations
+    parser.add_argument('--all', action=BooleanOptionalAction,  help='If yo evaluate all possible layer-variant configuration')
     
-    main(args=args)
+    args = parser.parse_args()
+    args.all = default(args.all, False)
+    
+    if not args.all:
+    
+        if (args.layer, args.gen_variant) not in valid_config:
+            raise ValueError (f"No valid configuration ({args.layer}, {args.gen_variant})")
+
+        main(args=args)
+    
+    else:
+        
+        for layer, variant in valid_config:
+            args.layer = layer
+            args.gen_variant = variant
+            
+            main(args=args)
