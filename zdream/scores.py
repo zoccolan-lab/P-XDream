@@ -133,6 +133,9 @@ class MSEScorer(Scorer):
                 
         return scores
     
+    @property
+    def target(self) -> Dict[str, NDArray]: return self._target
+    
 class MaxActivityScorer(Scorer):
     
     def __init__(

@@ -8,3 +8,4 @@ scipy==1.11.4
 einops==0.7.0
 pillow==10.2.0
 scikit-image==0.22.0
+loguru==0.5.3

@@ -8,14 +8,15 @@ from argparse import ArgumentParser
 from skimage.metrics import mean_squared_error
 from torchvision.utils import make_grid
 from torchvision.transforms.functional import to_pil_image
+from loguru import logger
 
 from tqdm import trange
 from torch import Tensor
-from typing import cast, Tuple
+from typing import Any, Dict, cast, Tuple
 from numpy.typing import NDArray
 from zdream.experiment import Experiment, ExperimentConfig
 
-from zdream.utils import Logger, Stimuli, preprocess_image
+from zdream.utils import Logger, Stimuli, SubjectScore, preprocess_image
 from zdream.utils import SubjectState
 
 from zdream.utils import Message, read_json
@@ -26,11 +27,14 @@ from zdream.subject import InSilicoSubject
 
 from zdream.utils import device
 
-class TrivialSubject(InSilicoSubject):
+class _TrivialSubject(InSilicoSubject):
     
     def __init__(self, name: str) -> None:
         super().__init__()
         self._name = name
+        
+    def __str__(self) -> str:
+        return f"TrivialSubject[layer_name: {self._name}]"
     
     def __call__(
         self,
@@ -41,17 +45,71 @@ class TrivialSubject(InSilicoSubject):
     
         return {self._name : img.cpu().numpy()}, msg
     
-""" TODO include in the experiment
-# Compute the MSE loss to show feedback to used
-mse = min([mean_squared_error(img, target_image[0]) for img in sub_state['image']])
+class _LoguruLogger(Logger):
+    
+    def info(self, mess: str): logger.info(mess)
+    def warn(self, mess: str): logger.warning(mess)
+    def err (self, mess: str): logger.error(mess)
+    
+class _TargetRecoveryExperiment(Experiment):
+    
+    def __init__(self, config: ExperimentConfig, name: str = "") -> None:
+        super().__init__(config=config, name=name)
+        self._data = cast(Dict[str, Any], config.data)
+        
+    @property
+    def scorer(self) -> MSEScorer: return cast(MSEScorer, self._scorer)
+    
+    def sbj_state_to_sbj_score(self, data: Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
+        
+        self._state, _ = data
+        return self.scorer(data=data)
+            
+    def progress_info(self, gen: int) -> str:
+        
+        trg_img = self.scorer.target['image']
+        
+        mse = min([
+            mean_squared_error(
+                trg_img, 
+                np.expand_dims(img, axis=0)  # add batch size
+            )
+            for img in self._state['image']]
+        )
+        
+        
+        stat = self.optimizer.stats
+        best = cast(NDArray, stat['best_score']).mean()
+        curr = cast(NDArray, stat['curr_score']).mean()
+        
+        desc = f' | Best score: {best:>7.3f} | Avg score: {curr:>7.3f} | MSE: {mse:.5f}'
+        
+        progress_super = super().progress_info(gen=gen)
+        return f'{progress_super}{desc}'
+    
+    def _finish(self):
+        
+        super()._finish()
+    
+        # Save the best performing image to file
+        best_state = self.optimizer.solution
+        best_image, msg = self.generator(best_state)
 
-# Get the current best score to update the progress bar
-stat = optim.stats
-best = cast(NDArray, stat['best_score']).mean()
-curr = cast(NDArray, stat['curr_score']).mean()
-desc = f'Generation {gen} | best score: {best:.1f} | avg score: {curr:.1f} | MSE: {mse:.3f}'
-progress.set_description(desc) 
-"""
+        trg_img = self.scorer.target['image']
+        
+        save_image = make_grid([*torch.from_numpy(trg_img), *best_image.cpu()], nrow=2)
+        save_image = cast(Image.Image, to_pil_image(save_image))
+        
+        save_dir_fp = path.join(self._data['save_dir'], self._name)
+        os.makedirs(save_dir_fp, exist_ok=True)
+        
+        save_img_fp = path.join(save_dir_fp, f'{self._data["out_name"]}.png')
+        
+        self._logger.info(mess=f"Saving best image to {save_img_fp}")
+
+        save_image.save(save_img_fp)
+
+
 
 def transform(
     imgs : Tensor,
@@ -94,37 +152,26 @@ def main(args):
         num_parents=args.num_parents,
     )
     
-    subject=TrivialSubject(name='image')
+    subject=_TrivialSubject(name='image')
+    
+    data = {
+        "save_dir": args.save_dir,
+        "out_name": f'{path.splitext(path.basename(args.test_img))[0]}_{args.gen_variant}'
+    }
     
     experiment_config = ExperimentConfig(
         generator=generator,
         scorer=scorer,
         optimizer=optim,
         subject=subject,
-        logger=Logger(),
-        num_gen=num_gens
+        logger=_LoguruLogger(),
+        num_gen=num_gens,
+        data=data
     )
     
-    experiment = Experiment(config=experiment_config)
+    experiment = _TargetRecoveryExperiment(config=experiment_config, name="target-recovery")
     
     experiment.run()
-
-    # Save the best performing image to file
-    best_state = experiment.optimizer.solution
-    best_image, msg = experiment.generator(best_state)
-
-    save_image = make_grid([*torch.from_numpy(target_image), *best_image.cpu()], nrow=2)
-    save_image = cast(Image.Image, to_pil_image(save_image))
-    
-    save_dir_fp = path.join(args.save_dir, 'target_recovery')
-    os.makedirs(save_dir_fp, exist_ok=True)
-    
-    img_name = path.splitext(path.basename(args.test_img))[0]
-    save_img_fp = path.join(save_dir_fp, f'{img_name}_{args.gen_variant}.png')
-
-    save_image.save(save_img_fp)
-    
-    Image.open(save_img_fp).show()
     
 if __name__ == '__main__':
     

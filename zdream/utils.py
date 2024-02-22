@@ -34,11 +34,11 @@ class Message:
     
 class Logger:
     
-    def info(self, message: str):  print(f"INFO: {message}")
+    def info(self,  mess: str): print(f"INFO: {mess}")
             
-    def warn(self, message: str):  print(f"WARN: {message}")
+    def warn(self,  mess: str): print(f"WARN: {mess}")
 
-    def error(self, message: str): print(f"ERR:  {message}")
+    def error(self, mess: str): print(f"ERR:  {mess}")
 
 def exists(var: Any | None) -> bool:
     return var is not None
