@@ -131,13 +131,14 @@ class MaxActivityScorer(Scorer):
     def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, SubjectScore]:
         
         # Check for layer name consistency
-        if not set(state.keys()).issubset(set(neurons.keys())):
+        if not set(neurons.keys()).issubset(set(state.keys())):
             err_msg = f'Keys of test image not in target {set(state.keys()).difference(neurons.keys())}'
             raise ValueError(err_msg)
         
         scores = {
             layer: self.reduction(activations[:, neurons[layer]])
             for layer, activations in state.items()
+            if layer in neurons
         }
         
         return scores    
