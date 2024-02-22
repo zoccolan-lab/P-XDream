@@ -64,15 +64,18 @@ class MSEScorerTest(unittest.TestCase):
         
         mse_score = MSEScorer(target=target)
         
-        score, _ = mse_score(data=(state, self.msg))
-        self.assertIsNotNone(score)
+        with self.assertRaises(ValueError):
+            score, _ = mse_score(data=(state, self.msg))
         
         # Check if subject state raises errors when it has unexpected
         # keys for the target
+        state["new_key"] = self.rng.random((self.batch, 3, 224, 224))
         state["new_key2"] = self.rng.random((self.batch, 3, 224, 224))
         
-        with self.assertRaises(ValueError):
-            mse_score(data=(state, self.msg))
+        score = mse_score(data=(state, self.msg))
+        
+        self.assertIsNotNone(score)
+        
         
     def test_target_dict(self):
         

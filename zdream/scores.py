@@ -1,7 +1,7 @@
 from abc import ABC
 from typing import Callable, Dict, List, Tuple, cast, Literal
 from functools import partial
-from itertools import combinations
+from _collections_abc import dict_keys
 
 import numpy as np
 from numpy.typing import NDArray
@@ -63,6 +63,16 @@ class Scorer(ABC):
         
         return (self.aggregate(scores), msg)
     
+    def _check_key_consistency(self, target: dict_keys, state: dict_keys):
+        #we check that our subject state contains at least the keys of target for computing
+        #the scores of interest. Keys in excess in subject (i.e.layers only for recording)
+        # will be ignored by the scorer (see score/combine methods in children classes)
+        
+        if not set(target).issubset(set(state)):
+            err_msg = f'Keys of test image not in target {set(state).difference(target)}'
+            raise ValueError(err_msg)
+        
+    
 class MSEScorer(Scorer):
     '''
         Class simulating a neuron score which target state 
@@ -100,8 +110,7 @@ class MSEScorer(Scorer):
         
     def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, SubjectScore]:
         # Check for layer name consistency
-        if not set(state.keys()).issubset(set(target.keys())):
-            raise ValueError('Keys of test image not in target')
+        self._check_key_consistency(target=target.keys(), state=state.keys())
         
         def mse(a : NDArray, b : NDArray) -> NDArray:
             a = rearrange(a, 'b ... -> b (...)')
@@ -110,6 +119,7 @@ class MSEScorer(Scorer):
         
         scores = {
             layer: -mse(state[layer], target[layer]) for layer in state.keys()
+            if layer in target
         }
                 
         return scores
@@ -130,10 +140,7 @@ class MaxActivityScorer(Scorer):
         
     def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, SubjectScore]:
         
-        # Check for layer name consistency
-        if not set(neurons.keys()).issubset(set(state.keys())):
-            err_msg = f'Keys of test image not in target {set(state.keys()).difference(neurons.keys())}'
-            raise ValueError(err_msg)
+        self._check_key_consistency(target=neurons.keys(), state=state.keys())
         
         scores = {
             layer: self.reduction(activations[:, neurons[layer]])
