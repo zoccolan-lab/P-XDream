@@ -167,7 +167,7 @@ def repeat_pattern(n : int, base_seq: List[Any] = [True, False],
 
 def logicwise_function(f: Union[Callable[[NDArray], NDArray], List[Callable[[NDArray], NDArray]]], 
                        np_arr: NDArray, 
-                       np_l: NDArray)
+                       np_l: NDArray):
     
     if isinstance(f, list):
         results_l = tuple(f_func(np_arr[np_l]) for f_func in f)
