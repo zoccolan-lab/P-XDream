@@ -1,24 +1,25 @@
 from dataclasses import dataclass
-from typing import Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 from tqdm import tqdm
 
 
 from .generator import Generator
 from .optimizer import Optimizer
 from .scores import Scorer
-from .subject import NetworkSubjectAbstract
+from .subject import InSilicoSubject
 from .utils import Codes, Logger, Message, Stimuli, SubjectScore, SubjectState, default
 
 @dataclass
 class ExperimentConfig:
     
     generator: Generator
-    subject: NetworkSubjectAbstract
+    subject: InSilicoSubject
     scorer: Scorer
     optimizer: Optimizer
     logger: Logger
     num_gen: int
     mask_generator: Callable[[int], List[bool] | None] | None = None
+    data: Dict[str, Any] | None = None  # Any possible additional data
     
     
 class Experiment:
@@ -38,7 +39,7 @@ class Experiment:
     def generator(self) -> Generator: return self._generator
     
     @property
-    def subject(self) -> NetworkSubjectAbstract: return self._subject
+    def subject(self) -> InSilicoSubject: return self._subject
     
     @property
     def scorer(self) -> Scorer: return self._scorer

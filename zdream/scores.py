@@ -108,6 +108,15 @@ class MSEScorer(Scorer):
             aggregate=aggregate,    
         )
         
+    def __str__(self) -> str:
+        
+        dims = ", ".join([f"{k}: {v.shape}" for k, v in self._target.items()])
+        
+        return f'MSEScorer[target size: ({dims})]'
+    
+    def __repr__(self) -> str: return str(self)
+
+        
     def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, SubjectScore]:
         # Check for layer name consistency
         self._check_key_consistency(target=target.keys(), state=state.keys())
@@ -128,15 +137,26 @@ class MaxActivityScorer(Scorer):
     
     def __init__(
             self, 
-            neurons: Dict[str, List[int]], 
+            trg_neurons: Dict[str, List[int]], 
             aggregate: AggregateFunction,
             reduction: Reduction = np.mean,
         ) -> None:
-        criterion = partial(self._combine, neurons=neurons)
+        
+        
+        self._trg_neurons = trg_neurons
+        criterion = partial(self._combine, neurons=trg_neurons)
                 
         self.reduction = partial(reduce, pattern='b u -> b', reduction=reduction)
                 
         super().__init__(criterion, aggregate)
+        
+    def __str__(self) -> str:
+        
+        dims = ", ".join([f"{k}: {len(v)}" for k, v in self._trg_neurons.items()])
+        
+        return f'MSEScorer[target neurons: ({dims})]'
+    
+    def __repr__(self) -> str: return str(self)
         
     def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, SubjectScore]:
         
@@ -199,6 +219,7 @@ class WeightedPairSimilarityScorer(Scorer):
         :type pair_fn: Callable[[NDArray], Tuple[NDArray, NDArray]] | None
         '''
         
+        
         # If grouping function is not given use even-odd split as default
         filter_distance_fn = default(filter_distance_fn, lambda x : x)
         
@@ -208,12 +229,20 @@ class WeightedPairSimilarityScorer(Scorer):
         criterion = partial(self._score, filter_distance_fn=filter_distance_fn)
         aggregate = partial(self._dprod, signature=signature)
         
-        self.signature = signature
+        self._signature = signature
 
         super().__init__(
             criterion=criterion,
             aggregate=aggregate,
         )
+        
+    def __str__(self) -> str:
+        
+        weights = ", ".join([f"{k}: {v}" for k, v in self._signature.items()])
+        
+        return f'MSEScorer[metric: {self._metric}; target size: ({weights})]'
+        
+    def __repr__(self) -> str: return str(self)
 
     def _score(
         self,

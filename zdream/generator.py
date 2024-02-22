@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch import Tensor
 from pathlib import Path
 from einops.layers.torch import Rearrange
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from PIL import Image
 from torch.utils.data import DataLoader
 from zdream.utils import Stimuli, device
@@ -33,7 +33,7 @@ from .utils import Message
 
 InverseAlexVariant = Literal['conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8']
 
-class Generator(nn.Module):
+class Generator(ABC, nn.Module):
     '''
     Base class for generic generators. A generator
     implements its generative logic in the `_forward`
@@ -404,6 +404,11 @@ class InverseAlexGenerator(Generator):
 
         # Put the generator in evaluate mode by default
         self.eval()
+        
+    def __str__(self) -> str:
+        return f'InverseAlexNetGenerator[variant: {self.variant}; in-dim: {self.input_dim}; out-dim: {self.output_dim}]'
+    
+    def __repr__(self) -> str: return str(self)
 
     def load(self, path : str | Path) -> None:
         '''

@@ -1,5 +1,5 @@
 import numpy as np
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 from scipy.special import softmax
 
@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 
 ObjectiveFunction = Callable[[SubjectState], SubjectScore]
 
-class Optimizer:
+class Optimizer(ABC):
     '''
     Base class for generic optimizer, which keeps track of current
     parameter set (codes) and defines the abstract `step()` method 
@@ -112,7 +112,7 @@ class Optimizer:
             future states scores
         :rtype: Numpy array  
         '''
-        raise NotImplementedError('Optimizer is abstract. Use concrete implementations')
+        pass
     
     @property
     def rnd_sample(self) -> Callable:
@@ -225,6 +225,12 @@ class GeneticOptimizer(Optimizer):
         self.mutation_size = mutation_size
         self.mutation_rate = mutation_rate
         self.init_pop_size = population_size
+        
+    def __str__(self) -> str:
+        return f'GeneticOptimizer[n_states: {self.n_states}; n_parents: {self.num_parents};'\
+               f' temperature: {self.temperature}; mutation_size: {self.mutation_size}; mutation_rate: {self.mutation_rate}]'
+    
+    def __repr__(self) -> str: return str(self)
 
     @property
     def n_states(self) -> int:

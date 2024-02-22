@@ -61,7 +61,7 @@ sbj_net._network.eval()
 
 #define a scorer
 n_dict = {l: range(10)} # list of neurons to be scored
-scorer = MaxActivityScorer(neurons = n_dict, aggregate=lambda x: np.stack(list(x.values())))
+scorer = MaxActivityScorer(trg_neurons = n_dict, aggregate=lambda x: np.stack(list(x.values())))
 
 #initialize the optimizer
 optim = GeneticOptimizer(

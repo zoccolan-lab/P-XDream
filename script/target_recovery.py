@@ -22,11 +22,11 @@ from zdream.utils import Message, read_json
 from zdream.scores import MSEScorer
 from zdream.optimizer import GeneticOptimizer
 from zdream.generator import InverseAlexGenerator
-from zdream.subject import NetworkSubjectAbstract
+from zdream.subject import InSilicoSubject
 
 from zdream.utils import device
 
-class TrivialSubject(NetworkSubjectAbstract):
+class TrivialSubject(InSilicoSubject):
     
     def __init__(self, name: str) -> None:
         super().__init__()

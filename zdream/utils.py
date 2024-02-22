@@ -34,11 +34,11 @@ class Message:
     
 class Logger:
     
-    def info(self, message: str): print(message)
+    def info(self, message: str):  print(f"INFO: {message}")
             
-    def warn(self, message: str): print(message)
+    def warn(self, message: str):  print(f"WARN: {message}")
 
-    def error(self, message: str): print(message)
+    def error(self, message: str): print(f"ERR:  {message}")
 
 def exists(var: Any | None) -> bool:
     return var is not None
@@ -167,7 +167,7 @@ def repeat_pattern(n : int, base_seq: List[Any] = [True, False],
 
 def logicwise_function(f: Union[Callable[[NDArray], NDArray], List[Callable[[NDArray], NDArray]]], 
                        np_arr: NDArray, 
-                       np_l: NDArray) -> Union [Tuple[Tuple[NDArray, ...], Tuple[NDArray, ...]] ,Tuple[NDArray,NDArray] ]:
+                       np_l: NDArray)
     
     if isinstance(f, list):
         results_l = tuple(f_func(np_arr[np_l]) for f_func in f)

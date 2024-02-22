@@ -148,7 +148,7 @@ class MaxActivityScorerTest(unittest.TestCase):
     def test_score_format(self):
         
         scorer = MaxActivityScorer(
-            neurons={'one': [4, 100], 'two': [45, 78], 'three': [1]},
+            trg_neurons={'one': [4, 100], 'two': [45, 78], 'three': [1]},
             aggregate=lambda x: np.sum(np.stack(list(x.values())), axis=0).astype(np.float32)
         )
         

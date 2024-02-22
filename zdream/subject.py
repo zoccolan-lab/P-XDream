@@ -35,19 +35,19 @@ class Subject(ABC):
     #     pass
     
     
-# TODO discuss together what to do
-class NetworkSubjectAbstract(Subject, nn.Module):
+class InSilicoSubject(Subject, nn.Module):
     
+    @abstractmethod
     def __call__(
         self,
         data : Tuple[Stimuli, Message]
     ) -> Tuple[SubjectState, Message]:
         
-        raise NotImplementedError("Cannot call an NetworkSubjectAbstract")
+        raise NotImplementedError("Cannot call a InSilicoSubject")
     
     
     
-class NetworkSubject(NetworkSubjectAbstract, nn.Module):
+class NetworkSubject(InSilicoSubject, nn.Module):
     '''
         Class representing an artificial network involved in
         a visual task experiment as an artificial counterpart 
@@ -89,9 +89,12 @@ class NetworkSubject(NetworkSubjectAbstract, nn.Module):
         '''
         super().__init__()
         
+        self._name = network_name
+        self._inp_shape = inp_shape
+        
         # Load the torch model via its name from the torchvision hub
-        self._weights = get_model_weights(network_name).DEFAULT if pretrained else None # type: ignore
-        self._network = get_model(network_name, weights=self._weights).to(device)
+        self._weights = get_model_weights(self._name).DEFAULT if pretrained else None # type: ignore
+        self._network = get_model(self._name, weights=self._weights).to(device)
         
         self._probes : Dict[SilicoProbe, List[RemovableHandle]] = defaultdict(list)
 
@@ -109,6 +112,10 @@ class NetworkSubject(NetworkSubjectAbstract, nn.Module):
 
         # If provided, attach the recording probe to the network
         if record_probe: self.register(record_probe)
+        
+    def __str__(self) -> str:
+        
+        return f'NetworkSubject[name: {self.name}, in-shape: {self._inp_shape}, n-layers: {len(self.layer_names)}, n-probes: {len(self._probes)}]'
         
     def __call__(
         self,
