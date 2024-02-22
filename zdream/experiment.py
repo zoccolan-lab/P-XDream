@@ -59,21 +59,21 @@ class Experiment:
     
     # --- PIPELINE METHODS ---
 
-    def codes_to_stimuli(self, codes: Codes) -> Tuple[Stimuli, Message]:
+    def _codes_to_stimuli(self, codes: Codes) -> Tuple[Stimuli, Message]:
         
         mask = self.mask_generator(self.optimizer.n_states)
         
         return self.generator(codes=codes, mask=mask)
     
-    def stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
+    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
         
         return self.subject(data=data)
     
-    def sbj_state_to_sbj_score(self, data: Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
+    def _sbj_state_to_sbj_score(self, data: Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
         
         return self.scorer(data=data)
     
-    def sbj_score_to_codes(self, data: Tuple[SubjectScore, Message]) -> Codes:
+    def _sbj_score_to_codes(self, data: Tuple[SubjectScore, Message]) -> Codes:
         
         return self.optimizer.step(data=data)
     
@@ -110,10 +110,10 @@ class Experiment:
         
         for gen in range(self._num_gen):
             
-            stimuli   = self.codes_to_stimuli(codes)
-            sbj_state = self.stimuli_to_sbj_state(stimuli)
-            sbj_score = self.sbj_state_to_sbj_score(sbj_state)            
-            codes     = self.sbj_score_to_codes(sbj_score)
+            stimuli   = self._codes_to_stimuli(codes)
+            sbj_state = self._stimuli_to_sbj_state(stimuli)
+            sbj_score = self._sbj_state_to_sbj_score(sbj_state)            
+            codes     = self._sbj_score_to_codes(sbj_score)
 
             self._progress(gen=gen)
     
