@@ -12,14 +12,14 @@ from .utils import SubjectState
 
 from .utils import default
 from .utils import Message
-from .utils import SubjectScore
+from .utils import StimuliScore
 
 from einops import reduce
 from einops import rearrange
 from einops.einops import Reduction
 
-ScoringFunction   = Callable[[SubjectState], Dict[str, SubjectScore]]
-AggregateFunction = Callable[[Dict[str, SubjectScore]], SubjectScore]
+ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]
+AggregateFunction = Callable[[Dict[str, StimuliScore]], StimuliScore]
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
 #       which we need to redefine for issues with importing private variables from modules.
@@ -48,14 +48,14 @@ class Scorer(ABC):
         self.criterion = criterion
         self.aggregate = aggregate
 
-    def __call__(self, data : Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
+    def __call__(self, data : Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         '''
         Compute the subject scores given a subject state.
 
         :param state: state of subject
         :type state: SubjectState
         :return: array of scores
-        :rtype: SubjectScore
+        :rtype: StimuliScore
         '''
         state, msg = data
         
@@ -117,7 +117,7 @@ class MSEScorer(Scorer):
     def __repr__(self) -> str: return str(self)
 
         
-    def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, SubjectScore]:
+    def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, StimuliScore]:
         # Check for layer name consistency
         self._check_key_consistency(target=target.keys(), state=state.keys())
         
@@ -161,7 +161,7 @@ class MaxActivityScorer(Scorer):
     
     def __repr__(self) -> str: return str(self)
         
-    def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, SubjectScore]:
+    def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, StimuliScore]:
         
         self._check_key_consistency(target=neurons.keys(), state=state.keys())
         
@@ -262,9 +262,9 @@ class WeightedPairSimilarityScorer(Scorer):
         
         return scores
 
-    def _dprod(self, state : Dict[str, SubjectScore], signature : Dict[str, float]) -> SubjectScore:
+    def _dprod(self, state : Dict[str, StimuliScore], signature : Dict[str, float]) -> StimuliScore:
         return cast(
-            SubjectScore,
+            StimuliScore,
             np.sum(
                 [v * state[k] for k, v in signature.items()],
                 axis=0

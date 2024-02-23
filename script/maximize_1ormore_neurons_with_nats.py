@@ -96,12 +96,12 @@ for g in progress:
         rec_dict[k].append(v)
 
     # Use scorer to score the newly computed subject states
-    sub_score, msg = scorer(
+    stimuli_score, msg = scorer(
         data=(sub_state, msg)
     )
     
     #get for both nat and gen imgs maximal activation and argmax (the following lines can  be implemented more elegantly)
-    max_gen, max_nat = logicwise_function(f = [np.amax, np.argmax], np_arr= sub_score[0], np_l= msg.mask)
+    max_gen, max_nat = logicwise_function(f = [np.amax, np.argmax], np_arr= stimuli_score[0], np_l= msg.mask)
     #update the best images
     if max_gen[0] > best_gen:
         best_gen = max_gen[0]
@@ -113,7 +113,7 @@ for g in progress:
 
     # Use the score to step the optimizer
     opt_state = optim.step(
-        data=(sub_score[0], msg)
+        data=(stimuli_score[0], msg)
     )
     
     # Get the current best score to update the progress bar

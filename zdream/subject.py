@@ -35,7 +35,7 @@ class Subject(ABC):
     #     pass
     
     
-class InSilicoSubject(Subject, nn.Module):
+class InSilicoSubject(Subject):
     
     @abstractmethod
     def __call__(

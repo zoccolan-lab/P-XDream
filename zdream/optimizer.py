@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from scipy.special import softmax
 
-from .utils import SubjectScore
+from .utils import StimuliScore
 
 from .utils import Codes, SubjectState
 from .utils import default, lazydefault
@@ -12,7 +12,7 @@ from .utils import Message
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
 
-ObjectiveFunction = Callable[[SubjectState], SubjectScore]
+ObjectiveFunction = Callable[[SubjectState], StimuliScore]
 
 class Optimizer(ABC):
     '''
@@ -96,7 +96,7 @@ class Optimizer(ABC):
         return self.param
     
     @abstractmethod
-    def step(self, data: Tuple[SubjectScore, Message]) -> Codes:
+    def step(self, data: Tuple[StimuliScore, Message]) -> Codes:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the
@@ -238,7 +238,7 @@ class GeneticOptimizer(Optimizer):
     
     def step(
         self,
-        data : Tuple[SubjectScore, Message],
+        data : Tuple[StimuliScore, Message],
         out_size: int | None = None,
         temperature : float | None = None, 
         save_topk : int = 2,   

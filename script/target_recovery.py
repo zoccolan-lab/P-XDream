@@ -16,7 +16,7 @@ from typing import Any, Dict, cast, Tuple
 from numpy.typing import NDArray
 from zdream.experiment import Experiment, ExperimentConfig
 
-from zdream.utils import Logger, Stimuli, SubjectScore, preprocess_image
+from zdream.utils import Logger, Stimuli, StimuliScore, preprocess_image
 from zdream.utils import SubjectState
 
 from zdream.utils import Message, read_json
@@ -60,12 +60,12 @@ class _TargetRecoveryExperiment(Experiment):
     @property
     def scorer(self) -> MSEScorer: return cast(MSEScorer, self._scorer)
     
-    def sbj_state_to_sbj_score(self, data: Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
+    def _sbj_state_to_stimuli_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         
         self._state, _ = data
         return self.scorer(data=data)
             
-    def progress_info(self, gen: int) -> str:
+    def _progress_info(self, gen: int) -> str:
         
         trg_img = self.scorer.target['image']
         
@@ -84,7 +84,7 @@ class _TargetRecoveryExperiment(Experiment):
         
         desc = f' | Best score: {best:>7.3f} | Avg score: {curr:>7.3f} | MSE: {mse:.5f}'
         
-        progress_super = super().progress_info(gen=gen)
+        progress_super = super()._progress_info(i=gen)
         return f'{progress_super}{desc}'
     
     def _finish(self):
@@ -165,7 +165,7 @@ def main(args):
         optimizer=optim,
         subject=subject,
         logger=_LoguruLogger(),
-        num_gen=num_gens,
+        iteration=num_gens,
         data=data
     )
     

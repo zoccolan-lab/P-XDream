@@ -25,7 +25,7 @@ Mask = List[bool]
 Stimuli = Tensor
 Codes = NDArray | Tensor
 SubjectState = Dict[str, NDArray]   # State of a subject mapping each layer to its batch of activation
-SubjectScore = NDArray[np.float32]  # 1-dimensional array with the length of the batch assigning a score to each tested stimulus
+StimuliScore = NDArray[np.float32]  # 1-dimensional array with the length of the batch assigning a score to each tested stimulus
 
 @dataclass
 class Message:
