@@ -269,7 +269,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         stimuli_1, _ = generator(mock_inp, [True]*(self.num_gen))
         stimuli_2, _ = generator(mock_inp)
         
-        self.assertTrue(torch.allclose(stimuli_1, stimuli_2, atol=1e-4))
+        self.assertTrue(torch.allclose(stimuli_1, stimuli_2, atol=1e-6))
         
     def test_inconsistent_mask(self):
         
