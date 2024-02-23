@@ -9,7 +9,10 @@ from einops.layers.torch import Rearrange
 from abc import ABC, abstractmethod
 from PIL import Image
 from torch.utils.data import DataLoader
-from zdream.utils import Stimuli, device
+
+from zdream.model import Stimuli
+from .model import Mask
+from zdream.utils import device
 # from diffusers.models.unets.unet_2d import UNet2DModel
 
 from torch.optim import AdamW
@@ -23,13 +26,13 @@ from collections import OrderedDict
 from typing import List, Dict, cast, Callable, Tuple, Literal
 from numpy.typing import NDArray
 
-from .utils import Mask, default
+from .utils import default
 from .utils import lazydefault
 from .utils import multichar_split
 from .utils import multioption_prompt
 
-from .utils import Codes
-from .utils import Message
+from .model import Codes
+from .model import Message
 
 InverseAlexVariant = Literal['conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8']
 

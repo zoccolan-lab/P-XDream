@@ -19,6 +19,7 @@ from loguru import logger
 from functools import partial
 
 from zdream.generator import InverseAlexGenerator
+from zdream.model import Codes, Logger, Message, Stimuli, StimuliScore, SubjectState
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 from zdream.utils import *
@@ -26,24 +27,42 @@ from zdream.scores import MaxActivityScorer
 from zdream.optimizer import GeneticOptimizer
 from zdream.experiment import Experiment, ExperimentConfig
 
+class _MiniImageNet(ImageFolder):
+
+    def __init__(self, root, transform=transforms.Compose([transforms.Resize((256, 256)),  
+    transforms.ToTensor()]), target_transform=None):
+        super().__init__(root, transform=transform, target_transform=target_transform)
+        #load the .txt file containing imagenet labels (all 1000 categories)
+        lbls_txt = glob.glob(os.path.join(root, '*.txt'))
+        with open(lbls_txt[0], "r") as f:
+            lines = f.readlines()
+        self.label_dict = {line.split()[0]: 
+                        line.split()[2].replace('_', ' ')for line in lines}
+    #maintain this method here?
+    def class_to_lbl(self,lbls : Tensor): #takes in input the labels and outputs their categories
+        return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
+    
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        return super().__getitem__(index)[0]
+
 class _LoguruLogger(Logger):
     
     def info(self, mess: str): logger.info(mess)
     def warn(self, mess: str): logger.warning(mess)
     def err (self, mess: str): logger.error(mess)
     
-class MaximizeActivity(Experiment):
+class _MaximizeActivity(Experiment):
     def __init__(self, config: ExperimentConfig, name: str = "maximize_activity") -> None:
         super().__init__(config=config, name=name)
         self._data = cast(Dict[str, Any], config.data)
         
-    def progress_info(self, gen: int) -> str:
+    def progress_info(self, i: int) -> str:
         
         stat = self.optimizer.stats
         best = cast(NDArray, stat['best_score']).mean()
         curr = cast(NDArray, stat['curr_score']).mean()
         desc = f' | best score: {best:.1f} | avg score: {curr:.1f}'
-        progress_super = super().progress_info(gen=gen)
+        progress_super = super()._progress_info(i=i)
         
         return f'{progress_super}{desc}'
         
@@ -100,16 +119,16 @@ class MaximizeActivity(Experiment):
         self._stimuli, _ = data
         return super()._stimuli_to_sbj_state(data)
         
-    def _sbj_state_to_sbj_score(self, data: Tuple[SubjectState, Message]) -> Tuple[SubjectScore, Message]:
+    def _sbj_state_to_sbj_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         
         sbj_state, _ = data
         
         for k, v in sbj_state.items():
             self._rec_dict[k].append(v)
         
-        return super()._sbj_state_to_sbj_score(data)
+        return super()._sbj_state_to_stm_score(data)
     
-    def _sbj_score_to_codes(self, data: Tuple[SubjectScore, Message]) -> Codes:
+    def _sbj_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
         sub_score, msg =data
         for imtype, mask in zip(['nat', 'gen'], [msg.mask, ~msg.mask]):
             
@@ -119,7 +138,7 @@ class MaximizeActivity(Experiment):
                 self._best[imtype] = max_
                 self._best_img[imtype] = self._stimuli[torch.tensor(mask)][armax]
         
-        return super()._sbj_score_to_codes((sub_score, msg))
+        return super()._stm_score_to_codes((sub_score, msg))
 
     
 
@@ -151,7 +170,7 @@ def main(args):
                 for k, v in score_dict.items()}
     
     #define your generator
-    mini_IN = MiniImageNet(root=args.tiny_inet_root)
+    mini_IN = _MiniImageNet(root=args.tiny_inet_root)
     mini_IN_loader = DataLoader(mini_IN, batch_size=2, shuffle=True)
     
     generator = InverseAlexGenerator(
@@ -195,12 +214,12 @@ def main(args):
         optimizer=optim,
         subject=sbj_net,
         logger=_LoguruLogger(),
-        num_gen=args.num_gens,
+        iteration=args.num_gens,
         mask_generator=mask_generator,
         data=data
     )
     
-    experiment = MaximizeActivity(experiment_config)
+    experiment = _MaximizeActivity(experiment_config)
     experiment.run()
 
 

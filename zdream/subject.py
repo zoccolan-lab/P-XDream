@@ -14,9 +14,9 @@ from .probe import RecordingProbe
 
 from .utils import unpack
 from .utils import default
-from .utils import Stimuli
-from .utils import Message
-from .utils import SubjectState
+from .model import Stimuli
+from .model import Message
+from .model import SubjectState
 
 from collections import defaultdict
 from typing import Dict, List

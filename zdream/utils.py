@@ -5,7 +5,6 @@ import torch.nn as nn
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union
 import re
 from numpy.typing import NDArray
-from torch import Tensor
 import torch
 import glob
 from torchvision.datasets import ImageFolder
@@ -14,31 +13,11 @@ import os
 from PIL import Image
 import random
 
-from dataclasses import dataclass
 
-# Type Generics
+# --- TYPING ---
+
 T = TypeVar('T')
 D = TypeVar('D')
-
-# Type Aliases
-Mask = List[bool]
-Stimuli = Tensor
-Codes = NDArray | Tensor
-SubjectState = Dict[str, NDArray]   # State of a subject mapping each layer to its batch of activation
-StimuliScore = NDArray[np.float32]  # 1-dimensional array with the length of the batch assigning a score to each tested stimulus
-
-@dataclass
-class Message:
-    mask    : NDArray[np.bool_]
-    label   : List[str] | None = None
-    
-class Logger:
-    
-    def info(self,  mess: str): print(f"INFO: {mess}")
-            
-    def warn(self,  mess: str): print(f"WARN: {mess}")
-
-    def error(self, mess: str): print(f"ERR:  {mess}")
 
 def exists(var: Any | None) -> bool:
     return var is not None
@@ -134,25 +113,6 @@ def read_json(path: str) -> Dict[str, Any]:
         return data
     except FileNotFoundError:
         raise FileNotFoundError(f'File not found at path: {path}')
-    
-class MiniImageNet(ImageFolder):
-
-    def __init__(self, root, transform=transforms.Compose([transforms.Resize((256, 256)),  
-    transforms.ToTensor()]), target_transform=None):
-        super().__init__(root, transform=transform, target_transform=target_transform)
-        #load the .txt file containing imagenet labels (all 1000 categories)
-        lbls_txt = glob.glob(os.path.join(root, '*.txt'))
-        with open(lbls_txt[0], "r") as f:
-            lines = f.readlines()
-        self.label_dict = {line.split()[0]: 
-                        line.split()[2].replace('_', ' ')for line in lines}
-    #maintain this method here?
-    def class_to_lbl(self,lbls : Tensor): #takes in input the labels and outputs their categories
-        return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
-    
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        return super().__getitem__(index)[0]
-    
     
     
 def repeat_pattern(n : int, base_seq: List[Any] = [True, False], 

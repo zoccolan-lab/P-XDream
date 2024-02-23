@@ -8,9 +8,10 @@ import unittest
 import torch
 import numpy as np
 from typing import List, Tuple, Dict, Any
-from zdream.utils import Mask, Stimuli
+from zdream.model import Mask
+from zdream.model import Stimuli
 from zdream.generator import InverseAlexGenerator
-from zdream.utils import Message
+from zdream.model import Message
 from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
 from zdream.utils import device, read_json
