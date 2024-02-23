@@ -76,7 +76,7 @@ class Experiment:
         self._scorer         = config.scorer
         self._optimizer      = config.optimizer
         self._logger         = config.logger
-        self._iteration        = config.iteration
+        self._iteration      = config.iteration
         
         # Defaults mask generator to a None mask, which is handled 
         # by the generator as a synthetic-only stimuli.

@@ -11,6 +11,8 @@ from numpy.typing import DTypeLike, NDArray
 
 from .model import SubjectState
 
+TargetUnit = None | Tuple[int, ...] | Tuple[NDArray, ...]
+
 class SilicoProbe(ABC):
     '''
     Abstract probe to be used with an artificial neural network
@@ -119,6 +121,31 @@ class NamingProbe(SilicoProbe):
         self.depth = -1
         self.occur = defaultdict(lambda : 0)
 
+# TODO: Add a new probe (InfoProbe?) which is capable of retrieving
+# TODO: several useful information about a network: the shape of each
+# TODO: layer, the receptive fields of targeted units (maybe generalized
+# TODO: to the case where we can request the receptive field at the input
+# TODO: level OR at an intermediate layer - i.e. which units is this target
+# TODO: unit connected to?).
+class InfoProbe(SilicoProbe):
+    '''
+    Simple probe whose task is to retrieve a set of useful info
+    for a torch Module. In particular this probe measures the
+    shape of target layers, the (generalized) receptive fields
+    of selected target units. The `generalize` receptive field
+    is defined by the fact that the `field` can either be at
+    the input level, which match the standard definition in
+    neuroscience for a receptive field or chosen at a preceding
+    layer, in which case it returns the set of units from which
+    the target receives information from.
+    '''
+    
+    def __init__(
+        self,
+        target : None | Dict[str, TargetUnit],
+    ) -> None:
+        super().__init__()
+
 class RecordingProbe(SilicoProbe):
     '''
     Basic probe to attach to an artificial network to
@@ -128,7 +155,7 @@ class RecordingProbe(SilicoProbe):
     
     def __init__(
         self,
-        target : Dict[str, None] | Dict[str, Tuple[int, ...]] | Dict[str, Tuple[NDArray, ...]],
+        target : Dict[str, TargetUnit],
         format : DTypeLike = np.float32,
     ) -> None:
         '''
@@ -236,49 +263,3 @@ class RecordingProbe(SilicoProbe):
         Remove all stored activations from data storage 
         '''
         self._data = defaultdict(list)
-        
-
-# TODO Superclass Recording with (SilicoRecording, AnimalRecording)
-#      with an abstract method __call__(self, Stimulus) -> SubjectState 
-# class SilicoRecorder:
-#     '''
-#         Class representing a recording in silico from a network
-#         over a set of input stimuli.
-#     '''
-    
-#     def __init__(self, network : NetworkSubject, probe : RecordingProbe) -> None:
-#         '''
-#         The constructor checks consistency between network and
-#         probe layers names and attach the probe hooks to the network
-        
-#         :param network: Network representing a tasked subject.
-#         :type network: NetworkSubject
-#         :param probe: Probe for recording activation.
-#         :type probe: SilicoProbe
-#         :param stimuli: Set of visual stimuli.
-#         :type stimuli: Tensor
-#         '''
-        
-#         # Check if probe layers exist in the network
-#         assert all(
-#             e in network.layer_names for e in probe.target_names 
-#         ),f"Probe recording sites not in the network: {set(probe.target_names).difference(network.layer_names)}"
-        
-#         self._network: NetworkSubject = network
-#         self._probe: RecordingProbe = probe
-        
-#         # Attach hooks
-#         for target in probe.target_names:
-#             self._network.get_layer(layer_name=target).register_forward_hook(self._probe)  # TODO callback as __call__ method of an object ?
-            
-#     def __call__(self, stimuli: Tensor) -> SubjectState:
-#         """
-#         """
-        
-#         self._network(stimuli)
-        
-#         out = self._probe.features
-        
-#         self._probe.clean() # TODO Make sense?
-        
-#         return out
