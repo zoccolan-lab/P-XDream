@@ -1,11 +1,14 @@
 import json
 import random
 import re
-from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union
+from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
 
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import Tensor
+from torchvision.utils import make_grid
+from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 from einops import rearrange
 from numpy.typing import NDArray
@@ -145,10 +148,10 @@ def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
         img = img.resize(resize)
     
     # Array shape conversion
-    img = np.asarray(img) / 255.
-    img = rearrange(img, 'h w c -> 1 c h w')
+    img_arr = np.asarray(img) / 255.
+    img_arr = rearrange(img_arr, 'h w c -> 1 c h w')
     
-    return img
+    return img_arr
 
 def convert_to_numpy(data: Union[list, tuple, np.ndarray, torch.Tensor, pd.DataFrame]):
     """
