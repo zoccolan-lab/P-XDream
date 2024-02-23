@@ -115,8 +115,11 @@ def read_json(path: str) -> Dict[str, Any]:
         raise FileNotFoundError(f'File not found at path: {path}')
     
     
-def repeat_pattern(n : int, base_seq: List[Any] = [True, False], 
-                   rand: bool = True) -> List[Any]:
+def repeat_pattern(
+    n : int,
+    base_seq: List[Any] = [True, False], 
+    rand: bool = True
+) -> List[Any]:
     bool_l = []; c = 0
     while c<n:
         if rand:
@@ -125,10 +128,11 @@ def repeat_pattern(n : int, base_seq: List[Any] = [True, False],
         c += sum(base_seq)    
     return bool_l
 
-def logicwise_function(f: Union[Callable[[NDArray], NDArray], List[Callable[[NDArray], NDArray]]], 
-                       np_arr: NDArray, 
-                       np_l: NDArray):
-    
+def logicwise_function(
+    f: Union[Callable[[NDArray], NDArray], List[Callable[[NDArray], NDArray]]], 
+    np_arr: NDArray, 
+    np_l: NDArray
+): # TODO: Add return type    
     if isinstance(f, list):
         results_l = tuple(f_func(np_arr[np_l]) for f_func in f)
         results_not_l = tuple(f_func(np_arr[~np_l]) for f_func in f)

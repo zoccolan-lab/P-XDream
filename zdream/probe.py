@@ -11,6 +11,8 @@ from numpy.typing import DTypeLike, NDArray
 
 from .model import SubjectState
 
+TargetUnit = None | Tuple[int, ...] | Tuple[NDArray, ...]
+
 class SilicoProbe(ABC):
     '''
     Abstract probe to be used with an artificial neural network
