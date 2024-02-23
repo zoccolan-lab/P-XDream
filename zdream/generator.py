@@ -192,7 +192,7 @@ class Generator(ABC, nn.Module):
         # In the case the mask length is coherent with the number of
         # synthetic images we reset default condition, that is the mask to be None,
         # otherwise we raise an error.
-        if mask and all(mask):
+        if mask is not None and all(mask):
             if len(mask) == num_gen_img or len(mask) == 0: 
                 mask = None # default condition
             else:
