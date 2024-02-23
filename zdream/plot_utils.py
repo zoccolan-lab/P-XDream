@@ -109,6 +109,19 @@ def set_default_matplotlib_params(side: float = 15, shape: Literal['square', 're
     plt.gca().spines['bottom'].set_bounds(t1x, t2x)
     """
     
+def Zoccolan_style_axes(ax):
+    tick_positions_y = ax.get_yticklabels()
+    tick_positions_x = ax.get_xticklabels()
+    # Il primo tick sarà il primo elemento di tick_positions
+    t1y = float(tick_positions_y[1].get_text().replace('−', '-'))
+    t2y = float(tick_positions_y[-2].get_text().replace('−', '-'))
+
+    t1x = float(tick_positions_x[1].get_text().replace('−', '-'))
+    t2x = float(tick_positions_x[-2].get_text().replace('−', '-'))
+
+    ax.spines['left'].set_bounds(t1y, t2y)
+    ax.spines['bottom'].set_bounds(t1x, t2x)
+    
 def plot_optimization_profile(optim):
     set_default_matplotlib_params(shape='rect_wide', side = 30)
     fix, ax = plt.subplots(1, 2)
@@ -126,5 +139,6 @@ def plot_optimization_profile(optim):
         ax[i].set_ylabel('Target Activation')
         ax[i].set_title(k.split('_')[0])
         ax[i].legend()
+        Zoccolan_style_axes(ax[i])
     plt.show()
         
