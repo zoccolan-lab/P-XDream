@@ -11,7 +11,7 @@ from .model import SubjectState
 from .utils import default, lazydefault
 from .model import Message
 
-from typing import Callable, Dict, Tuple, List, cast
+from typing import Any, Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
 
 
@@ -126,7 +126,7 @@ class Optimizer(ABC):
             case 'logistic': return self._rng.logistic
             case _: raise ValueError(f'Unrecognized distribution: {self._distr}')
     
-    def _get_stats(self, score: List[NDArray], param: bool = False):
+    def _get_stats(self, score: List[NDArray], param: bool = False) -> Dict[str, Any]:
         #TO DO: i just quickfixed the issue when nr generated imgs != nr nat imgs
         #we can probably find  a more elegant solution
         
@@ -147,11 +147,11 @@ class Optimizer(ABC):
         }
         
     @property
-    def stats(self):
+    def stats(self) -> Dict[str, Any]:
         return self._get_stats(score=self._score, param = True)
     
     @property
-    def stats_nat(self):
+    def stats_nat(self) -> Dict[str, Any]:
         return self._get_stats(score=self._score_nat)
         
         

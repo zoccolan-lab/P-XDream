@@ -186,14 +186,14 @@ class Generator(ABC, nn.Module):
         :rtype: Mask
         '''
         
-        # In the case the mask contains only True values no 
-        # natural image is expected. This condition should be
-        # activated by no specifying a mask at all.
+        # In the case the mask contains only True values or it's a
+        # no empty list no natural image is expected. This condition should
+        # be activated by no specifying a mask at all.
         # In the case the mask length is coherent with the number of
         # synthetic images we reset default condition, that is the mask to be None,
         # otherwise we raise an error.
-        if all(mask):
-            if len(mask) == num_gen_img: 
+        if mask and all(mask):
+            if len(mask) == num_gen_img or len(mask) == 0: 
                 mask = None # default condition
             else:
                 err_msg = f'{num_gen_img} images were generated, but {len(mask)} were indicated in the mask'
@@ -201,14 +201,14 @@ class Generator(ABC, nn.Module):
         
         # If natural images are expected but no dataloader is 
         # available we raise an error
-        if ~all(mask) and self._nat_img_loader is None:
+        if mask and ~all(mask) and self._nat_img_loader is None:
             err_msg =   'Mask for natural images were provided but no dataloader is available. '\
                         'Use `set_nat_img_loader()` to set one.'
             raise AssertionError(err_msg)
     
         # If the mixing mask was not specified we set the trivial one.
         # mask = default(mask, [True] * b) -> better, but not for type checker :(
-        if mask is None: mask = [True] * num_gen_img
+        if not mask: mask = [True] * num_gen_img
         
         # If the number of True values in the mask doesn't match 
         # the number of synthetic images we raise a error.
