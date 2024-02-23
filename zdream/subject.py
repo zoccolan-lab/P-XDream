@@ -1,25 +1,24 @@
-import torch
-import warnings
 from abc import ABC, abstractmethod
-from torch import nn, Tensor
-from typing import List, Tuple
-from torchvision.models import get_model
-from torchvision.models import get_model_weights
-from torch.utils.hooks import RemovableHandle
-from .utils import device
-
-from .probe import SilicoProbe
-from .probe import NamingProbe
-from .probe import RecordingProbe
-
-from .utils import unpack
-from .utils import default
-from .model import Stimuli
-from .model import Message
-from .model import SubjectState
-
 from collections import defaultdict
 from typing import Dict, List
+from typing import Tuple
+
+import torch
+from torch import nn
+from torch.utils.hooks import RemovableHandle
+from torchvision.models import get_model
+from torchvision.models import get_model_weights
+
+from .model import Message
+from .model import Stimuli
+from .model import SubjectState
+from .probe import NamingProbe
+from .probe import RecordingProbe
+from .probe import SilicoProbe
+from .utils import default
+from .utils import device
+from .utils import unpack
+
 
 class Subject(ABC):
     '''

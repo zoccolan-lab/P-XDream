@@ -1,52 +1,50 @@
 import os
-import torch
 import warnings
-import numpy as np
-import torch.nn as nn
-from torch import Tensor
-from pathlib import Path
-from einops.layers.torch import Rearrange
 from abc import ABC, abstractmethod
+from collections import OrderedDict
+from pathlib import Path
+from typing import List, Dict, cast, Callable, Tuple, Literal
+
+import numpy as np
+import torch
+import torch.nn as nn
 from PIL import Image
-from torch.utils.data import DataLoader
-
-from zdream.model import Stimuli
-from .model import Mask
-from zdream.utils import device
-# from diffusers.models.unets.unet_2d import UNet2DModel
-
+from einops import rearrange
+from einops.layers.torch import Rearrange
+from torch import Tensor
 from torch.optim import AdamW
-
+from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
-from einops import rearrange
-from functools import partial
-from collections import OrderedDict
-
-from typing import List, Dict, cast, Callable, Tuple, Literal
-from numpy.typing import NDArray
-
+from .model import Stimuli
+from .model import Codes
+from .model import Mask
+from .model import Message
 from .utils import default
-from .utils import lazydefault
 from .utils import multichar_split
 
-from .model import Codes
-from .model import Message
 
-InverseAlexVariant = Literal['conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8']
+""" 
+Possible variants for the InverseAlexNetGenerator.
+They refer to the specific .pt file with trained model weights.
+The weights are available at [https://drive.google.com/drive/folders/1sV54kv5VXvtx4om1c9kBPbdlNuurkGFi]
+"""
+InverseAlexVariant = Literal[
+    'conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8'
+]
 
 class Generator(ABC, nn.Module):
     '''
-    Base class for generic generators. A generator
-    implements its generative logic in the `_forward`
-    method that converts latent codes (i.e. parameters 
-    from optimizers) into images.
+    Base class for generic generators.
+    A generator implements its generative logic in 
+    the `_forward()`  method that converts latent
+    codes (i.e. parameters from optimizers) into images.
     
     A Generator allows to interleave synthetic images
     with natural images by the specification of a mask.
 
     Generator are also responsible for tracking the
-    history of generated images.
+    history of generated images. # TODO Never used (?)
     '''
 
     def __init__(
@@ -58,36 +56,39 @@ class Generator(ABC, nn.Module):
         '''
         Create a new instance of a generator
 
-        :param name: _description_
+        :param name: Generator name identifying a pretrained architecture.
         :type name: str
         :param output_pipe: Pipeline of postprocessing operation to be applied to 
                             raw generated images.
         :type output_pipe: Callable[[Tensor], Tensor] | None, optional
         :param nat_img_loader: Dataloader for natural images to be interleaved with synthetic ones.
-                                In the case it is not specified at time of initialization if can be
-                                set or changed with a proper setter method.
+                               In the case it is not specified at initialization time it can be
+                               set or changed with a proper setter method.
         :type nat_img_loader: DataLoader | None, optional
         '''
         
         super().__init__()
         
-        self.name = name
+        self._name = name
 
+        # If no output pipe is provided, no raw transformation is used
+        self._output_pipe = default(output_pipe, cast(Callable[[Tensor], Tensor], lambda x : x))
+        
+        # Setting dataloader
+        self.set_nat_img_loader(nat_img_loader=nat_img_loader)
+        
         # Underlying torch module that generates images
+        # NOTE: The network defaults to None. Subclasses are asked to 
+        #       provide the specific instance 
         self._network = None
 
         # List for tracking image history
-        self._im_hist : List[Image.Image] = []
-        
-        self._output_pipe = default(output_pipe, cast(Callable[[Tensor], Tensor], lambda x : x))
-        
-        # Settings dataloader
-        self.set_nat_img_loader(nat_img_loader=nat_img_loader)
+        self._im_hist : List[Image.Image] = [] # TODO Never used (?)
 
     def set_nat_img_loader(self, nat_img_loader : DataLoader | None) -> None:
         '''
         Set a new data loader for natural images. 
-        It will also instantiate a new iterator.
+        It also instantiates a new iterator.
 
         :param data_loader: Data loader for natural images.
         :type data_loader: DataLoader | None
@@ -99,16 +100,23 @@ class Generator(ABC, nn.Module):
 
     def find_code(
         self,
-        target : Tensor,
+        target   : Tensor,
         num_iter : int = 500,
-        rel_tol : float = 1e-1,
+        rel_tol  : float = 1e-1,
     ) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
         '''
+        
         '''
-        assert self._network, 'Unspecified underlying network model'
+        
+        # Check if network is specified
+        if not self._network:
+            raise ValueError(f'Unspecified underlying network model')
+        
         self._network = cast(nn.Module, self._network)
 
-        b, c, h, w = target.shape
+        # Extract batch size and ensure stimuli 
+        # to have three dimension with unpacking
+        b, _, _, _ = target.shape
 
         loss = nn.MSELoss()
         code = torch.zeros(b, *self.input_dim, device=self.device, requires_grad=True)
@@ -178,14 +186,14 @@ class Generator(ABC, nn.Module):
         :rtype: Mask
         '''
         
-        # In the case the mask contains only True values no 
-        # natural image is expected. This condition should be
-        # activated by no specifying a mask at all.
+        # In the case the mask contains only True values or it's a
+        # no empty list no natural image is expected. This condition should
+        # be activated by no specifying a mask at all.
         # In the case the mask length is coherent with the number of
         # synthetic images we reset default condition, that is the mask to be None,
         # otherwise we raise an error.
-        if mask and all(mask):
-            if len(mask) == num_gen_img: 
+        if mask is not None and all(mask):
+            if len(mask) == num_gen_img or len(mask) == 0: 
                 mask = None # default condition
             else:
                 err_msg = f'{num_gen_img} images were generated, but {len(mask)} were indicated in the mask'
@@ -193,7 +201,7 @@ class Generator(ABC, nn.Module):
         
         # If natural images are expected but no dataloader is 
         # available we raise an error
-        if mask and self._nat_img_loader is None:
+        if mask and ~all(mask) and self._nat_img_loader is None:
             err_msg =   'Mask for natural images were provided but no dataloader is available. '\
                         'Use `set_nat_img_loader()` to set one.'
             raise AssertionError(err_msg)
