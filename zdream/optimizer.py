@@ -14,6 +14,7 @@ from .model import Message
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray
 
+
 ObjectiveFunction = Callable[[SubjectState], StimuliScore]
 
 class Optimizer(ABC):
