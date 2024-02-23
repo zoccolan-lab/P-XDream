@@ -29,7 +29,6 @@ from numpy.typing import NDArray
 from .utils import default
 from .utils import lazydefault
 from .utils import multichar_split
-from .utils import multioption_prompt
 
 from .model import Codes
 from .model import Message
@@ -374,22 +373,15 @@ class InverseAlexGenerator(Generator):
     def __init__(
         self,
         root : str,
-        variant : InverseAlexVariant | None = 'fc8',
+        variant : InverseAlexVariant = 'fc8',
         output_pipe : Callable[[Tensor], Tensor] | None = None,
         nat_img_loader : DataLoader | None = None,
     ) -> None:
+        
         # Get the networks paths based on provided root folder
         nets_path = self._get_net_paths(base_nets_dir=root)
         
-        # If variant is not provided at initialization, we ask the experimenter
-        # for generator variant of choice (from option list).
-        user_in = partial(
-                    multioption_prompt,
-                    opt_list=list(nets_path.keys()),
-                    in_prompt='select your generator:',
-                )
-        
-        self.variant = cast(InverseAlexVariant, lazydefault(variant, user_in))
+        self.variant = variant
         
         output_pipe = default(output_pipe, self._get_pipe(self.variant))
         

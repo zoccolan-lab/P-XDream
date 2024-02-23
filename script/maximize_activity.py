@@ -200,9 +200,7 @@ def main(args):
         temperature=args.temperature,
         num_parents=args.num_parents)
     
-    
-    #mask = repeat_pattern(n = population_size, base_seq = base_seq, rand = args.mask_is_random)
-    mask_generator = partial(repeat_pattern, base_seq = base_seq, rand = args.mask_is_random)
+    mask_generator = partial(repeat_pattern, base_seq = base_seq, shuffle = args.mask_is_random)
     
     data = {
     "save_dir": args.save_dir
