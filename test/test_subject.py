@@ -6,8 +6,8 @@ import torch
 import unittest
 import numpy as np
 
-from zdream.utils import Message
-from zdream.utils import SubjectState
+from zdream.model import Message
+from zdream.model import SubjectState
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 

@@ -15,11 +15,12 @@ from torch import Tensor
 from typing import Any, Dict, cast, Tuple
 from numpy.typing import NDArray
 from zdream.experiment import Experiment, ExperimentConfig
+from zdream.model import Logger, Message, Stimuli, StimuliScore
 
-from zdream.utils import Logger, Stimuli, StimuliScore, preprocess_image
-from zdream.utils import SubjectState
+from zdream.utils import preprocess_image
+from zdream.model import SubjectState
 
-from zdream.utils import Message, read_json
+from zdream.utils import read_json
 from zdream.scores import MSEScorer
 from zdream.optimizer import GeneticOptimizer
 from zdream.generator import InverseAlexGenerator

@@ -3,11 +3,13 @@ from abc import ABC, abstractmethod
 
 from scipy.special import softmax
 
-from .utils import StimuliScore
+from .model import Codes
 
-from .utils import Codes, SubjectState
+from .model import StimuliScore
+
+from .model import SubjectState
 from .utils import default, lazydefault
-from .utils import Message
+from .model import Message
 
 from typing import Callable, Dict, Tuple, List, cast
 from numpy.typing import NDArray

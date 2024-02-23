@@ -9,7 +9,7 @@ from collections import defaultdict
 from typing import Dict, Tuple, List, Any
 from numpy.typing import DTypeLike, NDArray
 
-from .utils import SubjectState
+from .model import SubjectState
 
 class SilicoProbe(ABC):
     '''

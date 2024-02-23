@@ -11,8 +11,9 @@ from torchvision.transforms.functional import to_pil_image
 from typing import Any, Dict, cast, Tuple
 
 from zdream.generator import InverseAlexGenerator
+from zdream.model import Message
 from zdream.subject import NetworkSubject
-from zdream.utils import Message, read_json, device, default
+from zdream.utils import read_json, device, default
 from zdream.probe import RecordingProbe
 
 

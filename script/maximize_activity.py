@@ -19,6 +19,7 @@ from loguru import logger
 from functools import partial
 
 from zdream.generator import InverseAlexGenerator
+from zdream.model import Codes, Logger, Message, Stimuli, StimuliScore, SubjectState
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 from zdream.utils import *

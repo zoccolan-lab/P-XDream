@@ -8,11 +8,11 @@ from numpy.typing import NDArray
 
 from scipy.spatial.distance import pdist
 
-from .utils import SubjectState
+from .model import SubjectState
 
 from .utils import default
-from .utils import Message
-from .utils import StimuliScore
+from .model import Message
+from .model import StimuliScore
 
 from einops import reduce
 from einops import rearrange
