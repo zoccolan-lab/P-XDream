@@ -153,7 +153,7 @@ class Experiment:
         
         return self.subject(data=data)
     
-    def _sbj_state_to_stimuli_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+    def _sbj_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -165,7 +165,7 @@ class Experiment:
         
         return self.scorer(data=data)
     
-    def _stimuli_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
+    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
         '''
         The method uses the scores for each stimulus to optimize the images
         in the latent coded space, resulting in a new set of codes.
@@ -259,10 +259,10 @@ class Experiment:
         
         for i in range(self._iteration):
             
-            stimuli    = self._codes_to_stimuli(codes)
-            sbj_state  = self._stimuli_to_sbj_state(stimuli)
-            stim_score = self._sbj_state_to_stimuli_score(sbj_state)            
-            codes      = self._stimuli_score_to_codes(stim_score)
+            stimuli   = self._codes_to_stimuli(codes)
+            sbj_state = self._stimuli_to_sbj_state(stimuli)
+            stm_score = self._sbj_state_to_stm_score(sbj_state)            
+            codes     = self._stm_score_to_codes(stm_score)
 
             self._progress(i=i)
     

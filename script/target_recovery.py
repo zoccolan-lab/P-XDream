@@ -60,7 +60,7 @@ class _TargetRecoveryExperiment(Experiment):
     @property
     def scorer(self) -> MSEScorer: return cast(MSEScorer, self._scorer)
     
-    def _sbj_state_to_stimuli_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+    def _sbj_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         
         self._state, _ = data
         return self.scorer(data=data)

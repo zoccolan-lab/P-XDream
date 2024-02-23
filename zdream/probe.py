@@ -128,7 +128,7 @@ class RecordingProbe(SilicoProbe):
     
     def __init__(
         self,
-        target : Dict[str, None | Tuple[int, ...] | Tuple[NDArray, ...]], # TODO Define Alias if used in other locations
+        target : Dict[str, None] | Dict[str, Tuple[int, ...]] | Dict[str, Tuple[NDArray, ...]],
         format : DTypeLike = np.float32,
     ) -> None:
         '''
