@@ -5,13 +5,19 @@ from torch import Tensor
 from abc import ABC, abstractmethod
 
 from einops import rearrange
-from collections import defaultdict
-from typing import Dict, Tuple, List, Any
+from collections import defaultdict, OrderedDict
+from typing import Dict, Tuple, List, Any, Literal
 from numpy.typing import DTypeLike, NDArray
 
+from math import prod
+from itertools import product
+from multimethod import multimethod
+
+from .utils import default
 from .model import SubjectState
 
-TargetUnit = None | Tuple[int, ...] | Tuple[NDArray, ...]
+TargetUnit = None | Tuple[NDArray, ...]
+RFBox = Tuple[int, int, int, int]
 
 class SilicoProbe(ABC):
     '''
@@ -31,6 +37,7 @@ class SilicoProbe(ABC):
         return self.unique_id == other.unique_id
 
     @abstractmethod
+    @multimethod
     def __call__(
         self,
         module : nn.Module,
@@ -140,12 +147,199 @@ class InfoProbe(SilicoProbe):
     the target receives information from.
     '''
     
+    # NOTE: List of pass_like is taken from:
+    #       https://github.com/Fangyh09/pytorch-receptive-field 
+    MeanLike = nn.AvgPool2d
+    DownLike = nn.ConvTranspose2d
+    ConvLike = nn.Conv2d | nn.MaxPool2d | nn.AvgPool2d | nn.Conv3d | nn.MaxPool3d
+    PassLike = nn.AdaptiveAvgPool2d | nn.BatchNorm2d | nn.Linear |  nn.ReLU | nn.LeakyReLU |\
+            nn.ELU | nn.Hardshrink | nn.Hardsigmoid | nn.Hardtanh | nn.LogSigmoid | nn.PReLU |\
+            nn.ReLU6 | nn.RReLU | nn.SELU | nn.CELU | nn.GELU | nn.Sigmoid | nn.SiLU | nn.Mish |\
+            nn.Softplus | nn.Softshrink | nn.Softsign | nn.Tanh | nn.Tanhshrink | nn.Threshold
+    
     def __init__(
         self,
-        target : None | Dict[str, TargetUnit],
+        inp_shape : Tuple[int, ...],
+        rf_method : Literal['forward', 'backward'] = 'forward',
+        forward_target : None | Dict[str, TargetUnit] = None,
+        backward_target: None | Dict[str, TargetUnit] = None,
     ) -> None:
         super().__init__()
+        
+        self.rf_method = rf_method
+        self._f_target = forward_target
+        self._b_target = backward_target
+        
+        self._output : Dict[str, Tensor] = {} 
+        self._shapes : Dict[str, Tuple[int, ...]] = {'input' : inp_shape}
+        self._ingrad : Dict[str, List[Tensor | None]] = defaultdict(list)
+        self._rf_par : Dict[str, Dict[str, float]] = OrderedDict(
+            input={
+                'jump' : 1,
+                'size' : 1,
+                'start' : 0.5,
+            }
+        )
+        
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        err_msg =\
+        f'''
+        Multi dispatch method failed for provided arguments. Got:
+        {args}. Info Probe only supports computation of receptive
+        fields via a module.register_forward_hook or via a
+        tensor.register_hook, please use it accordingly.
+        '''
+        
+        raise NotImplementedError(err_msg)
+        
+    @__call__.register
+    def _(
+        self,
+        module: nn.Module,
+        inp: Tuple[Tensor],
+        out: Tensor
+    ) -> None:
+        '''
+        '''
+        if not hasattr(module, 'name'):
+            raise AttributeError(f'Encounter module {module} with unregistered name.')
+        
+        curr = module.name
 
+        # Collect the actual output of current layer (which might
+        # be useful during the backward pass) and its shape        
+        self._output[curr] = out
+        self._shapes[curr] = out.detach().cpu().numpy().shape
+        
+        # * Collect parameters needed for the RF computation
+        # Here we get the last-inserted (hence previous) key-val
+        # pair in the rf_par dictionary, which corresponds to the
+        # parameters of the previous layer this hook was call by
+        p_val = next(reversed(self._rf_par.values()))
+
+        match type(module):
+            case self.ConvLike:
+                s, p, k = module.stride, module.padding, module.kernel_size
+                
+                d = 1 if isinstance(module, self.MeanLike) else module.dilation
+                
+                s, p, k, d = map(self._sanitize, (s, p, k, d))
+                
+                # Update the current layer parameter for RF computation
+                self._rf_par[curr] = {
+                    'jump' : p_val['jump'] * s,
+                    'size' : p_val['size'] + ((k - 1)     * d) * p_val['jump'],
+                    'start': p_val['start']+ ((k - 1) / 2 - p) * p_val['start'],
+                }
+                
+            case self.PassLike: self._rf_par[curr] = p_val.copy()
+            case self.DownLike: self._rf_par[curr] = {k : 0 for k in p_val}
+            case _: raise TypeError(f'Encountered layer of unknown type: {module}')
+
+    @__call__.register
+    def _(
+        self,
+        module : nn.Module,
+        grad_inp : Tuple[Tensor | None],
+        grad_out : Tuple[Tensor | None],
+    ) -> None:
+        '''
+        '''
+        grad, *_ = grad_inp
+        grad = grad.detach().cpu().numpy() if grad else None
+        self._ingrad[module.name].append(grad)
+
+    def _sanitize(self, var : int | Tuple) -> int:
+        if isinstance(var, (tuple, list)):
+            assert (len(var) == 2 and var[0] == var[1]) or\
+                (len(var) == 3 and var[0] == var[1] and var[1] == var[2])
+            return var[0]
+        else:             
+            return var
+
+    @property
+    def shapes(self) -> Dict[str, Tuple[int, ...]]:
+        return self._shapes
+    
+    @property
+    def rec_field(self) -> Dict[str, List[RFBox]]:        
+        match self.rf_method:
+            case 'forward':
+                err_msg = \
+                '''
+                Requested forward-flavored receptive field but not forward targets were specified.
+                Please either construct probe with specified forward targets or explicitly set
+                them via the `register_forward_target` dedicated method.
+                '''
+                assert self._f_target, err_msg
+                return self._get_forward_rf(self._f_target)
+            
+            case 'backward':
+                err_msg = \
+                '''
+                Requested backward-flavored receptive field but not forward targets were specified.
+                Please either construct probe with specified forward targets or explicitly set
+                them via the `register_backward_target` dedicated method.
+                '''
+                assert self._b_target, err_msg
+                return self._get_backward_rf(self._b_target)
+            case _: raise ValueError(f'Unknown requested receptive field method: {self.rf_method}')
+        
+    def _get_forward_rf(
+        self,
+        f_target : Dict[str, TargetUnit]
+    ) -> Dict[str, List[RFBox]]:
+        fields : Dict[str, List[RFBox]] = {}
+        
+        w, h = self._shapes['input']
+        
+        for layer, target in f_target.items():
+            if layer not in self._rf_par:
+                raise KeyError(f'No RF info is available for layer: {layer}.')
+            
+            f_par = self._rf_par[layer]
+            shape = self._shapes[layer]
+            num_units = len(target) if target else prod(shape)
+            
+            if len(shape) < 3:
+                fields[layer] = [(0, w, 0, h)] * num_units 
+                continue
+            
+            rf_field = [(
+                f_par['start'] + pos * f_par['jump'] - f_par['size'] / 2,
+                f_par['start'] + pos * f_par['jump'] + f_par['size'] / 2)
+                for targ in default(target, product(*[range(d) for d in shape]))
+                for pos in targ
+            ]
+            
+            fields[layer] = [
+                (max(0, int(x1)), min(w, int(x2)), max(0, int(y1)), min(h, int(y2)))
+                for (x1, x2), (y1, y2) in rf_field
+            ]
+            
+        return fields
+    
+    def _get_backward_rf(
+        self,
+        b_target : Dict[str, TargetUnit],
+    ) -> Dict[str, List[RFBox]]:
+        raise NotImplementedError()
+    
+    def clean(self) -> None:
+        '''
+        Remove all stored data from internal storage 
+        '''
+        self._output = {}
+        self._shapes = {}
+        self._ingrad = defaultdict(list)
+        self._rf_par = OrderedDict(
+            input={
+                'jump' : 1,
+                'size' : 1,
+                'start' : 0.5,
+            }
+        )
+        
 class RecordingProbe(SilicoProbe):
     '''
     Basic probe to attach to an artificial network to
