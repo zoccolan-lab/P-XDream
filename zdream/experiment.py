@@ -1,14 +1,14 @@
 import time
 from dataclasses import dataclass
-from typing      import Any, Callable, Dict, List, Tuple
-
-from .model import Codes, Logger, Mask, Message, Stimuli, StimuliScore, SubjectState
+from typing import Any, Callable, Dict, Tuple
 
 from .generator import Generator
+from .model import Codes, Logger, Mask, Message, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
-from .scores    import Scorer
-from .subject   import InSilicoSubject
-from .utils     import default
+from .scores import Scorer
+from .subject import InSilicoSubject
+from .utils import default
+
 
 @dataclass
 class ExperimentConfig:

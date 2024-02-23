@@ -1,22 +1,19 @@
-from abc import ABC
-from typing import Callable, Dict, List, Tuple, cast, Literal
-from functools import partial
 from _collections_abc import dict_keys
+from abc import ABC
+from functools import partial
+from typing import Callable, Dict, List, Tuple, cast, Literal
 
 import numpy as np
+from einops import rearrange
+from einops import reduce
+from einops.einops import Reduction
 from numpy.typing import NDArray
-
 from scipy.spatial.distance import pdist
 
-from .model import SubjectState
-
-from .utils import default
 from .model import Message
 from .model import StimuliScore
-
-from einops import reduce
-from einops import rearrange
-from einops.einops import Reduction
+from .model import SubjectState
+from .utils import default
 
 ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]
 AggregateFunction = Callable[[Dict[str, StimuliScore]], StimuliScore]
