@@ -115,7 +115,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         
     def __str__(self) -> str:
         
-        return f'NetworkSubject[name: {self.name}, in-shape: {self._inp_shape}, n-layers: {len(self.layer_names)}, n-probes: {len(self._probes)}]'
+        return f'NetworkSubject[name: {self._name}, in-shape: {self._inp_shape}, n-layers: {len(self.layer_names)}, n-probes: {len(self._probes)}]'
         
     def __call__(
         self,

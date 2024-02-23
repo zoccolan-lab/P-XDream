@@ -11,6 +11,7 @@
 
 # Local directories
 data/
+result/
 
 # Local settings - include example files
 *local_settings*
