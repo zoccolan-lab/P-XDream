@@ -1,7 +1,7 @@
 import json
 import random
 import re
-from typing import Tuple, TypeVar, Callable, Dict, List, Any
+from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union
 
 import numpy as np
 import torch
@@ -9,6 +9,7 @@ import torch.nn as nn
 from PIL import Image
 from einops import rearrange
 from numpy.typing import NDArray
+import pandas as pd
 
 # --- TYPING ---
 
@@ -149,3 +150,51 @@ def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
     
     return img
 
+def convert_to_numpy(data: Union[list, tuple, np.ndarray, torch.Tensor, pd.DataFrame]):
+    """
+    Converte un qualsiasi dato in un array NumPy.
+
+    Parameters:
+    - data: Il dato da convertire (può essere una lista, una tupla, un array NumPy, un tensore PyTorch o un DataFrame pandas).
+
+    Returns:
+    - numpy_array: L'array NumPy risultante.
+    """
+    try:
+        if isinstance(data, pd.DataFrame):
+            numpy_array = data.to_numpy()
+        elif isinstance(data, torch.Tensor):
+            numpy_array = data.numpy()
+        else:
+            numpy_array = np.array(data)
+        return numpy_array
+    except Exception as e:
+        print(f"Errore durante la conversione in NumPy array: {e}")
+        return None
+
+def SEMf(data: Union[List[float], Tuple[float], np.ndarray], axis: int = 0):
+    """
+    Calcola lo standard error of the mean (SEM) per una sequenza di numeri.
+
+    Parameters:
+    - data: Sequenza di numeri (lista, tupla, array NumPy, ecc.).
+    - axis: Asse lungo il quale calcolare la deviazione standard (valido solo per array NumPy).
+
+    Returns:
+    - sem: Standard error of the mean (SEM).
+    """
+    try:
+        # Converte la sequenza in un array NumPy utilizzando la funzione convert_to_numpy
+        data_array = convert_to_numpy(data)
+        
+        # Calcola la deviazione standard e il numero di campioni specificando l'asse se necessario
+        std_dev = np.nanstd(data_array, axis=axis) if data_array.ndim > 1 else np.nanstd(data_array)
+        sample_size = data_array.shape[axis]
+        
+        # Calcola lo standard error of the mean (SEM)
+        sem = std_dev / np.sqrt(sample_size)
+        
+        return sem
+    except Exception as e:
+        print(f"Errore durante il calcolo dello standard error of the mean (SEM): {e}")
+        return None

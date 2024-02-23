@@ -8,7 +8,7 @@ from .model import Codes
 from .model import StimuliScore
 
 from .model import SubjectState
-from .utils import default, lazydefault
+from .utils import default, lazydefault, SEMf
 from .model import Message
 
 from typing import Any, Callable, Dict, Tuple, List, cast
@@ -141,6 +141,7 @@ class Optimizer(ABC):
             'curr_score' : score[-1],
             'curr_param' : self._param[-1] if param else None,
             'mean_shist' : np.array([np.mean(s) for s in score]),
+            'sem_shist'  : np.array([SEMf(s) for s in score]),
             'best_shist' : [score[idx] for score, idx in zip(score, hist_idx)],
             'best_phist' : [param[idx] for param, idx in zip(self._param, hist_idx)]
                 if param else None,
