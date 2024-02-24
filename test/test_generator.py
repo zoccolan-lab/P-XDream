@@ -69,7 +69,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         # Test generator on mock input with an optional mask
         inp_dim = generator.input_dim
-        mock_inp = torch.randn(self.num_gen, *inp_dim, device=generator.device)
+        mock_inp = np.random.rand(self.num_gen, *inp_dim)
         
         return generator(mock_inp, mask)
 
@@ -264,7 +264,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         # In the case the number of True matches the number of synthetic images
         # we expect the exact behavior as if the masking was not provided  
         
-        mock_inp = torch.randn(self.num_gen, *generator.input_dim, device=generator.device)
+        mock_inp = np.random.rand(self.num_gen, *generator.input_dim)
         
         stimuli_1, _ = generator(mock_inp, [True]*(self.num_gen))
         stimuli_2, _ = generator(mock_inp, [])

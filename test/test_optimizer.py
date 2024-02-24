@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 from numpy.typing import NDArray
 from zdream.model import Codes
-from zdream.optimizer import GeneticOptimizer
+from zdream.optimizer import GeneticOptimizer, RandomDistribution
 
 from zdream.model import Message
 
@@ -37,7 +37,7 @@ class GeneticOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.states_shape = (2,)
         self.random_state = 31415
-        self.random_distr = 'normal'
+        self.random_distr: RandomDistribution = 'normal'
 
         self.mutation_size = 0.3
         self.mutation_rate = 0.3
