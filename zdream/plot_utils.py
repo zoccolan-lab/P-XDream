@@ -9,6 +9,7 @@ import torch
 
 
 
+#TODO: Lorenzo, commentare e mettere in ordine ste funzioni di plotting
 
 def Get_appropriate_fontsz(labels: List[str], figure_width: Union[float, int] = 0) -> float:
     """
@@ -51,6 +52,7 @@ def set_default_matplotlib_params(side: float = 15, shape: Literal['square', 're
         raise ValueError("Invalid shape. Use 'square', 'rect_tall', or 'rect_wide'.")
     writing_sz = 50; standard_lw = 4; marker_sz = 20
     box_lw = 3; box_c = 'black'; median_lw = 4; median_c = 'red'
+    subplot_distance = 0.3
     if not(xlabels==[]):
         writing_sz =  min(Get_appropriate_fontsz(xlabels, figure_width= side),writing_sz)
     params = {
@@ -62,7 +64,7 @@ def set_default_matplotlib_params(side: float = 15, shape: Literal['square', 're
         'ytick.labelsize': writing_sz,
         'legend.fontsize': writing_sz,
         'axes.grid': False,
-        'grid.alpha': 0.5,
+        'grid.alpha': 0.2,
         'lines.linewidth': standard_lw,
         'lines.linestyle': '-',
         'lines.markersize': marker_sz,
@@ -78,8 +80,9 @@ def set_default_matplotlib_params(side: float = 15, shape: Literal['square', 're
         'boxplot.capprops.linewidth': box_lw,
         'boxplot.capprops.color': box_c,
         'axes.spines.top': False,
-        'axes.spines.right': False
-        
+        'axes.spines.right': False,
+        'figure.subplot.hspace': subplot_distance, 
+        'figure.subplot.wspace': subplot_distance 
     }
     plt.rcParams.update(params)
     if sns_params:
@@ -115,13 +118,13 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
         
     profile = ['best_shist', 'mean_shist']
     for i,k in enumerate(profile):
-        ax[i].plot(optim.stats[k], label=l[0], color=c[0])
-        ax[i].plot(optim.stats_nat[k], label=l[1], color = c[1])
+        ax[i].plot(optim.stats[k], label=lab[0], color=col[0])
+        ax[i].plot(optim.stats_nat[k], label=lab[1], color = col[1])
         if k =='mean_shist':
             ax[i].fill_between(range(len(optim.stats[k])),optim.stats[k] - optim.stats['sem_shist'],
-                            optim.stats[k] + optim.stats['sem_shist'], color=c[0]) 
+                            optim.stats[k] + optim.stats['sem_shist'], color=col[0], alpha=0.5) 
             ax[i].fill_between(range(len(optim.stats_nat[k])),optim.stats_nat[k] - optim.stats_nat['sem_shist'],
-                optim.stats_nat[k] + optim.stats_nat['sem_shist'], color=c[1]) 
+                optim.stats_nat[k] + optim.stats_nat['sem_shist'], color=col[1], alpha=0.5) 
 
         ax[i].set_xlabel('Generation cycles')
         ax[i].set_ylabel('Target Activation')
@@ -129,4 +132,43 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
         ax[i].legend()
         Zoccolan_style_axes(ax[i])
     plt.show()
+    
+    fix, ax = plt.subplots(1)
+    
+    score_nat =np.stack(optim._score_nat)
+    score_gen =np.stack(optim._score)
+
+    data_min = min(score_nat.min(), score_gen.min())
+    data_max = max(score_nat.max(), score_gen.max())
+
+    # Set the number of bins
+    num_bins = 25  # like ponce 2019
+
+    # Create histograms for both datasets with the same range and number of bins
+    hnat = plt.hist(score_nat.flatten(), bins=num_bins, range=(data_min, data_max), alpha=1, label=lab[1],
+                    density=True,edgecolor=col[1], linewidth =3)
+    hgen_edges = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max), label= lab[0],
+                 density=True,edgecolor= col[0], linewidth =3)
+    hgen = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max), 
+                    density=True ,color = col[0],edgecolor= col[0])
+
+    for patch in hnat[-1]:
+        patch.set_facecolor('none')
+
+    for patch in hgen_edges[-1]:
+        patch.set_facecolor('none')
+        
+    n_gens = score_gen.shape[0]
+    for bound, patch in zip(hgen[1][1:], hgen[-1]):
+        is_less = np.mean(score_gen < bound, axis = 1)
+        alpha_col = np.sum(is_less*range(n_gens))/np.sum(range(n_gens))
+        patch.set_alpha(alpha_col)
+    
+    plt.legend()
+    plt.xlabel('Target Activation')
+    plt.ylabel('Prob. density')
+        
+    plt.show()
+    
+        
         
