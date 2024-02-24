@@ -439,13 +439,11 @@ class InverseAlexGenerator(Generator):
         :rtype: Tuple[Stimuli, Message]
         '''
         
-        # Convert codes to tensors in the case of Arrays
-        # if isinstance(codes, np.ndarray):
-        if isinstance(codes, np.ndarray):
-            codes = torch.from_numpy(codes).to(self.device).to(self.dtype)
+        # NOTE: We convert numpy codes to tensors as input for the generator
+        codes_ = torch.from_numpy(codes).to(self.device).to(self.dtype)
             
         # Generate the synthetic images and apply the output pipe
-        gens = self._network(codes)
+        gens = self._network(codes_)
         gens = self._output_pipe(gens)
 
         # TODO: @Lorenzo Why this scaling here?

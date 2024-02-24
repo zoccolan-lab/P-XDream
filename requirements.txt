@@ -11,3 +11,4 @@ scikit-image==0.22.0
 loguru==0.5.3
 tqdm=4.66.2
 matplotlib=3.8.0
+multimethod==1.9.1

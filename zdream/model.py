@@ -14,7 +14,7 @@ Boolean mask associated to a set of stimuli, to indicating if they refer
 to synthetic of natural images (True for synthetic, False for natural).
 '''     
 
-Codes = NDArray | Tensor
+Codes = NDArray[np.float64] #| Tensor
 '''
 Set of codes representing the images in a latent space.
 The first dimension of the tensor is the batch size.
