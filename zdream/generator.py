@@ -322,11 +322,11 @@ class Generator(ABC, nn.Module):
         # which is specific for each subclass architecture
         gen_img, message = self._forward(codes=codes)
         gen_img.to(self.device)
-    
-        # We use a tensor version of the mask for the interleaving 
-        mask_ten = torch.tensor(mask, device = self.device)
-        num_gen_img = int(torch.sum( mask_ten).item())
-        num_nat_img = int(torch.sum(~mask_ten).item())
+        
+        # Count synthetic and natural
+
+        num_gen_img = mask.count(True)
+        num_nat_img = mask.count(False)
         
         # Extract synthetic images shape
         _, *gen_img_shape = gen_img.shape
@@ -335,8 +335,11 @@ class Generator(ABC, nn.Module):
         # Load natural images
         nat_img = self._load_natural_images(num_nat_img=num_nat_img, gen_img_shape=gen_img_shape)
         
+        
+        
         # Interleave synthetic and generated according to the mask
-        out = torch.empty( ((num_nat_img + num_gen_img),) + gen_img_shape, device=self.device)
+        mask_ten = torch.tensor(mask, device = self.device)
+        out = torch.empty( num_nat_img + num_gen_img, *gen_img_shape, device=self.device)
         out[ mask_ten] = gen_img
         out[~mask_ten] = nat_img
         

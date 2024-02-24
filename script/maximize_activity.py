@@ -1,5 +1,6 @@
 from abc import ABC
 from os import path
+import os
 from matplotlib import pyplot as plt
 import numpy as np
 import glob
