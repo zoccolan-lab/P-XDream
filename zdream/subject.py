@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Dict, List
-from typing import Tuple
+from typing import Tuple, cast
 
 import torch
 from torch import nn
@@ -100,7 +100,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         # Attach NamingProbe to the network to properly assign name
         # to each layer so to get it ready for recording
         name_probe = NamingProbe()
-        self.register(name_probe)
+        self.register_forward(name_probe)
 
         # Expose the network to a fake input to trigger the hooks
         mock_inp = torch.zeros(inp_shape, device=self.device)
@@ -120,8 +120,25 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         self,
         data : Tuple[Stimuli, Message],
         probe : RecordingProbe | None = None,
-        auto_clean : bool = True
+        auto_clean : bool = True,
+        raise_no_probe : bool = True,
     ) -> Tuple[SubjectState, Message]:
+        warn_msg = \
+            '''
+            Calling subject forward while no recording probe has been registered.
+            This will result in subject forward output to have an empty SubjectState
+            which may lead in downstream failure. Please be mindful or the consequences
+            or a recording probe via the `register` method of the NetworkSubject class. 
+            '''
+
+        # TODO: This return only the first RecorderProbe, what if
+        #       more than one were registered?        
+        probe = default(probe, self.recorder)
+        
+        if not probe and probe not in self._probes:
+            if raise_no_probe: assert False, warn_msg
+            else: print(warn_msg)
+
         return self.forward(
             data=data,
             probe=probe,
@@ -133,7 +150,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         self,
         data : Tuple[Stimuli, Message],
         probe : RecordingProbe | None = None,
-        auto_clean : bool = True
+        auto_clean : bool = True,
     ) -> Tuple[SubjectState, Message]:
         '''
         Expose NetworkSubject to a (visual input) and return the
@@ -150,16 +167,6 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         :returns: The measured subject state
         :rtype: SubjectState
         '''
-        warn_msg = '''
-                    Calling subject forward while no recording probe has been registered.
-                    Please attach a recording probe via the `register` method of the
-                    NetworkSubject class. 
-                    '''
-
-        # TODO: This return only the first RecorderProbe, what if
-        #       more than one were registered?        
-        probe = default(probe, self.recorder)
-        assert probe and probe in self._probes, warn_msg     
 
         stimuli, msg = data
         
@@ -168,13 +175,19 @@ class NetworkSubject(InSilicoSubject, nn.Module):
 
         _ = self._network(stimuli)
     
-        out = probe.features        
+        out = probe.features if probe else {}  
     
-        if auto_clean: probe.clean()
+        if probe and auto_clean: probe.clean()
         
         return out, msg
+    
+    def register(self, probe : SilicoProbe) -> Tuple[List[RemovableHandle], List[RemovableHandle]]:
+        fw_handles = self.register_forward (probe)
+        bw_handles = self.register_backward(probe)
 
-    def register(self, probe : SilicoProbe) -> List[RemovableHandle]:
+        return fw_handles, bw_handles
+
+    def register_forward(self, probe : SilicoProbe) -> List[RemovableHandle]:
         '''
         Attach a given SilicoProbe to the NetworkSubject by registering
         it as a forward_hook to the underlying model layers.
@@ -185,7 +198,23 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         :rtype: List of RemovableHandle
         '''
 
-        handles = [layer.register_forward_hook(probe) for layer in unpack(self._network)]
+        handles = [layer.register_forward_hook(probe.forward) for layer in unpack(self._network)]
+        self._probes[probe] = handles
+        
+        return handles
+    
+    def register_backward(self, probe : SilicoProbe) -> List[RemovableHandle]:
+        '''
+        Attach a given SilicoProbe to the NetworkSubject by registering
+        it as a forward_hook to the underlying model layers.
+
+        :param probe: Probe to attach to the NetworkSubject
+        :type probe: SilicoProbe (one of its concrete implementations)
+        :returns: List of torch handles to release the attached hooks
+        :rtype: List of RemovableHandle
+        '''
+
+        handles = [layer.register_full_backward_hook(probe.backward) for layer in unpack(self._network)]
         self._probes[probe] = handles
         
         return handles
@@ -194,6 +223,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         '''
         Remove the hooks associated to the provided probe
         '''
+        probe.clean()
         handles = self._probes.pop(probe)
         for hook in handles: hook.remove()
 

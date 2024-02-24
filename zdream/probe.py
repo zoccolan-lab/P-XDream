@@ -6,18 +6,17 @@ from abc import ABC, abstractmethod
 
 from einops import rearrange
 from collections import defaultdict, OrderedDict
-from typing import Dict, Tuple, List, Any, Literal
+from typing import Dict, Tuple, List, Any, Literal, Callable
 from numpy.typing import DTypeLike, NDArray
 
 from math import prod
 from itertools import product
-from multimethod import multimethod
 
 from .utils import default
 from .model import SubjectState
 
-TargetUnit = None | Tuple[NDArray, ...]
 RFBox = Tuple[int, int, int, int]
+TargetUnit = None | NDArray | Tuple[NDArray, ...]
 
 class SilicoProbe(ABC):
     '''
@@ -35,19 +34,19 @@ class SilicoProbe(ABC):
     
     def __eq__(self, other : 'SilicoProbe') -> bool:
         return self.unique_id == other.unique_id
-
+    
     @abstractmethod
-    @multimethod
-    def __call__(
+    def forward(
         self,
         module : nn.Module,
         inp : Tuple[Tensor, ...],
-        out : Tensor,    
-    ) -> Any | None:
+        out : Tensor,
+    ) -> Tensor | None:
         '''
         Abstract implementation of PyTorch forward hook, each
         probe should provide its specific implementation to
-        accomplish its given task.
+        accomplish its given task. This property return a callable
+        of signature ForwardHook with arguments:
         
         :param module: The calling torch Module who raised the
             hook callback
@@ -62,6 +61,19 @@ class SilicoProbe(ABC):
         :rtype: Any or None 
         '''
         pass
+
+    def backward(
+        self,
+        module : nn.Module,
+        grad_inp : Any, # TODO: Cannot find the appropriate type to put here
+        grad_out : Any, # TODO: Cannot find the appropriate type to put here
+    ) -> Tensor | None:
+        '''
+        Abstract implementation of PyTorch backward hook, each
+        probe should provide its specific implementation to
+        accomplish its given task.
+        '''
+        raise NotImplementedError(f'Probe {self} does not support backward hook')
 
     @abstractmethod
     def clean(self) -> None:
@@ -93,7 +105,7 @@ class NamingProbe(SilicoProbe):
         self.depth = -1
         self.occur = defaultdict(lambda : 0)
 
-    def __call__(
+    def forward(
         self,
         module : nn.Module,
         inp : Tuple[Tensor, ...],
@@ -120,7 +132,7 @@ class NamingProbe(SilicoProbe):
         
         # Attach the unique identifier to the (sub-)module
         setattr(module, self.attr_name, identifier)
-        
+
     def clean(self) -> None:
         '''
         Reset the depth and occurrence dictionary
@@ -149,13 +161,14 @@ class InfoProbe(SilicoProbe):
     
     # NOTE: List of pass_like is taken from:
     #       https://github.com/Fangyh09/pytorch-receptive-field 
-    MeanLike = nn.AvgPool2d
-    DownLike = nn.ConvTranspose2d
-    ConvLike = nn.Conv2d | nn.MaxPool2d | nn.AvgPool2d | nn.Conv3d | nn.MaxPool3d
-    PassLike = nn.AdaptiveAvgPool2d | nn.BatchNorm2d | nn.Linear |  nn.ReLU | nn.LeakyReLU |\
-            nn.ELU | nn.Hardshrink | nn.Hardsigmoid | nn.Hardtanh | nn.LogSigmoid | nn.PReLU |\
-            nn.ReLU6 | nn.RReLU | nn.SELU | nn.CELU | nn.GELU | nn.Sigmoid | nn.SiLU | nn.Mish |\
-            nn.Softplus | nn.Softshrink | nn.Softsign | nn.Tanh | nn.Tanhshrink | nn.Threshold
+    MeanLike = (nn.AvgPool2d, )
+    DownLike = (nn.ConvTranspose2d, )
+    ConvLike = (nn.Conv2d, nn.MaxPool2d, nn.AvgPool2d, nn.Conv3d, nn.MaxPool3d)
+    PassLike = (nn.AdaptiveAvgPool2d, nn.BatchNorm2d, nn.Linear,  nn.ReLU, nn.LeakyReLU,
+            nn.ELU, nn.Hardshrink, nn.Hardsigmoid,  nn.Hardtanh, nn.LogSigmoid, nn.PReLU,
+            nn.ReLU6, nn.RReLU, nn.SELU, nn.CELU, nn.GELU, nn.Sigmoid, nn.SiLU, nn.Mish,
+            nn.Softplus, nn.Softshrink, nn.Softsign, nn.Tanh, nn.Tanhshrink, nn.Threshold,
+            nn.Dropout, nn.Dropout1d, nn.Dropout2d, nn.Dropout3d)
     
     def __init__(
         self,
@@ -181,19 +194,7 @@ class InfoProbe(SilicoProbe):
             }
         )
         
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        err_msg =\
-        f'''
-        Multi dispatch method failed for provided arguments. Got:
-        {args}. Info Probe only supports computation of receptive
-        fields via a module.register_forward_hook or via a
-        tensor.register_hook, please use it accordingly.
-        '''
-        
-        raise NotImplementedError(err_msg)
-        
-    @__call__.register
-    def _(
+    def forward(
         self,
         module: nn.Module,
         inp: Tuple[Tensor],
@@ -217,43 +218,60 @@ class InfoProbe(SilicoProbe):
         # parameters of the previous layer this hook was call by
         p_val = next(reversed(self._rf_par.values()))
 
-        match type(module):
-            case self.ConvLike:
-                s, p, k = module.stride, module.padding, module.kernel_size
-                
-                d = 1 if isinstance(module, self.MeanLike) else module.dilation
-                
-                s, p, k, d = map(self._sanitize, (s, p, k, d))
-                
-                # Update the current layer parameter for RF computation
-                self._rf_par[curr] = {
-                    'jump' : p_val['jump'] * s,
-                    'size' : p_val['size'] + ((k - 1)     * d) * p_val['jump'],
-                    'start': p_val['start']+ ((k - 1) / 2 - p) * p_val['start'],
-                }
-                
-            case self.PassLike: self._rf_par[curr] = p_val.copy()
-            case self.DownLike: self._rf_par[curr] = {k : 0 for k in p_val}
-            case _: raise TypeError(f'Encountered layer of unknown type: {module}')
+        if isinstance(module, self.ConvLike):
+            s, p, k = module.stride, module.padding, module.kernel_size
+            
+            d = 1 if isinstance(module, self.MeanLike) else module.dilation
+            
+            s, p, k, d = map(self._sanitize, (s, p, k, d))
+            
+            # Update the current layer parameter for RF computation
+            self._rf_par[curr] = {
+                'jump' : p_val['jump'] * s,
+                'size' : p_val['size'] + ((k - 1)     * d) * p_val['jump'],
+                'start': p_val['start']+ ((k - 1) / 2 - p) * p_val['start'],
+            }  
+        elif isinstance(module, self.PassLike): self._rf_par[curr] = p_val.copy()
+        elif isinstance(module, self.DownLike): self._rf_par[curr] = {k : 0 for k in p_val}
+        else : raise TypeError(f'Encountered layer of unknown type: {module}')
 
-    @__call__.register
-    def _(
+    def backward(
         self,
         module : nn.Module,
-        grad_inp : Tuple[Tensor | None],
-        grad_out : Tuple[Tensor | None],
+        grad_inp : Any,
+        grad_out : Any,
     ) -> None:
         '''
+        Backward hook used to gather information about the receptive
+        field of a given set of units either at the input level (i.e.
+        the standard definition of a receptive field) or at a given
+        intermediate level (i.e. generalized receptive field).
+
+        :param module: The calling torch module layer
+        :type module: torch.nn.Module
+        :param grad_inp: The gradient of model parameters with respect
+            to the received input. Entries in grad_inp will be None
+            for all non-Tensor arguments provided as layer input
+        :type grad_inp: Either a tensor or a Tuple of Tensor or None.
+        :param grad_out: The gradient of model parameters with respect
+            to the received input. Entries in grad_inp will be None
+            for all non-Tensor arguments
+        :type grad_out: Either a tensor or a Tuple of Tensor or None.
         '''
-        grad, *_ = grad_inp
+
+        print(type(grad_inp))
+
+        if isinstance(grad_inp, tuple): grad, *_ = grad_inp
         grad = grad.detach().cpu().numpy() if grad else None
         self._ingrad[module.name].append(grad)
 
-    def _sanitize(self, var : int | Tuple) -> int:
+    def _sanitize(self, var : int | str | Tuple) -> int:
         if isinstance(var, (tuple, list)):
             assert (len(var) == 2 and var[0] == var[1]) or\
-                (len(var) == 3 and var[0] == var[1] and var[1] == var[2])
+                   (len(var) == 3 and var[0] == var[1] and var[1] == var[2])
             return var[0]
+        elif isinstance(var, str):
+            raise ValueError(f'Cannot sanitize var of value: {var}')
         else:             
             return var
 
@@ -291,15 +309,15 @@ class InfoProbe(SilicoProbe):
     ) -> Dict[str, List[RFBox]]:
         fields : Dict[str, List[RFBox]] = {}
         
-        w, h = self._shapes['input']
+        *_, w, h = self._shapes['input']
         
         for layer, target in f_target.items():
             if layer not in self._rf_par:
-                raise KeyError(f'No RF info is available for layer: {layer}.')
+                raise KeyError(f'No (forward) RF info is available for layer: {layer}.')
             
             f_par = self._rf_par[layer]
             shape = self._shapes[layer]
-            num_units = len(target) if target else prod(shape)
+            num_units = len(target) if target is not None else prod(shape)
             
             if len(shape) < 3:
                 fields[layer] = [(0, w, 0, h)] * num_units 
@@ -308,15 +326,15 @@ class InfoProbe(SilicoProbe):
             rf_field = [(
                 f_par['start'] + pos * f_par['jump'] - f_par['size'] / 2,
                 f_par['start'] + pos * f_par['jump'] + f_par['size'] / 2)
-                for targ in default(target, product(*[range(d) for d in shape]))
-                for pos in targ
+                for *_, x, y in default(target, product(*[range(d) for d in shape]))
+                for pos in (x, y)
             ]
-            
+
             fields[layer] = [
                 (max(0, int(x1)), min(w, int(x2)), max(0, int(y1)), min(h, int(y2)))
-                for (x1, x2), (y1, y2) in rf_field
+                for (x1, x2), (y1, y2) in zip(rf_field[::2], rf_field[1::2])
             ]
-            
+                        
         return fields
     
     def _get_backward_rf(
@@ -324,6 +342,22 @@ class InfoProbe(SilicoProbe):
         b_target : Dict[str, TargetUnit],
     ) -> Dict[str, List[RFBox]]:
         raise NotImplementedError()
+        # TODO: Figure out how to implement this!
+        # for layer, target in b_target.items():
+        #     if layer not in self._output:
+        #         raise KeyError(f'No (backward) RF info is available for layer: {layer}.')
+            
+        #     # Get the target layer activations
+        #     full_act = self._output[layer]
+        #     targ_act = full_act if target is None else full_act[(slice(None), *target)]
+            
+        #     # Rearrange target activation to have common shape
+        #     # NOTE: We expect batch dimension to have singleton shape
+        #     targ_act = rearrange(targ_act, 'b ... -> b (...)')
+
+        #     for act in targ_act:
+        #         # This is where we trigger the backward hook
+        #         act.backward(retain_graph = True)
     
     def clean(self) -> None:
         '''
@@ -399,7 +433,7 @@ class RecordingProbe(SilicoProbe):
         '''
         return list(self._target.keys())
         
-    def __call__(
+    def forward(
         self,
         module : nn.Module,
         inp : Tuple[Tensor, ...],
