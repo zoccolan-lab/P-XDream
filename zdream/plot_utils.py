@@ -90,24 +90,6 @@ def set_default_matplotlib_params(side: float = 15, shape: Literal['square', 're
         return params,sns_params_dict
 
     return params
-
-    """
-    TODO: implement sth to begin the axis in Davide's preferred way. 
-    follow this strategy
-    # Ottieni le posizioni dei tick sull'asse y
-    tick_positions_y = plt.gca().get_yticklabels()
-    tick_positions_x = plt.gca().get_xticklabels()
-    # Il primo tick sarà il primo elemento di tick_positions
-    t1y = int(float(tick_positions_y[1].get_text()))
-    t2y = int(float(tick_positions_y[-2].get_text()))
-
-    t1x = int(float(tick_positions_x[1].get_text()))
-    t2x = int(float(tick_positions_x[-2].get_text()))
-
-
-    plt.gca().spines['left'].set_bounds(t1y, t2y)
-    plt.gca().spines['bottom'].set_bounds(t1x, t2x)
-    """
     
 def Zoccolan_style_axes(ax):
     tick_positions_y = ax.get_yticklabels()
@@ -122,18 +104,24 @@ def Zoccolan_style_axes(ax):
     ax.spines['left'].set_bounds(t1y, t2y)
     ax.spines['bottom'].set_bounds(t1x, t2x)
     
-def plot_optimization_profile(optim):
+def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
     set_default_matplotlib_params(shape='rect_wide', side = 30)
     fix, ax = plt.subplots(1, 2)
+    lab = []
+    col = []
+    for  l,c in lab_col.items():
+        lab.append(l)
+        col.append(c)
+        
     profile = ['best_shist', 'mean_shist']
     for i,k in enumerate(profile):
-        ax[i].plot(optim.stats[k], label='Synthetic', color='k')
-        ax[i].plot(optim.stats_nat[k], label='Natural', color = 'g')
+        ax[i].plot(optim.stats[k], label=l[0], color=c[0])
+        ax[i].plot(optim.stats_nat[k], label=l[1], color = c[1])
         if k =='mean_shist':
             ax[i].fill_between(range(len(optim.stats[k])),optim.stats[k] - optim.stats['sem_shist'],
-                            optim.stats[k] + optim.stats['sem_shist'], color='k', alpha=0.2) 
+                            optim.stats[k] + optim.stats['sem_shist'], color=c[0]) 
             ax[i].fill_between(range(len(optim.stats_nat[k])),optim.stats_nat[k] - optim.stats_nat['sem_shist'],
-                optim.stats_nat[k] + optim.stats_nat['sem_shist'], color='g', alpha=0.2) 
+                optim.stats_nat[k] + optim.stats_nat['sem_shist'], color=c[1]) 
 
         ax[i].set_xlabel('Generation cycles')
         ax[i].set_ylabel('Target Activation')
