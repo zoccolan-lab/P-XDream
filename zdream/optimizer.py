@@ -280,7 +280,7 @@ class GeneticOptimizer(Optimizer):
         :param random_distr: Nature of the random distribution for initial
                              random codes generation, defaults to `normal`.
         :type random_distr: RandomDistribution
-        :param mutation_size: Number of subject in the population, defaults to 0.3
+        :param mutation_size: Probability of single-point mutation, defaults to 0.3
         :type mutation_size: float, optional
         :param mutation_rate: Scale of punctual mutations (how big the effect of 
                               mutation can be), defaults to 0.1
@@ -416,24 +416,44 @@ class GeneticOptimizer(Optimizer):
     
     def _mutate(
         self,
-        mut_rate : float | None = None,
-        mut_size : float | None = None,
-        population : NDArray | None = None,
+        population    : NDArray | None = None,
+        mutation_rate : float   | None = None,
+        mutation_size : float   | None = None,
     ) -> NDArray:
+        '''
+        Perform punctual mutation to given population using input parameters.
+
+        :param population: Population of codes to mutate, default to old codes.
+        :type population: NDArray | None, optional
+        :param mutation_rate: Scale of punctual mutations (how big the effect of 
+                              mutation can be).
+        :type mutation_rate: float | None, optional
+        :param mutation_size: Probability of single-point mutation.
+        :type mutation_size: float | None, optional
+        :return: Mutated population.
+        :rtype: NDArray
+        '''
         
-        mut_rate = default(mut_rate, self._mutation_rate)
-        mut_size = default(mut_size, self._mutation_size)
-        population = default(population, self.codes)
+        # If not given we use default values
+        population    = default(population, self.codes)
+        mutation_rate = default(mutation_rate, self._mutation_rate)
+        mutation_size = default(mutation_size, self._mutation_size)
 
         # Identify mutations spots for every subject in the population
         mutants = population.copy()
-        mut_loc = self._rng.choice([True, False],
+        
+        mut_loc = self._rng.choice(
+            [True, False],
             size=mutants.shape,
-            p=(mut_rate, 1 - mut_rate),
+            p=(mutation_rate, 1 - mutation_rate),
             replace=True
         )
 
-        mutants[mut_loc] += self._rnd_sample(scale=mut_size, size=mut_loc.sum())
+        # TODO Sometimes produces runtime warnings
+        mutants[mut_loc] += self._rnd_sample(
+            scale=mutation_size, 
+            size=mut_loc.sum()
+        )
 
         return mutants 
     
@@ -444,6 +464,22 @@ class GeneticOptimizer(Optimizer):
         num_children : int | None = None,
         allow_clones : bool = False,
     ) -> NDArray:
+        '''
+        Perform breeding on the given population with given parameters.
+
+        :param population: Population to breed, defaults to None
+        :type population: NDArray | None, optional
+        :param pop_fitness: Population fitness (i.e. probability to be selected
+                            as parents for the next generation).
+        :type pop_fitness: NDArray | None, optional
+        :param num_children: Number of children in the new population, defaults to None
+        :type num_children: int | None, optional
+        :param allow_clones: If a code can occur as a parent multiple times, default to False.
+        :type allow_clones: bool, optional
+        :return: Breed population.
+        :rtype: NDArray
+        '''
+
         # NOTE: We use lazydefault here because .param and .score might
         #       not be populated (i.e. first call to breed) but we don't
         #       want to fail if either population or fitness are provided
@@ -453,6 +489,7 @@ class GeneticOptimizer(Optimizer):
         
         # Select the breeding family based on the fitness of each parent
         # NOTE: The same parent can occur more than once in each family
+        
         families = self._rng.choice(
             len(population),
             size=(num_children, self._num_parents),
@@ -468,11 +505,10 @@ class GeneticOptimizer(Optimizer):
         ])
 
         # Identify which parent contributes which genes for every child
-        # NOTE: First dimension of self._shape is the total population size
         parentage = self._rng.choice(self._num_parents, size=(num_children, *self._shape), replace=True)
         children = np.empty(shape=(num_children, *self._shape))
 
-        for c, (child, family, lineage) in enumerate(zip(children, families, parentage)):
+        for child, family, lineage in zip(children, families, parentage):
             for parent in family:
                 genes = lineage == parent
                 child[genes] = population[parent][genes]
