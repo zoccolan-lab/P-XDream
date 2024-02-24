@@ -153,6 +153,14 @@ def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
     
     return img_arr
 
+def concatenate_images(img_list: List[Tensor], nrow: int = 2):
+    
+    grid_images = make_grid(img_list, nrow=nrow)
+    grid_images = to_pil_image(grid_images)
+    grid_images = cast(Image.Image, grid_images)
+    
+    return grid_images
+
 def convert_to_numpy(data: Union[list, tuple, np.ndarray, torch.Tensor, pd.DataFrame]):
     """
     Converte un qualsiasi dato in un array NumPy.

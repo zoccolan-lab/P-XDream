@@ -56,9 +56,11 @@ class Scorer(ABC):
         '''
         state, msg = data
         
-        scores = self.criterion(state)
+        layer_scores = self.criterion(state)
         
-        return (self.aggregate(scores), msg)
+        scores = self.aggregate(layer_scores)
+        
+        return (scores, msg)
     
     def _check_key_consistency(self, target: dict_keys, state: dict_keys):
         #we check that our subject state contains at least the keys of target for computing
