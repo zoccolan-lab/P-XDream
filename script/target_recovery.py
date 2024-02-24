@@ -66,7 +66,7 @@ class _TargetRecoveryExperiment(Experiment):
         self._state, _ = data
         return self.scorer(data=data)
             
-    def _progress_info(self, gen: int) -> str:
+    def _progress_info(self, i: int) -> str:
         
         trg_img = self.scorer.target['image']
         
@@ -85,7 +85,7 @@ class _TargetRecoveryExperiment(Experiment):
         
         desc = f' | Best score: {best:>7.3f} | Avg score: {curr:>7.3f} | MSE: {mse:.5f}'
         
-        progress_super = super()._progress_info(i=gen)
+        progress_super = super()._progress_info(i=i)
         return f'{progress_super}{desc}'
     
     def _finish(self):
