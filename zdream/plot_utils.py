@@ -110,6 +110,7 @@ def Zoccolan_style_axes(ax):
 def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
     set_default_matplotlib_params(shape='rect_wide', side = 30)
     fix, ax = plt.subplots(1, 2)
+    #in dubbio se usare questo schema
     lab = []
     col = []
     for  l,c in lab_col.items():
@@ -133,7 +134,7 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
         Zoccolan_style_axes(ax[i])
     plt.show()
     
-    fix, ax = plt.subplots(1)
+    fix, ax = plt.subplots(1) #per ora plot di probability density lo faccio in un plot separato
     
     score_nat =np.stack(optim._score_nat)
     score_gen =np.stack(optim._score)
@@ -141,26 +142,25 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
     data_min = min(score_nat.min(), score_gen.min())
     data_max = max(score_nat.max(), score_gen.max())
 
-    # Set the number of bins
-    num_bins = 25  # like ponce 2019
+    num_bins = 25  # same nr of bins as in Ponce 2019
 
     # Create histograms for both datasets with the same range and number of bins
     hnat = plt.hist(score_nat.flatten(), bins=num_bins, range=(data_min, data_max), alpha=1, label=lab[1],
                     density=True,edgecolor=col[1], linewidth =3)
-    hgen_edges = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max), label= lab[0],
+    #for generated images i want a alpha that is a function of the generation step. Given that alpha influences
+    #also edge transparency, i had to separate the histogram in 2: one for edges, one for filling
+    hgen_edg = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max), label= lab[0],
                  density=True,edgecolor= col[0], linewidth =3)
     hgen = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max), 
                     density=True ,color = col[0],edgecolor= col[0])
 
-    for patch in hnat[-1]:
-        patch.set_facecolor('none')
-
-    for patch in hgen_edges[-1]:
-        patch.set_facecolor('none')
+    for patch_nat, patch_hgen_edg in zip(hnat[-1], hgen_edg[-1]):
+        patch_nat.set_facecolor('none')
+        patch_hgen_edg.set_facecolor('none')
         
     n_gens = score_gen.shape[0]
-    for bound, patch in zip(hgen[1][1:], hgen[-1]):
-        is_less = np.mean(score_gen < bound, axis = 1)
+    for up_bound, patch in zip(hgen[1][1:], hgen[-1]):
+        is_less = np.mean(score_gen < up_bound, axis = 1)
         alpha_col = np.sum(is_less*range(n_gens))/np.sum(range(n_gens))
         patch.set_alpha(alpha_col)
     
