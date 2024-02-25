@@ -156,7 +156,7 @@ class MaxActivityScorer(Scorer):
         
         dims = ", ".join([f"{k}: {len(v)}" for k, v in self._trg_neurons.items()])
         
-        return f'MSEScorer[target neurons: ({dims})]'
+        return f'MaximizeActivityScorer[target neurons: ({dims})]'
     
     def __repr__(self) -> str: return str(self)
         
@@ -242,7 +242,7 @@ class WeightedPairSimilarityScorer(Scorer):
         
         weights = ", ".join([f"{k}: {v}" for k, v in self._signature.items()])
         
-        return f'MSEScorer[metric: {self._metric}; target size: ({weights})]'
+        return f'WeightedPairSimilarityScorer[metric: {self._metric}; target size: ({weights})]'
         
     def __repr__(self) -> str: return str(self)
 

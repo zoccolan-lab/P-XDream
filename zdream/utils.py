@@ -1,18 +1,28 @@
+import glob
 import json
+from os import path
+import os
 import random
 import re
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
 
+
 import numpy as np
+from numpy.typing import NDArray
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.utils.data import Dataset
+from torchvision import transforms
 from torchvision.utils import make_grid
+from torchvision.datasets import ImageFolder
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 from einops import rearrange
-from numpy.typing import NDArray
 import pandas as pd
+from loguru import logger
+
+from .model import Logger
 
 # --- TYPING ---
 
@@ -34,6 +44,18 @@ def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
 # Default device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+def count_nans(arr):
+    '''
+    Count the number of NaN values in a NumPy array or PyTorch tensor.
+
+    :param arr: The input array or tensor.
+    :type arr: numpy.ndarray or torch.Tensor
+    :return: The number of NaN values in the array or tensor.
+    :rtype: int
+    '''
+    if   isinstance(arr, np.ndarray):   return np.sum(np.isnan(arr))
+    elif isinstance(arr, torch.Tensor): return torch.sum(torch.isnan(arr)).item()
+    else: raise ValueError("Input must be a NumPy array or a PyTorch tensor.")
 
 def unpack(model : nn.Module) -> nn.ModuleList:
     '''
@@ -105,6 +127,94 @@ def repeat_pattern(
         bool_l.extend(base_seq)
         
     return bool_l
+
+# --- LOGGERS ---
+
+class LoguruLogger(Logger):
+    """ Logger overriding logger methods with `loguru` ones"""
+    
+    def info(self, mess: str): logger.info(mess)
+    def warn(self, mess: str): logger.warning(mess)
+    def err (self, mess: str): logger.error(mess)
+
+# --- DATASETS ---
+
+"""
+NOTE: TO download
+Dataset from here: [https://www.kaggle.com/datasets/arjunashok33/miniimagenet?resource=download]
+Classes from here: [https://gist.github.com/aaronpolhamus/964a4411c0906315deb9f4a3723aac57#file-map_clsloc-txt]
+"""
+class MiniImageNet(ImageFolder):
+
+    def __init__(
+        self,
+        root: str,
+        transform: Callable[..., Tensor] = transforms.Compose([
+            transforms.Resize((256, 256)),  
+            transforms.ToTensor()
+        ]), 
+        target_transform=None
+    ):
+        
+        super().__init__(
+            root=root, 
+            transform=transform,
+            target_transform=target_transform
+        )
+        
+        # Load the .txt file containing ImageNet labels (all 1000 categories)
+        lbls_txt = glob.glob(path.join(root, '*.txt'))[0]
+        
+        with open(lbls_txt, "r") as f:
+            lines = f.readlines()
+        
+        # Create a label dictionary
+        self.label_dict = {
+            line.split()[0]: line.split()[2].replace('_', ' ')
+            for line in lines
+        }
+    
+    # TODO Maintain this method here?
+    def class_to_lbl(self, lbls : Tensor): 
+        # Takes in input the labels and outputs their categories
+        return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
+    
+    def __getitem__(self, index: int) -> Tensor:
+        # TODO This is  made to make the dataset work
+        
+        return torch.tensor(np.random.rand(3, 256, 256), dtype=torch.float32)
+        
+        # Select random image
+        random_subfolder = random.choice([f.path for f in os.scandir(self.root) if f.is_dir()])
+        random_image = random.choice([f.path for f in os.scandir(random_subfolder) if f.is_file()])
+        
+        image = preprocess_image(image_fp=random_image, resize=(256, 256))
+        image_t = torch.tensor(image[0], dtype=torch.float32)
+        
+        return image_t
+        # return super().__getitem__(index)[0]
+    
+class RandomImageDataset(Dataset):
+    '''
+    Random image dataset to simulate natural images to be interleaved
+    in the stimuli with synthetic ones.
+    '''
+    
+    def __init__(self, n_img: int, img_size: Tuple[int, ...]):
+        self.n_img = n_img
+        self.image_size = img_size
+    
+    def __len__(self):
+        return self.n_img
+    
+    def __getitem__(self, idx) -> Tensor:
+        
+        # Simulate finite dataset
+        if idx < 0 or idx >= len(self): raise ValueError(f"Invalid image idx: {idx} not in [0, {len(self)})")
+
+        rand_img = torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
+        
+        return rand_img
 
 # --- I/O ---
 
