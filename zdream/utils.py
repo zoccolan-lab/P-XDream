@@ -22,6 +22,7 @@ from einops import rearrange
 import pandas as pd
 from loguru import logger
 
+from .model import RFBox
 from .model import Logger
 
 # --- TYPING ---
@@ -38,6 +39,39 @@ def default(var : T | None, val : D) -> T | D:
 def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
     return expr() if var is None else var
 
+# --- NUMPY ---
+def fit_bbox(
+    data : NDArray | None,
+    axes : Tuple[int, ...] = (-2, -1)
+) -> RFBox:
+    '''
+    Fit a bounding box for non-zero entries of a
+    numpy array along provided directions.
+    
+    :param grad: Array representing the data we want
+        to draw bounding box over. Typical use case
+        is the computed (input-)gradient of a subject
+        given some hidden units activation states
+    :type grad: Numpy array or None
+    :param axes: Array dimension along which bounding
+        boxes should be computed
+    :type axes: Tuple of ints
+    
+    :returns: Computed bounding box in the format:
+        (x1_min, x1_max, x2_min, x2_max, ...)
+    :rtype: Tuple of ints
+    '''
+    if data is None: return (0, 0, 0, 0)
+    
+    # Get non-zero coordinates of gradient    
+    coords = data.nonzero() 
+    
+    bbox = []
+    # Loop over the spatial coordinates
+    for axis in axes:
+        bbox.extend((coords[axis].min(), coords[axis].max() + 1))
+        
+    return tuple(bbox)
 
 # --- TORCH ---
 
@@ -77,6 +111,32 @@ def unpack(model : nn.Module) -> nn.ModuleList:
     
     return nn.ModuleList(unpacked)
 
+# NOTE: Code taken from github issue:
+# https://github.com/pytorch/vision/issues/6699
+def _replace_inplace(module : nn.Module) -> None:
+    reassign = {}
+    
+    for name, mod in module.named_children(): 
+        _replace_inplace(mod) 
+        # Checking for explicit type instead of instance 
+        # as we only want to replace modules of the exact type 
+        # not inherited classes 
+        if type(mod) is nn.ReLU or type(mod) is nn.ReLU6: 
+            reassign[name] = nn.ReLU(inplace=False) 
+
+    for key, value in reassign.items(): 
+        module._modules[key] = value 
+
+class InputLayer(nn.Module):
+    
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+        
+    def forward(self, x : Tensor) -> Tensor:
+        return x
+        
+    def _get_name(self):
+        return 'Input'
 
 # --- STRING ---
 
