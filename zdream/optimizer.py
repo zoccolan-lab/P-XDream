@@ -509,8 +509,8 @@ class GeneticOptimizer(Optimizer):
         children = np.empty(shape=(num_children, *self._shape))
 
         for child, family, lineage in zip(children, families, parentage):
-            for parent in family:
-                genes = lineage == parent
+            for i, parent in enumerate(family):
+                genes = lineage == i
                 child[genes] = population[parent][genes]
                 
         return children

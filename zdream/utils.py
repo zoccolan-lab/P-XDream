@@ -179,20 +179,8 @@ class MiniImageNet(ImageFolder):
         # Takes in input the labels and outputs their categories
         return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
     
-    def __getitem__(self, index: int) -> Tensor:
-        # TODO This is  made to make the dataset work
-        
-        return torch.tensor(np.random.rand(3, 256, 256), dtype=torch.float32)
-        
-        # Select random image
-        random_subfolder = random.choice([f.path for f in os.scandir(self.root) if f.is_dir()])
-        random_image = random.choice([f.path for f in os.scandir(random_subfolder) if f.is_file()])
-        
-        image = preprocess_image(image_fp=random_image, resize=(256, 256))
-        image_t = torch.tensor(image[0], dtype=torch.float32)
-        
-        return image_t
-        # return super().__getitem__(index)[0]
+    def __getitem__(self, index: int) -> Tensor:        
+        return super().__getitem__(index)[0]
     
 class RandomImageDataset(Dataset):
     '''
