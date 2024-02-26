@@ -14,34 +14,14 @@ from zdream.generator import InverseAlexGenerator
 from zdream.model import Message
 from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
-from zdream.utils import device, read_json
+from zdream.utils import device, read_json, RandomImageDataset
 
 # Loading `local_settings.json` for custom local settings
 test_folder = path.dirname(path.abspath(__file__))
 test_settings_fp = path.join(test_folder, 'local_settings.json')
 test_settings: Dict[str, Any] = read_json(path=test_settings_fp)
 
-class _RandomImageDataset(Dataset):
-    '''
-    Random image dataset to simulate natural images to be interleaved
-    in the stimuli with synthetic ones.
-    '''
-    
-    def __init__(self, n_img: int, img_size: Tuple[int, ...]):
-        self.n_img = n_img
-        self.image_size = img_size
-    
-    def __len__(self):
-        return self.n_img
-    
-    def __getitem__(self, idx) -> Tensor:
-        
-        # Simulate finite dataset
-        if idx < 0 or idx >= len(self): raise ValueError(f"Invalid image idx: {idx} not in [0, {len(self)})")
 
-        rand_img = torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
-        
-        return rand_img
 
 class InverseAlexGeneratorTest(unittest.TestCase):
     
@@ -87,7 +67,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='fc8'
         ).to(device)
         
-        dataset = _RandomImageDataset(
+        dataset = RandomImageDataset(
             n_img=n_img,
             img_size=generator.output_dim
         )
@@ -232,7 +212,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
             variant='fc8'
         ).to(device)
         
-        dataset = _RandomImageDataset(
+        dataset = RandomImageDataset(
             n_img=100,
             img_size=(3, 224, 244) # wrong
         )

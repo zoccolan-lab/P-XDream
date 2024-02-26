@@ -204,6 +204,7 @@ NOTE: TO download
 Dataset from here: [https://www.kaggle.com/datasets/arjunashok33/miniimagenet?resource=download]
 Classes from here: [https://gist.github.com/aaronpolhamus/964a4411c0906315deb9f4a3723aac57#file-map_clsloc-txt]
 """
+
 class MiniImageNet(ImageFolder):
 
     def __init__(
