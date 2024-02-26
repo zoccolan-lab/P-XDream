@@ -233,26 +233,16 @@ class MiniImageNet(ImageFolder):
             line.split()[0]: line.split()[2].replace('_', ' ')
             for line in lines
         }
+        self.lbls_presented = []
     
     # TODO Maintain this method here?
     def class_to_lbl(self, lbls : Tensor): 
         # Takes in input the labels and outputs their categories
-        return [self.label_dict[self.classes[lbl]] for lbl in lbls.tolist()]
+        return [self.label_dict[self.classes[lbl]] for lbl in list(lbls)]
     
-    def __getitem__(self, index: int) -> Tensor:
-        # TODO This is  made to make the dataset work
-        
-        return torch.tensor(np.random.rand(3, 256, 256), dtype=torch.float32)
-        
-        # Select random image
-        random_subfolder = random.choice([f.path for f in os.scandir(self.root) if f.is_dir()])
-        random_image = random.choice([f.path for f in os.scandir(random_subfolder) if f.is_file()])
-        
-        image = preprocess_image(image_fp=random_image, resize=(256, 256))
-        image_t = torch.tensor(image[0], dtype=torch.float32)
-        
-        return image_t
-        # return super().__getitem__(index)[0]
+    def __getitem__(self, index: int) -> Tensor: #if want to correct type error put  Tuple[Any, Any]
+        self.lbls_presented.append(super().__getitem__(index)[1])       
+        return super().__getitem__(index)[0]
     
 class RandomImageDataset(Dataset):
     '''

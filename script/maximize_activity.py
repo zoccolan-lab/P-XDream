@@ -21,14 +21,16 @@ from typing import cast, Tuple
 from collections import defaultdict
 from loguru import logger
 from functools import partial
+import random
 
 from zdream.generator import InverseAlexGenerator
 from zdream.model import Codes, Logger, Message, Stimuli, StimuliScore, SubjectState
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 from zdream.utils import *
+from zdream.plot_utils import *
 from zdream.scores import MaxActivityScorer
-from zdream.optimizer import GeneticOptimizer
+from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.experiment import Experiment, ExperimentConfig
 
 
@@ -65,9 +67,44 @@ class _MaximizeActivity(Experiment):
             for k in ['gen', 'nat']
         }
         
+        # Set screen
+        self._screen_syn = "Best synthetic image"
+        self._logger.add_screen(screen_name=self._screen_syn)
+        
+        # Set screen
+        # self._screen_nat = "Best natural image"
+        # self._logger.add_screen(screen_name=self._screen_nat)
+        
+    def _progress(self, i: int):
+        
+        super()._progress(i)
+        
+        # Get best stimuli
+        best_code = self.optimizer.solution
+        best_synthetic, _ = self.generator(best_code)
+        best_synthetic_img = to_pil_image(best_synthetic[0])
+        
+        self._logger.update_screen(
+            screen_name=self._screen_syn,
+            image=best_synthetic_img
+        )
+        
+        # Best natural found
+        """
+        TODO
+        best_natural_image = to_pil_image(self._best_img['nat'])
+        
+        self._logger.update_screen(
+            screen_name=self._screen_nat,
+            image=best_natural_image
+        )"""
+        
     def _finish(self):
         
         super()._finish()
+        
+        # Close screens
+        self._logger.remove_all_screens()
         
         # 1) Best Images
         
@@ -92,30 +129,9 @@ class _MaximizeActivity(Experiment):
         self._logger.info(mess=f"Saving best images to {out_image_fp}")
         out_image.save(out_image_fp)    
         
-        # 2) Score plot
-        
-        # We plot the max and average score at each generation
-        
-        _, ax = plt.subplots(1, 2, figsize=(12, 6))
-
-        ax[0].plot(self.optimizer.stats['best_shist'], label='Synthetic')
-        ax[0].plot(self.optimizer.stats_nat['best_shist'], label='Natural')
-        ax[0].set_xlabel('Generation cycles')
-        ax[0].set_ylabel('Max Target Activations')
-        ax[0].set_title('Better than Ponce...')
-        ax[0].legend()
-
-        ax[1].plot(self.optimizer.stats['mean_shist'], label='Synthetic')
-        ax[1].plot(self.optimizer.stats_nat['mean_shist'], label='Natural')
-        ax[1].set_xlabel('Generation cycles')
-        ax[1].set_ylabel('Avg Target Activations')
-        ax[1].set_title('... and Kreimann')
-        ax[1].legend()
-        
-        # We save it
-        out_plot_fp = path.join(out_dir_fp, f'scores.png')
-        self._logger.info(mess=f"Saving scores to {out_plot_fp}")
-        plt.savefig(out_plot_fp)
+        # 2) Score plots
+        plot_optimization_profile(self._optimizer, save_dir = out_dir_fp)
+        plot_scores_by_cat(self._optimizer, self._generator._lbls_nat_presented, save_dir = out_dir_fp)
         
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
         
@@ -179,7 +195,7 @@ def main(args):
         layer_names[k]: (v[1] if isinstance(v[1], list)  else random.sample(range(1000), v[0]))
         for k, v in score_dict.items()
     }
-    
+    print(score_dict)
     # Generator with Dataloader
     mini_IN = MiniImageNet(root=args.tiny_inet_root)
     mini_IN_loader = DataLoader(mini_IN, batch_size=2, shuffle=True)
@@ -261,23 +277,23 @@ if __name__ == '__main__':
     
     parser = ArgumentParser()
     
-    parser.add_argument('-pop_sz',         type=int,   default=20,                      help='Number of images per generation')
-    parser.add_argument('-num_gens',       type=int,   default=10,                     help='Number of total generations to evolve')
-    parser.add_argument('-img_size',       type=tuple, default=(256, 256),              help='Size of a given image', nargs=2)
-    parser.add_argument('-gen_variant',    type=str,   default='fc8',                   help='Variant of InverseAlexGenerator to use')
-    parser.add_argument('-optimizer_seed', type=int,   default=31415,                   help='Random seed in GeneticOptimizer')
-    parser.add_argument('-mutation_rate',  type=float, default=0.3,                     help='Mutation rate in GeneticOptimizer')
-    parser.add_argument('-mutation_size',  type=float, default=0.3,                     help='Mutation size in GeneticOptimizer')
-    parser.add_argument('-num_parents',    type=int,   default=2,                       help='Number of parents in GeneticOptimizer')
-    parser.add_argument('-temperature',    type=float, default=1.0,                     help='Temperature in GeneticOptimizer')
-    parser.add_argument('-mask_template',  type=str ,  default='tffff',                     help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
-    parser.add_argument('-mask_is_random', type=bool , default=False,                   help='Defines if the mask is pseudorandom or not')
-    parser.add_argument('-rec_layers',     type=tuple, default=(18,20),                 help='Layers you want to record from (each int in tuple = nr of the layer)')
-    parser.add_argument('-score_layers',   type=str,   default="{20:(1,range(1))}",     help='Layers you want to score from (dictionary with layer nr: (nr of units, units ID (r = rand)))')
+    parser.add_argument('-pop_sz',         type=int,   default=20,               help='Number of images per generation')
+    parser.add_argument('-num_gens',       type=int,   default=10,               help='Number of total generations to evolve')
+    parser.add_argument('-img_size',       type=tuple, default=(256, 256),       help='Size of a given image', nargs=2)
+    parser.add_argument('-gen_variant',    type=str,   default='fc8',            help='Variant of InverseAlexGenerator to use')
+    parser.add_argument('-optimizer_seed', type=int,   default=31415,            help='Random seed in GeneticOptimizer')
+    parser.add_argument('-mutation_rate',  type=float, default=0.3,              help='Mutation rate in GeneticOptimizer')
+    parser.add_argument('-mutation_size',  type=float, default=0.3,              help='Mutation size in GeneticOptimizer')
+    parser.add_argument('-num_parents',    type=int,   default=2,                help='Number of parents in GeneticOptimizer')
+    parser.add_argument('-temperature',    type=float, default=1.0,              help='Temperature in GeneticOptimizer')
+    parser.add_argument('-mask_template',  type=str ,  default='tffff',          help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
+    parser.add_argument('-mask_is_random', type=bool , default=False,            help='Defines if the mask is pseudorandom or not')
+    parser.add_argument('-rec_layers',     type=tuple, default=(18,20),          help='Layers you want to record from (each int in tuple = nr of the layer)')
+    parser.add_argument('-score_layers',   type=str,   default="{20:(1,None)}",  help='Layers you want to score from (dictionary with layer nr: (nr of units, units ID (r = rand)))')
 
-    parser.add_argument('-gen_root',       type=str,   default=gen_root,                help='Path to root folder of generator checkpoints')
-    parser.add_argument('-tiny_inet_root', type=str,   default=tiny_inet_root,          help='Path to tiny imagenet dataset')
-    parser.add_argument('-save_dir',       type=str,   default=image_out,               help='Path to store best solution')
+    parser.add_argument('-gen_root',       type=str,   default=gen_root,         help='Path to root folder of generator checkpoints')
+    parser.add_argument('-tiny_inet_root', type=str,   default=tiny_inet_root,   help='Path to tiny imagenet dataset')
+    parser.add_argument('-save_dir',       type=str,   default=image_out,        help='Path to store best solution')
     
     args = parser.parse_args()
     
