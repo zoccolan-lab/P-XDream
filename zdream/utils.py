@@ -242,8 +242,9 @@ class MiniImageNet(ImageFolder):
         return [self.label_dict[self.classes[lbl]] for lbl in list(lbls)]
     
     def __getitem__(self, index: int) -> Tensor: #if want to correct type error put  Tuple[Any, Any]
-        self.lbls_presented.append(super().__getitem__(index)[1])       
-        return super().__getitem__(index)[0]
+        tens, lab = super().__getitem__(index)
+        self.lbls_presented.append(lab)    
+        return tens
     
 class RandomImageDataset(Dataset):
     '''

@@ -5,6 +5,7 @@ TODO Experiment description
 import glob
 import os
 from os import path
+from matplotlib import contour
 import numpy as np
 from tqdm import trange
 from argparse import ArgumentParser
@@ -47,12 +48,14 @@ class _MaximizeActivity(Experiment):
         
         # We add the progress information about the best
         # and the average score per each iteration
-        stat = self.optimizer.stats
+        stat_gen = self.optimizer.stats
+        stat_nat = self.optimizer.stats_nat
         
-        best = cast(NDArray, stat['best_score']).mean()
-        curr = cast(NDArray, stat['curr_score']).mean()
+        best_gen = cast(NDArray, stat_gen['best_score']).mean()
+        curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
+        best_nat = cast(NDArray, stat_nat['best_score']).mean()
         
-        desc = f' | best score: {best:.1f} | avg score: {curr:.1f}'
+        desc = f' | best score: {best_gen:.1f} | avg score: {curr_gen:.1f} | best nat: {best_nat:.1f}'
         
         progress_super = super()._progress_info(i=i)
         
@@ -65,13 +68,13 @@ class _MaximizeActivity(Experiment):
         # Data structure to save best score and best image
         self._best_scr = {'gen': 0, 'nat': 0}
         self._best_img = {
-            k: torch.zeros(self.generator.output_dim)
+            k: torch.zeros(self.generator.output_dim, device = device)
             for k in ['gen', 'nat']
         }
         
         # Set screen
         self._screen_syn = "Best synthetic image"
-        self._logger.add_screen(screen_name=self._screen_syn, display_size=(800, 400))
+        self._logger.add_screen(screen_name=self._screen_syn, display_size=(800,400))
         
         # Set screen
         # self._screen_nat = "Best natural image"
@@ -180,19 +183,22 @@ def main(args):
     # Extract the name of recording layers
     rec_layers = [layer_names[i] for i in args.rec_layers] # TODO Check input as a tuple
     
-    # Extract scoring layers from arguments
-    score_dict = eval(args.score_layers) # TODO Study other way, what if args.score_layers is 'os.remove("C:")' ?
-    
+
     # Building target neurons
     # TODO what is this ifelse doing?
-    score_dict = {
-        layer_names[k]: (v[1] if isinstance(v[1], list)  else random.sample(range(1000), v[0]))
-        for k, v in score_dict.items()
-    }
+    score_dict = {}
+    random.seed(args.score_rseed)
+    for sl, su in zip(args.score_layers, args.score_units):
+        if isinstance(su,tuple):
+            k_vals = list(range(su[0], su[1]))
+        else:
+            k_vals = random.sample(range(1000),su)
+        score_dict[layer_names[sl]] = k_vals
+        
     print(score_dict)
     # Generator with Dataloader
     mini_IN = MiniImageNet(root=args.tiny_inet_root)
-    mini_IN_loader = DataLoader(mini_IN, batch_size=2, shuffle=True)
+    mini_IN_loader = DataLoader(mini_IN, batch_size=10, shuffle=True) #set num_workers
     # mini_IN_loader = DataLoader(RandomImageDataset(1000, (3, 256, 256)), batch_size=2, shuffle=True)
     
     generator = InverseAlexGenerator(
@@ -272,19 +278,22 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     
     parser.add_argument('-pop_sz',         type=int,   default=20,               help='Number of images per generation')
-    parser.add_argument('-num_gens',       type=int,   default=10,               help='Number of total generations to evolve')
+    parser.add_argument('-num_gens',       type=int,   default=500,               help='Number of total generations to evolve')
     parser.add_argument('-img_size',       type=tuple, default=(256, 256),       help='Size of a given image', nargs=2)
     parser.add_argument('-gen_variant',    type=str,   default='fc8',            help='Variant of InverseAlexGenerator to use')
     parser.add_argument('-optimizer_seed', type=int,   default=31415,            help='Random seed in GeneticOptimizer')
     parser.add_argument('-mutation_rate',  type=float, default=0.3,              help='Mutation rate in GeneticOptimizer')
     parser.add_argument('-mutation_size',  type=float, default=0.3,              help='Mutation size in GeneticOptimizer')
-    parser.add_argument('-num_parents',    type=int,   default=2,                help='Number of parents in GeneticOptimizer')
+    parser.add_argument('-num_parents',    type=int,   default=4,                help='Number of parents in GeneticOptimizer')
     parser.add_argument('-temperature',    type=float, default=1.0,              help='Temperature in GeneticOptimizer')
     parser.add_argument('-mask_template',  type=str ,  default='tffff',          help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
     parser.add_argument('-mask_is_random', type=bool , default=False,            help='Defines if the mask is pseudorandom or not')
-    parser.add_argument('-rec_layers',     type=tuple, default=(18,20),          help='Layers you want to record from (each int in tuple = nr of the layer)')
-    parser.add_argument('-score_layers',   type=str,   default="{20:(1,None)}",  help='Layers you want to score from (dictionary with layer nr: (nr of units, units ID (r = rand)))')
+    parser.add_argument('-rec_layers',     type=tuple, default=(19,21),          help='Layers you want to record from (each int in tuple = nr of the layer)')
 
+    parser.add_argument('-score_layers',    type=tuple, default=(21,),          help='Layers you want to score from')
+    parser.add_argument('-score_units',     type=tuple, default=((1,21),),            help='Units you want to score from')
+    parser.add_argument('-score_rseed',     type=tuple, default=31415,            help='random seed for selecting units')
+    
     parser.add_argument('-gen_root',       type=str,   default=gen_root,         help='Path to root folder of generator checkpoints')
     parser.add_argument('-tiny_inet_root', type=str,   default=tiny_inet_root,   help='Path to tiny imagenet dataset')
     parser.add_argument('-save_dir',       type=str,   default=image_out,        help='Path to store best solution')

@@ -198,7 +198,7 @@ def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
     gen_dict = {'Early': (np.mean(gen_scores[:5,:]), SEMf(gen_scores[:5,:].flatten())),
                 'Late': (np.mean(gen_scores[-5:,:]), SEMf(gen_scores[-5:,:].flatten()))}
 
-    set_default_matplotlib_params(shape = 'rect_wide')
+    set_default_matplotlib_params(shape='rect_wide', side = 30)
     fig, ax = plt.subplots(2,1)
     ax[0].barh(top_labels, [val[0] for val in top_values], xerr=[val[1] for val in top_values], label='Top 3', color='green')
     ax[0].barh(bottom_labels, [val[0] for val in bottom_values], xerr=[val[1] for val in bottom_values], label='Bottom 3', color='red')
