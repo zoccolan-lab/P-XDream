@@ -257,6 +257,9 @@ class Generator(ABC, nn.Module):
             # We create a new iterator on the fly to check shape consistency
             # between synthetic and natural images, we raise an error if they disagree.
             nat_img_shape = next(iter(self._nat_img_loader)).shape[1:]
+            #nat_img_shape = (3,256,256)
+            if hasattr(self._nat_ds, 'lbls_presented'):
+                self._nat_ds.lbls_presented = []
             if nat_img_shape != gen_img_shape:
                 err_msg = f'Natural images have shape {nat_img_shape}, '\
                           f'but synthetic ones have shape {gen_img_shape}.'
