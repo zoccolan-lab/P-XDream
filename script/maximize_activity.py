@@ -5,7 +5,6 @@ TODO Experiment description
 import glob
 import os
 from os import path
-from matplotlib import pyplot as plt
 import numpy as np
 from tqdm import trange
 from argparse import ArgumentParser
@@ -22,6 +21,7 @@ from collections import defaultdict
 from loguru import logger
 from functools import partial
 import random
+import matplotlib
 
 from zdream.generator import InverseAlexGenerator
 from zdream.model import Codes, Logger, Message, Stimuli, StimuliScore, SubjectState
@@ -32,6 +32,8 @@ from zdream.plot_utils import *
 from zdream.scores import MaxActivityScorer
 from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.experiment import Experiment, ExperimentConfig
+
+matplotlib.use('TKAgg')
 
 
 class _MaximizeActivity(Experiment):
@@ -69,7 +71,7 @@ class _MaximizeActivity(Experiment):
         
         # Set screen
         self._screen_syn = "Best synthetic image"
-        self._logger.add_screen(screen_name=self._screen_syn)
+        self._logger.add_screen(screen_name=self._screen_syn, display_size=(800, 400))
         
         # Set screen
         # self._screen_nat = "Best natural image"
@@ -82,22 +84,14 @@ class _MaximizeActivity(Experiment):
         # Get best stimuli
         best_code = self.optimizer.solution
         best_synthetic, _ = self.generator(best_code)
-        best_synthetic_img = to_pil_image(best_synthetic[0])
+        best_natural = self._best_img['nat']
+        
+        out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
         
         self._logger.update_screen(
             screen_name=self._screen_syn,
-            image=best_synthetic_img
+            image=out_image
         )
-        
-        # Best natural found
-        """
-        TODO
-        best_natural_image = to_pil_image(self._best_img['nat'])
-        
-        self._logger.update_screen(
-            screen_name=self._screen_nat,
-            image=best_natural_image
-        )"""
         
     def _finish(self):
         
