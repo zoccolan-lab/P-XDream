@@ -8,6 +8,8 @@ from numpy.typing import NDArray
 from torch import Tensor
 from PIL import Image, ImageTk
 
+from typing import Tuple
+
 # --- TYPE ALIASES ---
 
 Mask = List[bool]   
@@ -39,6 +41,13 @@ StimuliScore = NDArray[np.float32]
 '''
 Set of scores associated to each stimuli in
 the form of a one-dimensional array.
+'''
+
+RFBox = Tuple[int, ...]
+'''
+Receptive Field bounding box, usually expected in
+the form (x0, x1, y0, y1) but generalizable to
+arbitrary number of dimensions.
 '''
 
 # --- MESSAGE ---
