@@ -15,10 +15,11 @@ from .model import SubjectState
 from .probe import NamingProbe
 from .probe import RecordingProbe
 from .probe import SilicoProbe
+from .utils import InputLayer
 from .utils import default
 from .utils import device
 from .utils import unpack
-
+from .utils import _replace_inplace
 
 class Subject(ABC):
     '''
@@ -93,7 +94,15 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         
         # Load the torch model via its name from the torchvision hub
         self._weights = get_model_weights(self._name).DEFAULT if pretrained else None # type: ignore
-        self._network = get_model(self._name, weights=self._weights).to(device)
+        self._network = nn.Sequential(
+            InputLayer(),
+            get_model(self._name, weights=self._weights)
+        ).to(device)
+        
+        # NOTE: Here we make sure no inplace operations are used in the network
+        #       to avoid weird behaviors (e.g. if a backward hook is attached
+        #       to the network) at the cost of small memory increase
+        _replace_inplace(self._network)
         
         self._probes : Dict[SilicoProbe, List[RemovableHandle]] = defaultdict(list)
 
@@ -128,7 +137,8 @@ class NetworkSubject(InSilicoSubject, nn.Module):
             Calling subject forward while no recording probe has been registered.
             This will result in subject forward output to have an empty SubjectState
             which may lead in downstream failure. Please be mindful or the consequences
-            or a recording probe via the `register` method of the NetworkSubject class. 
+            or register a recording probe via the `register` method of the NetworkSubject
+            class. 
             '''
 
         # TODO: This return only the first RecorderProbe, what if
@@ -145,7 +155,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
             auto_clean=auto_clean
         )
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def forward(
         self,
         data : Tuple[Stimuli, Message],

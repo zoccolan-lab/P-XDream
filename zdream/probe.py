@@ -6,16 +6,19 @@ from abc import ABC, abstractmethod
 
 from einops import rearrange
 from collections import defaultdict, OrderedDict
-from typing import Dict, Tuple, List, Any, Literal, Callable
+from typing import cast, Dict, Tuple, List, Any, Literal, Callable
 from numpy.typing import DTypeLike, NDArray
 
 from math import prod
+from einops import reduce
 from itertools import product
 
 from .utils import default
+from .utils import fit_bbox
+from .utils import InputLayer
+from .model import RFBox
 from .model import SubjectState
 
-RFBox = Tuple[int, int, int, int]
 TargetUnit = None | NDArray | Tuple[NDArray, ...]
 
 class SilicoProbe(ABC):
@@ -168,14 +171,14 @@ class InfoProbe(SilicoProbe):
             nn.ELU, nn.Hardshrink, nn.Hardsigmoid,  nn.Hardtanh, nn.LogSigmoid, nn.PReLU,
             nn.ReLU6, nn.RReLU, nn.SELU, nn.CELU, nn.GELU, nn.Sigmoid, nn.SiLU, nn.Mish,
             nn.Softplus, nn.Softshrink, nn.Softsign, nn.Tanh, nn.Tanhshrink, nn.Threshold,
-            nn.Dropout, nn.Dropout1d, nn.Dropout2d, nn.Dropout3d)
+            nn.Dropout, nn.Dropout1d, nn.Dropout2d, nn.Dropout3d, InputLayer)
     
     def __init__(
         self,
         inp_shape : Tuple[int, ...],
         rf_method : Literal['forward', 'backward'] = 'forward',
         forward_target : None | Dict[str, TargetUnit] = None,
-        backward_target: None | Dict[str, TargetUnit] = None,
+        backward_target: None | Dict[str, Dict[str, TargetUnit]] = None,
     ) -> None:
         super().__init__()
         
@@ -183,9 +186,9 @@ class InfoProbe(SilicoProbe):
         self._f_target = forward_target
         self._b_target = backward_target
         
-        self._output : Dict[str, Tensor] = {} 
+        self._output : Dict[Tuple[str, str], Tensor] = {} 
         self._shapes : Dict[str, Tuple[int, ...]] = {'input' : inp_shape}
-        self._ingrad : Dict[str, List[Tensor | None]] = defaultdict(list)
+        self._ingrad : Dict[Tuple[str, str], List[NDArray | None]] = defaultdict(list)
         self._rf_par : Dict[str, Dict[str, float]] = OrderedDict(
             input={
                 'jump' : 1,
@@ -207,10 +210,25 @@ class InfoProbe(SilicoProbe):
         
         curr = module.name
 
-        # Collect the actual output of current layer (which might
-        # be useful during the backward pass) and its shape        
-        self._output[curr] = out
+        # Store current layer's output shape 
         self._shapes[curr] = out.detach().cpu().numpy().shape
+        
+        # NOTE: We check whether this layer output is needed for
+        #       a backward pass because it was requested by the
+        #       backward hook functionality        
+        if self._b_target:
+            for ref, targets in self._b_target.items():
+                try:
+                    targ_idx = targets[curr]
+                    targ_act = out if targ_idx is None else out[(slice(None), *targ_idx)]
+                    
+                    # Rearrange target activation to have common shape
+                    # NOTE: We expect batch dimension to have singleton shape
+                    self._output[(ref, curr)] = reduce(targ_act, 'b ... -> (...)', 'mean')
+
+                # No worries if current layer is not among the
+                # backward targets, just pass
+                except KeyError: pass
         
         # * Collect parameters needed for the RF computation
         # Here we get the last-inserted (hence previous) key-val
@@ -238,8 +256,8 @@ class InfoProbe(SilicoProbe):
     def backward(
         self,
         module : nn.Module,
-        grad_inp : Any,
-        grad_out : Any,
+        grad_inp : Tuple[Tensor | None, ...],
+        grad_out : Tuple[Tensor | None, ...],
     ) -> None:
         '''
         Backward hook used to gather information about the receptive
@@ -258,12 +276,17 @@ class InfoProbe(SilicoProbe):
             for all non-Tensor arguments
         :type grad_out: Either a tensor or a Tuple of Tensor or None.
         '''
-
-        print(type(grad_inp))
+        if not hasattr(module, 'name'):
+            raise AttributeError(f'Encounter module {module} with unregistered name.')
+        
+        curr = module.name
+        
+        if curr not in self._b_target: return
 
         if isinstance(grad_inp, tuple): grad, *_ = grad_inp
-        grad = grad.detach().cpu().numpy() if grad else None
-        self._ingrad[module.name].append(grad)
+        
+        grad = grad.detach().abs().cpu().numpy() if grad is not None else None
+        self._ingrad[(curr, self.source)].append(grad)
 
     def _sanitize(self, var : int | str | Tuple) -> int:
         if isinstance(var, (tuple, list)):
@@ -280,7 +303,7 @@ class InfoProbe(SilicoProbe):
         return self._shapes
     
     @property
-    def rec_field(self) -> Dict[str, List[RFBox]]:        
+    def rec_field(self) -> Dict[Tuple[str, str], List[RFBox]]:        
         match self.rf_method:
             case 'forward':
                 err_msg = \
@@ -305,13 +328,13 @@ class InfoProbe(SilicoProbe):
         
     def _get_forward_rf(
         self,
-        f_target : Dict[str, TargetUnit]
-    ) -> Dict[str, List[RFBox]]:
-        fields : Dict[str, List[RFBox]] = {}
+        fw_target : Dict[str, TargetUnit]
+    ) -> Dict[Tuple[str, str], List[RFBox]]:
+        fields : Dict[Tuple[str, str], List[RFBox]] = {}
         
         *_, w, h = self._shapes['input']
         
-        for layer, target in f_target.items():
+        for layer, target in fw_target.items():
             if layer not in self._rf_par:
                 raise KeyError(f'No (forward) RF info is available for layer: {layer}.')
             
@@ -320,7 +343,7 @@ class InfoProbe(SilicoProbe):
             num_units = len(target) if target is not None else prod(shape)
             
             if len(shape) < 3:
-                fields[layer] = [(0, w, 0, h)] * num_units 
+                fields[('00_input_01', layer)] = [(0, w, 0, h)] * num_units 
                 continue
             
             rf_field = [(
@@ -330,7 +353,7 @@ class InfoProbe(SilicoProbe):
                 for pos in (x, y)
             ]
 
-            fields[layer] = [
+            fields[('00_input_01', layer)] = [
                 (max(0, int(x1)), min(w, int(x2)), max(0, int(y1)), min(h, int(y2)))
                 for (x1, x2), (y1, y2) in zip(rf_field[::2], rf_field[1::2])
             ]
@@ -339,25 +362,22 @@ class InfoProbe(SilicoProbe):
     
     def _get_backward_rf(
         self,
-        b_target : Dict[str, TargetUnit],
-    ) -> Dict[str, List[RFBox]]:
-        raise NotImplementedError()
+        bw_target : Dict[str, Dict[str, TargetUnit]],
+        act_scale : float = 1e2,
+    ) -> Dict[Tuple[str, str], List[RFBox]]:
+        # raise NotImplementedError()
         # TODO: Figure out how to implement this!
-        # for layer, target in b_target.items():
-        #     if layer not in self._output:
-        #         raise KeyError(f'No (backward) RF info is available for layer: {layer}.')
-            
-        #     # Get the target layer activations
-        #     full_act = self._output[layer]
-        #     targ_act = full_act if target is None else full_act[(slice(None), *target)]
-            
-        #     # Rearrange target activation to have common shape
-        #     # NOTE: We expect batch dimension to have singleton shape
-        #     targ_act = rearrange(targ_act, 'b ... -> b (...)')
-
-        #     for act in targ_act:
-        #         # This is where we trigger the backward hook
-        #         act.backward(retain_graph = True)
+        for (self.ref, self.source), targ_act in self._output.items():
+            for act in targ_act:                
+                # * This is where we trigger the backward hook
+                # NOTE: This call should populate the self._ingrad
+                #       attribute of this class
+                act.backward(retain_graph=True)
+        
+        return {
+            k : [fit_bbox(grad) for grad in v]
+            for k, v in self._ingrad.items()
+        }
     
     def clean(self) -> None:
         '''

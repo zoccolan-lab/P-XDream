@@ -18,7 +18,7 @@ class InfoProbeTest(unittest.TestCase):
         self.rand_seed = 3141592
         self.img_shape = (3, 224, 224)
         self.num_imgs = 2
-        self.num_unit = 10
+        self.num_unit = 2
 
         self.rng = np.random.default_rng(self.rand_seed)
         self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
@@ -44,7 +44,7 @@ class InfoProbeTest(unittest.TestCase):
 
         # Expose the subject to the mock input to collect the set
         # of shapes of the underlying network
-        _ = subject((mock_inp, self.msg))
+        _ = subject((mock_inp, self.msg), raise_no_probe=False)
 
         # Collect the shapes from the info probe
         shapes = probe.shapes
@@ -52,10 +52,10 @@ class InfoProbeTest(unittest.TestCase):
         # Remove the probe from the subject
         subject.remove(probe)
 
-        layers = subject.layer_names
+        layers = subject.layer_names[1:]
 
         # Check that the computed shapes correspond to what expected (alexnet)
-        self.assertEqual(shapes['input'], (self.num_imgs, *self.img_shape))
+        self.assertEqual(shapes['00_input_01'], (self.num_imgs, *self.img_shape))
         self.assertEqual(shapes[layers[+0]], (self.num_imgs,  64, 55, 55)) # first  conv
         self.assertEqual(shapes[layers[+3]], (self.num_imgs, 192, 27, 27)) # second conv
         self.assertEqual(shapes[layers[+6]], (self.num_imgs, 384, 13, 13)) # third  conv
@@ -76,20 +76,24 @@ class InfoProbeTest(unittest.TestCase):
         # Create mock input
         mock_inp = torch.randn(self.num_imgs, *self.img_shape, device=subject.device)
         
+        inp = '00_input_01'
+        last = '21_linear_03'
+        first = '01_conv2d_01'
+        
         # Create the InfoProbe and attach it to the subject
         probe = InfoProbe(
             inp_shape=(self.num_imgs, *self.img_shape),
             rf_method='forward',
             forward_target={
-                '00_conv2d_01' : self.rng.integers(
+                first : self.rng.integers(
                                     low=(0, 0, 0),
                                     high=(64, 55, 55),
                                     size=(self.num_unit, 3)
                                 ),
-                '20_linear_03' : self.rng.integers(
+                last : self.rng.integers(
                                     low=(0, ),
                                     high=(1000, ),
-                                    size=(self.num_unit, 3)
+                                    size=(self.num_unit, 1)
                                 ),
             }
         )
@@ -108,9 +112,9 @@ class InfoProbeTest(unittest.TestCase):
 
         # Check that the computed fields correspond to what expected
         _, h, w = self.img_shape
-        self.assertEqual(len(fields['00_conv2d_01']), self.num_unit)
-        self.assertEqual(len(fields['00_conv2d_01'][0]), 4)
-        self.assertListEqual(fields['20_linear_03'], [(0, w, 0, h)] * self.num_unit)
+        self.assertEqual(len(fields[(inp, first)]), self.num_unit)
+        self.assertEqual(len(fields[(inp, first)][0]), 4)
+        self.assertListEqual(fields[(inp, last)], [(0, w, 0, h)] * self.num_unit)
         
     def test_backward_receptive_field(self):
         subject = NetworkSubject(
@@ -121,27 +125,43 @@ class InfoProbeTest(unittest.TestCase):
         )
 
         # Create mock input
-        mock_inp = torch.randn(self.num_imgs, *self.img_shape, device=subject.device)
+        mock_inp = torch.randn(
+            self.num_imgs,
+            *self.img_shape,
+            device=subject.device,
+            requires_grad=True,
+        )
+        
+        inp = '00_input_01'
+        last = '21_linear_03'
+        first = '01_conv2d_01'
         
         # Create the InfoProbe and attach it to the subject
         probe = InfoProbe(
             inp_shape=(self.num_imgs, *self.img_shape),
             rf_method='backward',
             backward_target={
-                '00_conv2d_01' : self.rng.integers(
-                                    low=(0, 0, 0),
-                                    high=(64, 55, 55),
-                                    size=(self.num_unit, 3)
-                                ),
-                # '20_linear_03' : self.rng.integers(
-                #                     low=(0, ),
-                #                     high=(1000, ),
-                #                     size=(self.num_unit, 3)
-                #                 ),
+                inp : {
+                    # NOTE: Its critical that leading dimension is the channel!
+                    #       Hence the ().T at the end of the extraction
+                    first : self.rng.integers(
+                                low=(0, 0, 0),
+                                high=(64, 55, 55),
+                                size=(self.num_unit, 3)
+                            ).T,
+                    
+                    last : self.rng.integers(
+                                        low=(0, ),
+                                        high=(1000, ),
+                                        size=(self.num_unit, 1)
+                                    ).T,
+                }
             }
         )
 
-        subject.register_backward(probe)
+        # NOTE: For backward receptive field we need to register both
+        #       the forward and backward probe hooks
+        subject.register(probe)
 
         # Expose the subject to the mock input to collect the set
         # of shapes of the underlying network
@@ -155,6 +175,6 @@ class InfoProbeTest(unittest.TestCase):
 
         # Check that the computed fields correspond to what expected
         _, h, w = self.img_shape
-        self.assertEqual(len(fields['00_conv2d_01']), self.num_unit)
-        self.assertEqual(len(fields['00_conv2d_01'][0]), 4)
-        self.assertListEqual(fields['20_linear_03'], [(0, w, 0, h)] * self.num_unit)
+        self.assertEqual(len(fields[(inp, first)]), self.num_unit)
+        self.assertEqual(len(fields[(inp, first)][0]), 4)
+        self.assertListEqual(fields[(inp, last)], [(0, w, 0, h)] * self.num_unit)
