@@ -65,9 +65,44 @@ class _MaximizeActivity(Experiment):
             for k in ['gen', 'nat']
         }
         
+        # Set screen
+        self._screen_syn = "Best synthetic image"
+        self._logger.add_screen(screen_name=self._screen_syn)
+        
+        # Set screen
+        # self._screen_nat = "Best natural image"
+        # self._logger.add_screen(screen_name=self._screen_nat)
+        
+    def _progress(self, i: int):
+        
+        super()._progress(i)
+        
+        # Get best stimuli
+        best_code = self.optimizer.solution
+        best_synthetic, _ = self.generator(best_code)
+        best_synthetic_img = to_pil_image(best_synthetic[0])
+        
+        self._logger.update_screen(
+            screen_name=self._screen_syn,
+            image=best_synthetic_img
+        )
+        
+        # Best natural found
+        """
+        TODO
+        best_natural_image = to_pil_image(self._best_img['nat'])
+        
+        self._logger.update_screen(
+            screen_name=self._screen_nat,
+            image=best_natural_image
+        )"""
+        
     def _finish(self):
         
         super()._finish()
+        
+        # Close screens
+        self._logger.remove_all_screens()
         
         # 1) Best Images
         
@@ -96,7 +131,7 @@ class _MaximizeActivity(Experiment):
         
         # We plot the max and average score at each generation
         
-        _, ax = plt.subplots(1, 2, figsize=(12, 6))
+        """_, ax = plt.subplots(1, 2, figsize=(12, 6))
 
         ax[0].plot(self.optimizer.stats['best_shist'], label='Synthetic')
         ax[0].plot(self.optimizer.stats_nat['best_shist'], label='Natural')
@@ -110,7 +145,7 @@ class _MaximizeActivity(Experiment):
         ax[1].set_xlabel('Generation cycles')
         ax[1].set_ylabel('Avg Target Activations')
         ax[1].set_title('... and Kreimann')
-        ax[1].legend()
+        ax[1].legend()"""
         
         # We save it
         out_plot_fp = path.join(out_dir_fp, f'scores.png')

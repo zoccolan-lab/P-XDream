@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from einops import rearrange
 from argparse import ArgumentParser
-from skimage.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error
 from torchvision.utils import make_grid
 from torchvision.transforms.functional import to_pil_image
 from loguru import logger
