@@ -6,6 +6,7 @@ import pandas as pd
 from typing import Literal,Union, List, Tuple
 from matplotlib.axes import Axes
 import torch
+from os import path
 
 
 
@@ -107,9 +108,9 @@ def Zoccolan_style_axes(ax):
     ax.spines['left'].set_bounds(t1y, t2y)
     ax.spines['bottom'].set_bounds(t1x, t2x)
     
-def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
+def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}, save_dir = None):
     set_default_matplotlib_params(shape='rect_wide', side = 30)
-    fix, ax = plt.subplots(1, 2)
+    fig_lp, ax = plt.subplots(1, 2)
     #in dubbio se usare questo schema
     lab = []
     col = []
@@ -132,9 +133,12 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
         ax[i].set_title(k.split('_')[0])
         ax[i].legend()
         Zoccolan_style_axes(ax[i])
+    if save_dir:
+        fig_lp.savefig(path.join(save_dir, f'scores_lineplot.png'))
     plt.show()
+
     
-    fix, ax = plt.subplots(1) #per ora plot di probability density lo faccio in un plot separato
+    fig_hist, ax = plt.subplots(1) #per ora plot di probability density lo faccio in un plot separato
     
     score_nat =np.stack(optim._score_nat)
     score_gen =np.stack(optim._score)
@@ -167,6 +171,8 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}):
     plt.legend()
     plt.xlabel('Target Activation')
     plt.ylabel('Prob. density')
+    if save_dir:
+        fig_hist.savefig(path.join(save_dir, f'scores_hist.png'))
         
     plt.show()
     
