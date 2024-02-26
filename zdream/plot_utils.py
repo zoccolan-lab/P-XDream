@@ -8,6 +8,8 @@ from matplotlib.axes import Axes
 import torch
 from os import path
 
+from zdream.utils import SEMf
+
 
 
 #TODO: Lorenzo, commentare e mettere in ordine ste funzioni di plotting
@@ -134,7 +136,7 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}, 
         ax[i].legend()
         Zoccolan_style_axes(ax[i])
     if save_dir:
-        fig_lp.savefig(path.join(save_dir, f'scores_lineplot.png'))
+        fig_lp.savefig(path.join(save_dir, f'scores_lineplot.png'), bbox_inches="tight")
     plt.show()
 
     
@@ -172,9 +174,48 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}, 
     plt.xlabel('Target Activation')
     plt.ylabel('Prob. density')
     if save_dir:
-        fig_hist.savefig(path.join(save_dir, f'scores_hist.png'))
+        fig_hist.savefig(path.join(save_dir, f'scores_hist.png'), bbox_inches="tight")
         
     plt.show()
     
+def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
+    nat_scores = np.stack(optim._score_nat).flatten()
+    gen_scores = np.stack(optim._score)
+    nat_lbls = np.array(lbls_presented)
+    unique_lbls, counts_lbls = np.unique(nat_lbls, return_counts=True)
+    lbl_acts = {}
+    for lb in unique_lbls:
+        lb_scores = nat_scores[np.where(nat_lbls == lb)[0]]
+        lbl_acts[lb] = (np.mean(lb_scores),SEMf(lb_scores), np.amax(lb_scores))
         
+    sorted_lblA = sorted(lbl_acts.items(), key=lambda x: x[1][0])
+    # Extracting top 3 and bottom 3 categories
+    top_categories = sorted_lblA[-topk:]
+    bottom_categories = sorted_lblA[:topk]
+    # Unpacking top and bottom categories for plotting
+    top_labels, top_values = zip(*top_categories)
+    bottom_labels, bottom_values = zip(*bottom_categories)
+    gen_dict = {'Early': (np.mean(gen_scores[:5,:]), SEMf(gen_scores[:5,:].flatten())),
+                'Late': (np.mean(gen_scores[-5:,:]), SEMf(gen_scores[-5:,:].flatten()))}
+
+    set_default_matplotlib_params(shape = 'rect_wide')
+    fig, ax = plt.subplots(2,1)
+    ax[0].barh(top_labels, [val[0] for val in top_values], xerr=[val[1] for val in top_values], label='Top 3', color='green')
+    ax[0].barh(bottom_labels, [val[0] for val in bottom_values], xerr=[val[1] for val in bottom_values], label='Bottom 3', color='red')
+    ax[0].barh(list(gen_dict.keys()), [v[0] for _,v in gen_dict.items()], xerr=[v[1] for _,v in gen_dict.items()], label='Gens', color='black')
+
+    ax[0].set_xlabel('Average Activation')
+    ax[0].legend()
+    
+    sorted_lblA_bymax = sorted(lbl_acts.items(), key=lambda x: x[1][2])
+    top_categories = sorted_lblA_bymax[-topk:]
+    bottom_categories = sorted_lblA_bymax[:topk]
+    top_labels, top_values = zip(*top_categories)
+    bottom_labels, bottom_values = zip(*bottom_categories)
+    ax[1].barh(top_labels, [val[2] for val in top_values], label='Top 3', color='green')
+    ax[1].barh(bottom_labels, [val[2] for val in bottom_values], label='Bottom 3', color='red')
+    
+    if save_dir:
+        fig.savefig(path.join(save_dir, f'scores_by_label.png'), bbox_inches="tight")
+    plt.show()
         

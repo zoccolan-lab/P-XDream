@@ -97,6 +97,10 @@ class Generator(ABC, nn.Module):
         # When no dataloader is set both variables takes None value
         self._nat_img_loader = nat_img_loader
         self._nat_img_iter   = iter(self._nat_img_loader) if self._nat_img_loader else None
+        self._lbls_nat_presented = []
+        self._nat_ds = self._nat_img_loader.dataset if self._nat_img_loader else None
+        if hasattr(self._nat_ds, 'lbls_presented'):
+            self._nat_ds.lbls_presented = []
 
     def find_code(
         self,
@@ -246,13 +250,16 @@ class Generator(ABC, nn.Module):
             if not self._nat_img_loader or not self._nat_img_iter:
                 err_msg = 'No available data loader for natural images'
                 raise ValueError(err_msg)
-
+            
             # List were to save batches of images
             nat_img_list : List[Tensor] = []
             
             # We create a new iterator on the fly to check shape consistency
             # between synthetic and natural images, we raise an error if they disagree.
             nat_img_shape = next(iter(self._nat_img_loader)).shape[1:]
+            #nat_img_shape = (3,256,256)
+            if hasattr(self._nat_ds, 'lbls_presented'):
+                self._nat_ds.lbls_presented = []
             if nat_img_shape != gen_img_shape:
                 err_msg = f'Natural images have shape {nat_img_shape}, '\
                           f'but synthetic ones have shape {gen_img_shape}.'
@@ -274,6 +281,9 @@ class Generator(ABC, nn.Module):
             #       we can have extracted more than required, for this purpose
             #       we may need to chop out the last few to match required number
             nat_img = torch.cat(nat_img_list)[:num_nat_img].to(self.device)
+            if hasattr(self._nat_ds, 'lbls_presented'):
+                self._lbls_nat_presented = self._lbls_nat_presented + self._nat_ds.class_to_lbl(self._nat_ds.lbls_presented)[:num_nat_img]
+                self._nat_ds.lbls_presented = []
         
         # In the case of no natural images we create an empty stimuli
         else:
@@ -335,8 +345,6 @@ class Generator(ABC, nn.Module):
         # Load natural images
         nat_img = self._load_natural_images(num_nat_img=num_nat_img, gen_img_shape=gen_img_shape)
         
-        
-        
         # Interleave synthetic and generated according to the mask
         mask_ten = torch.tensor(mask, device = self.device)
         out = torch.empty( num_nat_img + num_gen_img, *gen_img_shape, device=self.device)
@@ -345,7 +353,8 @@ class Generator(ABC, nn.Module):
         
         # Attach information to the message
         message.mask = np.array(mask)
-        
+        if hasattr(self._nat_ds, 'lbls_presented'):
+            message.label = self._lbls_nat_presented
         return out, message
     
     @torch.no_grad()
