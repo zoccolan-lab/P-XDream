@@ -8,6 +8,8 @@ from matplotlib.axes import Axes
 import torch
 from os import path
 
+from zdream.utils import SEMf
+
 
 
 #TODO: Lorenzo, commentare e mettere in ordine ste funzioni di plotting
@@ -176,5 +178,33 @@ def plot_optimization_profile(optim, lab_col={'Synthetic':'k', 'Natural': 'g'}, 
         
     plt.show()
     
+def plot_scores_by_cat(optim, msg, topk =3):
+    nat_scores = np.stack(optim._score_nat).flatten()
+    gen_scores = np.stack(optim._score)
+    nat_lbls = np.array(msg.label)
+    unique_lbls, counts_lbls = np.unique(nat_lbls, return_counts=True)
+    lbl_acts = {}
+    for lb in unique_lbls:
+        lb_scores = nat_scores[np.where(nat_lbls == lb)[0]]
+        lbl_acts[lb] = (np.mean(lb_scores),SEMf(lb_scores))
         
+    sorted_lblA = sorted(lbl_acts.items(), key=lambda x: x[1][0])
+    # Extracting top 3 and bottom 3 categories
+    top_categories = sorted_lblA[-topk:]
+    bottom_categories = sorted_lblA[:topk]
+    # Unpacking top and bottom categories for plotting
+    top_labels, top_values = zip(*top_categories)
+    bottom_labels, bottom_values = zip(*bottom_categories)
+    gen_dict = {'Early': (np.mean(gen_scores[:5,:]), SEMf(gen_scores[:5,:].flatten())),
+                'Late': (np.mean(gen_scores[-5:,:]), SEMf(gen_scores[-5:,:].flatten()))}
+
+    set_default_matplotlib_params()
+    fig, ax = plt.subplots(1)
+    ax.barh(top_labels, [val[0] for val in top_values], xerr=[val[1] for val in top_values], label='Top 3', color='green')
+    ax.barh(bottom_labels, [val[0] for val in bottom_values], xerr=[val[1] for val in bottom_values], label='Bottom 3', color='red')
+    ax.barh(list(gen_dict.keys()), [v[0] for _,v in gen_dict.items()], xerr=[v[1] for _,v in gen_dict.items()], label='Gens', color='black')
+
+    ax.set_xlabel('Average Activation')
+    ax.legend()
+    plt.show()
         
