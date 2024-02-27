@@ -9,13 +9,13 @@ from torch.utils.hooks import RemovableHandle
 from torchvision.models import get_model
 from torchvision.models import get_model_weights
 
-from .model import Message
-from .model import Stimuli
-from .model import SubjectState
+from .utils.model import Message
+from .utils.model import Stimuli
+from .utils.model import SubjectState
 from .probe import NamingProbe
 from .probe import RecordingProbe
 from .probe import SilicoProbe
-from .utils import InputLayer
+from .utils.model import InputLayer
 from .utils import default
 from .utils import device
 from .utils import unpack

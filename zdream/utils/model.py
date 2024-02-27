@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 import tkinter as tk
 from typing import Dict, List, Tuple
@@ -9,6 +8,8 @@ from torch import Tensor
 from PIL import Image, ImageTk
 
 from typing import Tuple
+
+import torch.nn as nn
 
 # --- TYPE ALIASES ---
 
@@ -77,9 +78,20 @@ class Message:
     '''
     
 
+class InputLayer(nn.Module):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+
+    def forward(self, x : Tensor) -> Tensor:
+        return x
+
+    def _get_name(self):
+        return 'Input'
+
 # --- LOGGER ---
 
-class _DisplayScreen:
+class DisplayScreen:
 	''' Screen to display and update images'''
     
 	def __init__(self, title: str = "Image Display", display_size: Tuple[int, int] = (400, 400)):	
@@ -135,63 +147,3 @@ class _DisplayScreen:
 			  needs to be instantiated.
 		'''
 		self._master.after(100, self._master.destroy) 
-
-
-# TODO - evolve the Logger into an IOHandler to save/load any type of data.
-class Logger:
-
-	'''
-	Class responsible for logging in the three channels info, warn and error.
-
-	NOTE: The logging methods can be easily overridden to log with other strategies 
-	and technologies.
-	'''
-
-	def __init__(self) -> None:
-		self._screens : Dict[str, _DisplayScreen] = dict()
-
-	def info(self,  mess: str): logging.info(mess)
-
-	def warn(self,  mess: str): logging.warn(mess)
-
-	def error(self, mess: str): logging.error(mess)
-
-	def add_screen(self, screen_name: str, display_size: Tuple[int, int] = (400, 400)):
-		'''
-		Add a new screen with name and size. It raises a key error if that screen name already exists.
-		'''
-    
-		if screen_name in self._screens.keys():
-			err_msg = f'There already exists a screen with name {screen_name}'
-			raise KeyError(err_msg)
-		self._screens[screen_name] = _DisplayScreen(title=screen_name, display_size=display_size)
-
-	def update_screen(self, screen_name: str, image: Image.Image):
-		'''
-		Update the given screen with a new image.
-		'''
-		self._screens[screen_name].update(image=image)
-
-	def remove_screen(self, screen_name: str):
-		'''
-		Remove a screen by ending its rendering and removing it from the list
-		of logger screens. 
-		'''
-    
-		if screen_name not in self._screens.keys():
-			err_msg = f'Asked to remove a screen with name {screen_name}, but not in screen names.'
-			raise KeyError(err_msg)
-
-		# Stop rendering
-		self._screens[screen_name].close()
-
-		# Remove from the dictionary
-		self._screens.pop(screen_name, None)
-
-	def remove_all_screens(self):
-		'''
-		Remove all logger screens
-		'''
-		screen_names = list(self._screens.keys())
-		for screen_name in screen_names:
-			self.remove_screen(screen_name=screen_name)

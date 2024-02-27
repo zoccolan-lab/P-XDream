@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.special import softmax
 
-from .model import Codes, StimuliScore, SubjectState, Message
+from .utils.model import Codes, StimuliScore, SubjectState, Message
 from .utils import default, lazydefault, SEMf
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']

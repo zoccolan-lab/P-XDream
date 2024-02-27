@@ -15,9 +15,9 @@ from itertools import product
 
 from .utils import default
 from .utils import fit_bbox
-from .utils import InputLayer
-from .model import RFBox
-from .model import SubjectState
+from .utils.model import InputLayer
+from .utils.model import RFBox
+from .utils.model import SubjectState
 
 TargetUnit = None | NDArray | Tuple[NDArray, ...]
 

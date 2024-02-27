@@ -16,10 +16,10 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
-from .model import Stimuli
-from .model import Codes
-from .model import Mask
-from .model import Message
+from .utils.model import Stimuli
+from .utils.model import Codes
+from .utils.model import Mask
+from .utils.model import Message
 from .utils import default
 from .utils import multichar_split
 

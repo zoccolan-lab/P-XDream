@@ -14,11 +14,12 @@ from tqdm import trange
 from torch import Tensor
 from typing import Any, Dict, cast, Tuple
 from numpy.typing import NDArray
+from zdream.logger import Logger
 from zdream.experiment import Experiment, ExperimentConfig
-from zdream.model import Logger, Message, Stimuli, StimuliScore
+from zdream.utils.model import Message, Stimuli, StimuliScore
 
 from zdream.utils import preprocess_image
-from zdream.model import SubjectState
+from zdream.utils.model import SubjectState
 
 from zdream.utils import read_json
 from zdream.scores import MSEScorer

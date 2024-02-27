@@ -2,13 +2,12 @@
 TODO Experiment description
 """
 
-import glob
 import os
 from os import path
 from matplotlib import contour
 import numpy as np
 from tqdm import trange
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import torch
 from torch import Tensor
 from PIL import Image
@@ -23,9 +22,11 @@ from loguru import logger
 from functools import partial
 import random
 import matplotlib
+from zdream.utils.dataset import MiniImageNet
+from zdream.logger import Logger, LoguruLogger
 
 from zdream.generator import InverseAlexGenerator
-from zdream.model import Codes, Logger, Message, Stimuli, StimuliScore, SubjectState
+from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 from zdream.utils import *
@@ -38,6 +39,95 @@ matplotlib.use('TKAgg')
 
 
 class _MaximizeActivity(Experiment):
+
+    @classmethod
+    def from_config(cls, args: Namespace) -> '_MaximizeActivity':
+        # Transform Mask sequence into boolean
+        base_seq = [char == 't' for char in args.mask_template] # TODO It doesn't check for others letter instead of 'f'
+        
+        # Create network subject
+        sbj_net = NetworkSubject(network_name='alexnet')
+        
+        layer_names = sbj_net.layer_names
+        
+        # Extract the name of recording layers
+        rec_layers = [layer_names[i] for i in args.rec_layers] # TODO Check input as a tuple
+        
+
+        # Building target neurons
+        # TODO what is this ifelse doing?
+        score_dict = {}
+        random.seed(args.score_rseed)
+        for sl, su in zip(args.score_layers, args.score_units):
+            if isinstance(su,tuple):
+                k_vals = list(range(su[0], su[1]))
+            else:
+                k_vals = random.sample(range(1000),su)
+            score_dict[layer_names[sl]] = k_vals
+            
+        print(score_dict)
+        # Generator with Dataloader
+        mini_IN = MiniImageNet(root=args.tiny_inet_root)
+        mini_IN_loader = DataLoader(mini_IN, batch_size=10, shuffle=True) #set num_workers
+        # mini_IN_loader = DataLoader(RandomImageDataset(1000, (3, 256, 256)), batch_size=2, shuffle=True)
+        
+        generator = InverseAlexGenerator(
+            root=args.gen_root,
+            variant=args.gen_variant,
+            nat_img_loader=mini_IN_loader
+        ).to(device)
+        
+        # Initialize  NetworkSubject with a recording probe
+        
+        record_target = {l: None for l in rec_layers} # Record from any layers
+        probe = RecordingProbe(target = record_target) # type: ignore TODO check typing
+        
+        sbj_net = NetworkSubject(
+            record_probe=probe, 
+            network_name='alexnet'
+        )
+        sbj_net._network.eval() # TODO cannot access private attribute, make public method to call the eval
+        
+        # Scorer
+        aggregate = lambda x: np.mean(np.stack(list(x.values())), axis=0)
+        scorer = MaxActivityScorer(
+            trg_neurons=score_dict,
+            aggregate=aggregate
+        )
+
+        # Optimizer
+        optim = GeneticOptimizer(
+            states_shape=generator.input_dim,
+            random_state=args.optimizer_seed,
+            random_distr='normal',
+            mutation_rate=args.mutation_rate,
+            mutation_size=args.mutation_size,
+            population_size=args.pop_sz,
+            temperature=args.temperature,
+            num_parents=args.num_parents
+        )
+        
+        # Mask generator
+        mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=args.mask_is_random)
+        
+        # Additional data
+        data = {
+        "save_dir": args.save_dir
+        }
+        
+        # Experiment configuration
+        experiment_config = ExperimentConfig(
+            generator=generator,
+            scorer=scorer,
+            optimizer=optim,
+            subject=sbj_net,
+            logger=LoguruLogger(),
+            iteration=args.num_gens,
+            mask_generator=mask_generator,
+            data=data
+        )
+        
+        return cls(experiment_config)
 
     def __init__(self, config: ExperimentConfig, name: str = "maximize_activity") -> None:
         
@@ -154,112 +244,9 @@ class _MaximizeActivity(Experiment):
         
         return super()._stm_score_to_codes((sub_score, msg))
 
-    
-
-def transform(
-    imgs : Tensor,
-    mean : Tuple[int, ...] = (104.0, 117.0, 123.0), # type: ignore
-    raw_scale : float = 255.
-) -> Tensor:
-    """ Generator output pipe transformation """
-    
-    mean : Tensor = torch.tensor(mean, device=imgs.device).reshape(-1, 1, 1)
-
-    imgs += mean
-    imgs /= raw_scale
-
-    return imgs.clamp(0, 1)
-
-def main(args):
-    
-    # Transform Mask sequence into boolean
-    base_seq = [char == 't' for char in args.mask_template] # TODO It doesn't check for others letter instead of 'f'
-    
-    # Create network subject
-    sbj_net = NetworkSubject(network_name='alexnet')
-    
-    layer_names = sbj_net.layer_names
-    
-    # Extract the name of recording layers
-    rec_layers = [layer_names[i] for i in args.rec_layers] # TODO Check input as a tuple
-    
-
-    # Building target neurons
-    # TODO what is this ifelse doing?
-    score_dict = {}
-    random.seed(args.score_rseed)
-    for sl, su in zip(args.score_layers, args.score_units):
-        if isinstance(su,tuple):
-            k_vals = list(range(su[0], su[1]))
-        else:
-            k_vals = random.sample(range(1000),su)
-        score_dict[layer_names[sl]] = k_vals
-        
-    print(score_dict)
-    # Generator with Dataloader
-    mini_IN = MiniImageNet(root=args.tiny_inet_root)
-    mini_IN_loader = DataLoader(mini_IN, batch_size=10, shuffle=True) #set num_workers
-    # mini_IN_loader = DataLoader(RandomImageDataset(1000, (3, 256, 256)), batch_size=2, shuffle=True)
-    
-    generator = InverseAlexGenerator(
-        root=args.gen_root,
-        variant=args.gen_variant,
-        #output_pipe=transform,
-        nat_img_loader=mini_IN_loader
-    ).to(device)
-    
-    # Initialize  NetworkSubject with a recording probe
-    
-    record_target = {l: None for l in rec_layers} # Record from any layers
-    probe = RecordingProbe(target = record_target) # type: ignore TODO check typing
-    
-    sbj_net = NetworkSubject(
-        record_probe=probe, 
-        network_name='alexnet'
-    )
-    sbj_net._network.eval() # TODO cannot access private attribute, make public method to call the eval
-    
-    # Scorer
-    aggregate = lambda x: np.mean(np.stack(list(x.values())), axis=0)
-    scorer = MaxActivityScorer(
-        trg_neurons=score_dict,
-        aggregate=aggregate
-    )
-
-    # Optimizer
-    optim = GeneticOptimizer(
-        states_shape=generator.input_dim,
-        random_state=args.optimizer_seed,
-        random_distr='normal',
-        mutation_rate=args.mutation_rate,
-        mutation_size=args.mutation_size,
-        population_size=args.pop_sz,
-        temperature=args.temperature,
-        num_parents=args.num_parents
-    )
-    
-    # Mask generator
-    mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=args.mask_is_random)
-    
-    # Additional data
-    data = {
-    "save_dir": args.save_dir
-    }
-    
-    # Experiment configuration
-    experiment_config = ExperimentConfig(
-        generator=generator,
-        scorer=scorer,
-        optimizer=optim,
-        subject=sbj_net,
-        logger=LoguruLogger(),
-        iteration=args.num_gens,
-        mask_generator=mask_generator,
-        data=data
-    )
-    
+def main(args):    
     # Experiment
-    experiment = _MaximizeActivity(experiment_config)
+    experiment = _MaximizeActivity.from_config(args)
     experiment.run()
 
 
@@ -291,7 +278,7 @@ if __name__ == '__main__':
     parser.add_argument('-rec_layers',     type=tuple, default=(19,21),          help='Layers you want to record from (each int in tuple = nr of the layer)')
 
     parser.add_argument('-score_layers',    type=tuple, default=(21,),          help='Layers you want to score from')
-    parser.add_argument('-score_units',     type=tuple, default=((1,21),),            help='Units you want to score from')
+    parser.add_argument('-score_units',     type=tuple, default=(1,),            help='Units you want to score from')
     parser.add_argument('-score_rseed',     type=tuple, default=31415,            help='random seed for selecting units')
     
     parser.add_argument('-gen_root',       type=str,   default=gen_root,         help='Path to root folder of generator checkpoints')

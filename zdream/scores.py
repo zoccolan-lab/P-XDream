@@ -10,9 +10,9 @@ from einops.einops import Reduction
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 
-from .model import Message
-from .model import StimuliScore
-from .model import SubjectState
+from .utils.model import Message
+from .utils.model import StimuliScore
+from .utils.model import SubjectState
 from .utils import default
 
 ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]

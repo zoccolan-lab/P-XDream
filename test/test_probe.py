@@ -6,7 +6,7 @@ import torch
 import unittest
 import numpy as np
 
-from zdream.model import Message
+from zdream.utils.model import Message
 from zdream.probe import InfoProbe
 from zdream.subject import NetworkSubject
 

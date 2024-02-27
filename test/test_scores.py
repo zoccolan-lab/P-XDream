@@ -6,9 +6,9 @@ import unittest
 import numpy as np
 
 from itertools import combinations
-from zdream.model import SubjectState
+from zdream.utils.model import SubjectState
 
-from zdream.model import Message
+from zdream.utils.model import Message
 from zdream.scores import MSEScorer, WeightedPairSimilarityScorer, MaxActivityScorer
 
 class MSEScorerTest(unittest.TestCase):

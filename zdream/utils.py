@@ -1,29 +1,20 @@
-import glob
-import json
-from os import path
-import os
-import random
 import re
+import random
+import json
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
-
 
 import numpy as np
 from numpy.typing import NDArray
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch.utils.data import Dataset
-from torchvision import transforms
 from torchvision.utils import make_grid
-from torchvision.datasets import ImageFolder
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 from einops import rearrange
 import pandas as pd
-from loguru import logger
 
-from .model import RFBox
-from .model import Logger
+from .utils.model import RFBox
 
 # --- TYPING ---
 
@@ -127,17 +118,6 @@ def _replace_inplace(module : nn.Module) -> None:
     for key, value in reassign.items(): 
         module._modules[key] = value 
 
-class InputLayer(nn.Module):
-    
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        
-    def forward(self, x : Tensor) -> Tensor:
-        return x
-        
-    def _get_name(self):
-        return 'Input'
-
 # --- STRING ---
 
 def multichar_split(my_string: str, separator_chars: List[str] = ['-', '.'])-> List[str]:
@@ -187,86 +167,6 @@ def repeat_pattern(
         bool_l.extend(base_seq)
         
     return bool_l
-
-# --- LOGGERS ---
-
-class LoguruLogger(Logger):
-    """ Logger overriding logger methods with `loguru` ones"""
-    
-    def info(self, mess: str): logger.info(mess)
-    def warn(self, mess: str): logger.warning(mess)
-    def err (self, mess: str): logger.error(mess)
-
-# --- DATASETS ---
-
-"""
-NOTE: TO download
-Dataset from here: [https://www.kaggle.com/datasets/arjunashok33/miniimagenet?resource=download]
-Classes from here: [https://gist.github.com/aaronpolhamus/964a4411c0906315deb9f4a3723aac57#file-map_clsloc-txt]
-"""
-
-class MiniImageNet(ImageFolder):
-
-    def __init__(
-        self,
-        root: str,
-        transform: Callable[..., Tensor] = transforms.Compose([
-            transforms.Resize((256, 256)),  
-            transforms.ToTensor()
-        ]), 
-        target_transform=None
-    ):
-        
-        super().__init__(
-            root=root, 
-            transform=transform,
-            target_transform=target_transform
-        )
-        
-        # Load the .txt file containing ImageNet labels (all 1000 categories)
-        lbls_txt = glob.glob(path.join(root, '*.txt'))[0]
-        
-        with open(lbls_txt, "r") as f:
-            lines = f.readlines()
-        
-        # Create a label dictionary
-        self.label_dict = {
-            line.split()[0]: line.split()[2].replace('_', ' ')
-            for line in lines
-        }
-        self.lbls_presented = []
-    
-    # TODO Maintain this method here?
-    def class_to_lbl(self, lbls : Tensor): 
-        # Takes in input the labels and outputs their categories
-        return [self.label_dict[self.classes[lbl]] for lbl in list(lbls)]
-    
-    def __getitem__(self, index: int) -> Tensor: #if want to correct type error put  Tuple[Any, Any]
-        tens, lab = super().__getitem__(index)
-        self.lbls_presented.append(lab)    
-        return tens
-    
-class RandomImageDataset(Dataset):
-    '''
-    Random image dataset to simulate natural images to be interleaved
-    in the stimuli with synthetic ones.
-    '''
-    
-    def __init__(self, n_img: int, img_size: Tuple[int, ...]):
-        self.n_img = n_img
-        self.image_size = img_size
-    
-    def __len__(self):
-        return self.n_img
-    
-    def __getitem__(self, idx) -> Tensor:
-        
-        # Simulate finite dataset
-        if idx < 0 or idx >= len(self): raise ValueError(f"Invalid image idx: {idx} not in [0, {len(self)})")
-
-        rand_img = torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
-        
-        return rand_img
 
 # --- I/O ---
 

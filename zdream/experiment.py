@@ -1,9 +1,13 @@
 import time
+from abc import ABC, abstractmethod
+from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Tuple
 
+from .logger import Logger
+
 from .generator import Generator
-from .model import Codes, Logger, Mask, Message, Stimuli, StimuliScore, SubjectState
+from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
@@ -51,11 +55,16 @@ class ExperimentConfig:
     '''
     
     
-class Experiment:
+class Experiment(ABC):
     '''
     This class implements the main pipeline of the Xdream experiment providing
     a granular implementation of the data flow.
     '''
+
+    @classmethod
+    @abstractmethod
+    def from_config(cls, args : str | Namespace) -> 'Experiment':
+        pass
     
     def __init__(self, config: ExperimentConfig,  name: str = 'Zdream') -> None:
         '''
@@ -291,7 +300,46 @@ class Experiment:
         
         self._finish()
 
+class MultiExperiment:
+    '''
+    
+    '''
+    
+    def __init__(
+        self,
+        experiment : Experiment,
+        base_config   : Dict[str, Any],
+        search_config : Dict[str, Tuple[Any]], 
+    ) -> None:
+        
+        # Check that provided search configuration argument
+        # share the same length as length defines the number
+        # of experiments to run
+        err_msg = \
+        '''
+        Provided search configuration files have conflicting number
+        of experiments runs (length of dictionary entries). Please
+        provide coherent number of experiment runs.
+        '''
+        values = list(search_config.values())
+        assert all([len(v) == values[0] for v in values]), err_msg
+        
+        self.Exp = experiment
+        self.base_config = base_config
+        
+        # Convert the search configuration from 
+        keys, vals = search_config.keys(), search_config.values()
+        self.search_config : list[dict[str, Any]] = [
+            {k : v for k, v in zip(keys, V)}
+            for V in zip(*vals)
+        ]
 
-
-
+    def run(self):
+        for conf in self.search_config:
+            exp_config = {**self.base_config, **conf}
+            exp_config = Namespace(**exp_config)
+            
+            exp = self.Exp.from_config(exp_config)
+            
+            exp.run()
 
