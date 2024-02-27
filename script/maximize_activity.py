@@ -164,11 +164,11 @@ class _MaximizeActivity(Experiment):
         
         # Set screen
         self._screen_syn = "Best synthetic image"
-        self._logger.add_screen(screen_name=self._screen_syn, display_size=(800,400))
+        self._logger.add_screen(screen_name=self._screen_syn, display_size=(400,400))
         
         # Set screen
-        # self._screen_nat = "Best natural image"
-        # self._logger.add_screen(screen_name=self._screen_nat)
+        self._screen_nat = "Best natural image"
+        self._logger.add_screen(screen_name=self._screen_nat, display_size=(400,400))
         
     def _progress(self, i: int):
         
@@ -179,11 +179,14 @@ class _MaximizeActivity(Experiment):
         best_synthetic, _ = self.generator(best_code)
         best_natural = self._best_img['nat']
         
-        out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
-        
         self._logger.update_screen(
             screen_name=self._screen_syn,
-            image=out_image
+            image=to_pil_image(best_synthetic[0])
+        )
+
+        self._logger.update_screen(
+            screen_name=self._screen_nat,
+            image=to_pil_image(best_natural)
         )
         
     def _finish(self):
