@@ -14,7 +14,7 @@ from PIL import Image
 from einops import rearrange
 import pandas as pd
 
-from .utils.model import RFBox
+from .model import RFBox
 
 # --- TYPING ---
 

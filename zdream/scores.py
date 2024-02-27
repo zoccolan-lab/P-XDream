@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist
 from .utils.model import Message
 from .utils.model import StimuliScore
 from .utils.model import SubjectState
-from .utils import default
+from .utils.misc import default
 
 ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]
 AggregateFunction = Callable[[Dict[str, StimuliScore]], StimuliScore]

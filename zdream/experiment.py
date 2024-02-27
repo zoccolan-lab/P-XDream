@@ -11,7 +11,7 @@ from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectSta
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils import default
+from .utils.misc import default
 
 
 @dataclass

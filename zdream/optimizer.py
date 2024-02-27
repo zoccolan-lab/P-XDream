@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from scipy.special import softmax
 
 from .utils.model import Codes, StimuliScore, SubjectState, Message
-from .utils import default, lazydefault, SEMf
+from .utils.misc import default, lazydefault, SEMf
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']
 ''' Name of distributions for random initial codes '''

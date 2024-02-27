@@ -20,8 +20,8 @@ from .utils.model import Stimuli
 from .utils.model import Codes
 from .utils.model import Mask
 from .utils.model import Message
-from .utils import default
-from .utils import multichar_split
+from .utils.misc import default
+from .utils.misc import multichar_split
 
 
 """ 

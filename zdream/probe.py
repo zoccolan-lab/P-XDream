@@ -13,8 +13,8 @@ from math import prod
 from einops import reduce
 from itertools import product
 
-from .utils import default
-from .utils import fit_bbox
+from .utils.misc import default
+from .utils.misc import fit_bbox
 from .utils.model import InputLayer
 from .utils.model import RFBox
 from .utils.model import SubjectState

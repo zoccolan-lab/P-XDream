@@ -16,10 +16,10 @@ from .probe import NamingProbe
 from .probe import RecordingProbe
 from .probe import SilicoProbe
 from .utils.model import InputLayer
-from .utils import default
-from .utils import device
-from .utils import unpack
-from .utils import _replace_inplace
+from .utils.misc import default
+from .utils.misc import device
+from .utils.misc import unpack
+from .utils.misc import _replace_inplace
 
 class Subject(ABC):
     '''
