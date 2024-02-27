@@ -8,7 +8,7 @@ from matplotlib.axes import Axes
 import torch
 from os import path
 
-from zdream.utils import SEMf
+from zdream.utils.misc import SEMf
 
 
 

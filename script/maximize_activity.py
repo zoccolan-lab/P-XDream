@@ -4,41 +4,36 @@ TODO Experiment description
 
 import os
 from os import path
-from matplotlib import contour
 import numpy as np
-from tqdm import trange
 from argparse import ArgumentParser, Namespace
 import torch
-from torch import Tensor
-from PIL import Image
-from einops import rearrange
-from torchvision.models import list_models
 from torchvision.transforms.functional import to_pil_image
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from numpy.typing import NDArray
-from typing import cast, Tuple
-from collections import defaultdict
-from loguru import logger
+from typing import Any, Dict, List, cast, Tuple
 from functools import partial
 import random
 import matplotlib
-from zdream.utils.dataset import MiniImageNet
-from zdream.logger import Logger, LoguruLogger
+from PIL import Image
 
+from zdream.logger import LoguruLogger
 from zdream.generator import InverseAlexGenerator
-from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState
+from zdream.plot_utils import plot_optimization_profile, plot_scores_by_cat
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
-from zdream.utils import *
-from zdream.plot_utils import *
 from zdream.scores import MaxActivityScorer
-from zdream.optimizer import GeneticOptimizer, Optimizer
+from zdream.optimizer import GeneticOptimizer
 from zdream.experiment import Experiment, ExperimentConfig
+from zdream.utils.dataset import MiniImageNet
+from zdream.utils.misc import concatenate_images, read_json, repeat_pattern, device, to_gif
+from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState
 
 matplotlib.use('TKAgg')
 
 
 class _MaximizeActivity(Experiment):
+
+    _EXPERIMENT_NAME = "MaximizeActivity"
 
     @classmethod
     def from_config(cls, args: Namespace) -> '_MaximizeActivity':
@@ -52,7 +47,6 @@ class _MaximizeActivity(Experiment):
         
         # Extract the name of recording layers
         rec_layers = [layer_names[i] for i in args.rec_layers] # TODO Check input as a tuple
-        
 
         # Building target neurons
         # TODO what is this ifelse doing?
@@ -112,7 +106,7 @@ class _MaximizeActivity(Experiment):
         
         # Additional data
         data = {
-        "save_dir": args.save_dir
+            "save_dir": args.save_dir
         }
         
         # Experiment configuration
@@ -131,7 +125,7 @@ class _MaximizeActivity(Experiment):
 
     def __init__(self, config: ExperimentConfig, name: str = "maximize_activity") -> None:
         
-        super().__init__(config=config, name=name)
+        super().__init__(config=config, version=name)
         self._data = cast(Dict[str, Any], config.data)
         
     def _progress_info(self, i: int) -> str:
@@ -144,8 +138,12 @@ class _MaximizeActivity(Experiment):
         best_gen = cast(NDArray, stat_gen['best_score']).mean()
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
         best_nat = cast(NDArray, stat_nat['best_score']).mean()
+
+        best_gen_str = f'{" " if best_gen < 1 else ""}best_gen:.1f' # Pad for decimals
+        curr_gen_str = f'{curr_gen:.1f}'
+        best_nat_str = f'{best_nat:.1f}'
         
-        desc = f' | best score: {best_gen:.1f} | avg score: {curr_gen:.1f} | best nat: {best_nat:.1f}'
+        desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str} | best nat: {best_nat_str}'
         
         progress_super = super()._progress_info(i=i)
         
@@ -166,9 +164,15 @@ class _MaximizeActivity(Experiment):
         self._screen_syn = "Best synthetic image"
         self._logger.add_screen(screen_name=self._screen_syn, display_size=(400,400))
         
-        # Set screen
         self._screen_nat = "Best natural image"
         self._logger.add_screen(screen_name=self._screen_nat, display_size=(400,400))
+
+        # Set gif
+        self._gif: List[Image.Image] = []
+
+        # Last seen labels
+        self._labels: List[str] = []
+
         
     def _progress(self, i: int):
         
@@ -177,16 +181,22 @@ class _MaximizeActivity(Experiment):
         # Get best stimuli
         best_code = self.optimizer.solution
         best_synthetic, _ = self.generator(best_code)
+        best_synthetic_img = to_pil_image(best_synthetic[0])
+
         best_natural = self._best_img['nat']
         
         self._logger.update_screen(
             screen_name=self._screen_syn,
-            image=to_pil_image(best_synthetic[0])
+            image=best_synthetic_img
         )
 
         self._logger.update_screen(
             screen_name=self._screen_nat,
             image=to_pil_image(best_natural)
+        )
+
+        self._gif.append(
+            best_synthetic_img
         )
         
     def _finish(self):
@@ -199,7 +209,7 @@ class _MaximizeActivity(Experiment):
         # 1) Best Images
         
         # We create the directory to store results
-        out_dir_fp = path.join(self._data['save_dir'], self._name)
+        out_dir_fp = path.join(self._data['save_dir'], self._version)
         os.makedirs(out_dir_fp, exist_ok=True)
         
         # We retrieve the best code from the optimizer
@@ -217,16 +227,23 @@ class _MaximizeActivity(Experiment):
         # We store them
         out_image_fp = path.join(out_dir_fp, f'best_images.png')
         self._logger.info(mess=f"Saving best images to {out_image_fp}")
-        out_image.save(out_image_fp)    
+        out_image.save(out_image_fp)
+
+        # Gif
+        out_gif_fp = path.join(out_dir_fp, f'best_image.gif')
+        self._logger.info(mess=f"Saving best image gif to {out_gif_fp}")
+        to_gif(image_list=self._gif, out_fp=out_gif_fp)
         
         # 2) Score plots
         plot_optimization_profile(self._optimizer, save_dir = out_dir_fp)
-        plot_scores_by_cat(self._optimizer, self._generator._lbls_nat_presented, save_dir = out_dir_fp)
+        plot_scores_by_cat(self._optimizer, self._labels, save_dir = out_dir_fp)
         
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
         
         # We save the last set of stimuli
-        self._stimuli, _ = data
+        self._stimuli, msg = data
+
+        self._labels = cast(List[str], msg.label)
         
         return super()._stimuli_to_sbj_state(data)
     
@@ -268,10 +285,10 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     
     parser.add_argument('-pop_sz',         type=int,   default=20,               help='Number of images per generation')
-    parser.add_argument('-num_gens',       type=int,   default=500,               help='Number of total generations to evolve')
+    parser.add_argument('-num_gens',       type=int,   default=10,               help='Number of total generations to evolve')
     parser.add_argument('-img_size',       type=tuple, default=(256, 256),       help='Size of a given image', nargs=2)
     parser.add_argument('-gen_variant',    type=str,   default='fc8',            help='Variant of InverseAlexGenerator to use')
-    parser.add_argument('-optimizer_seed', type=int,   default=31415,            help='Random seed in GeneticOptimizer')
+    parser.add_argument('-optimizer_seed', type=int,   default=123,            help='Random seed in GeneticOptimizer')
     parser.add_argument('-mutation_rate',  type=float, default=0.3,              help='Mutation rate in GeneticOptimizer')
     parser.add_argument('-mutation_size',  type=float, default=0.3,              help='Mutation size in GeneticOptimizer')
     parser.add_argument('-num_parents',    type=int,   default=4,                help='Number of parents in GeneticOptimizer')

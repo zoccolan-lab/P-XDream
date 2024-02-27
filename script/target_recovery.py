@@ -56,7 +56,7 @@ class _LoguruLogger(Logger):
 class _TargetRecoveryExperiment(Experiment):
     
     def __init__(self, config: ExperimentConfig, name: str = "") -> None:
-        super().__init__(config=config, name=name)
+        super().__init__(config=config, version=name)
         self._data = cast(Dict[str, Any], config.data)
         
     @property
@@ -102,7 +102,7 @@ class _TargetRecoveryExperiment(Experiment):
         save_image = make_grid([*torch.from_numpy(trg_img), *best_image.cpu()], nrow=2)
         save_image = cast(Image.Image, to_pil_image(save_image))
         
-        save_dir_fp = path.join(self._data['save_dir'], self._name)
+        save_dir_fp = path.join(self._data['save_dir'], self._version)
         os.makedirs(save_dir_fp, exist_ok=True)
         
         save_img_fp = path.join(save_dir_fp, f'{self._data["out_name"]}.png')

@@ -31,6 +31,7 @@ def lazydefault(var : T | None, expr : Callable[[], D]) -> T | D:
     return expr() if var is None else var
 
 # --- NUMPY ---
+
 def fit_bbox(
     data : NDArray | None,
     axes : Tuple[int, ...] = (-2, -1)
@@ -63,6 +64,29 @@ def fit_bbox(
         bbox.extend((coords[axis].min(), coords[axis].max() + 1))
         
     return tuple(bbox)
+
+
+def convert_to_numpy(data: Union[list, tuple, np.ndarray, torch.Tensor, pd.DataFrame]):
+    """
+    Converte un qualsiasi dato in un array NumPy.
+
+    Parameters:
+    - data: Il dato da convertire (può essere una lista, una tupla, un array NumPy, un tensore PyTorch o un DataFrame pandas).
+
+    Returns:
+    - numpy_array: L'array NumPy risultante.
+    """
+    try:
+        if isinstance(data, pd.DataFrame):
+            numpy_array = data.to_numpy()
+        elif isinstance(data, torch.Tensor):
+            numpy_array = data.numpy()
+        else:
+            numpy_array = np.array(data)
+        return numpy_array
+    except Exception as e:
+        print(f"Errore durante la conversione in NumPy array: {e}")
+        return None
 
 # --- TORCH ---
 
@@ -188,6 +212,26 @@ def read_json(path: str) -> Dict[str, Any]:
     except FileNotFoundError:
         raise FileNotFoundError(f'File not found at path: {path}')
     
+def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
+    '''
+    Save a list of input images as a .gif file.
+
+    :param image_list: List of images to be saved as .gif file.
+    :type image_list: List[Image.Image]
+    :param out_fp: File path where to save the image.
+    :type out_fp: str
+    :param duration: Duration of image frame in milliseconds, defaults to 100.
+    :type duration: int, optional
+    '''
+
+    image_list[0].save(
+        out_fp, 
+        save_all=True,
+        optimize=False, 
+        append_images=image_list[1:], 
+        loop=0, duration=duration
+    )
+    
 # --- IMAGES ---
 
 def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
@@ -223,27 +267,6 @@ def concatenate_images(img_list: List[Tensor], nrow: int = 2):
     
     return grid_images
 
-def convert_to_numpy(data: Union[list, tuple, np.ndarray, torch.Tensor, pd.DataFrame]):
-    """
-    Converte un qualsiasi dato in un array NumPy.
-
-    Parameters:
-    - data: Il dato da convertire (può essere una lista, una tupla, un array NumPy, un tensore PyTorch o un DataFrame pandas).
-
-    Returns:
-    - numpy_array: L'array NumPy risultante.
-    """
-    try:
-        if isinstance(data, pd.DataFrame):
-            numpy_array = data.to_numpy()
-        elif isinstance(data, torch.Tensor):
-            numpy_array = data.numpy()
-        else:
-            numpy_array = np.array(data)
-        return numpy_array
-    except Exception as e:
-        print(f"Errore durante la conversione in NumPy array: {e}")
-        return None
 
 def SEMf(data: Union[List[float], Tuple[float], np.ndarray], axis: int = 0):
     """
@@ -271,3 +294,22 @@ def SEMf(data: Union[List[float], Tuple[float], np.ndarray], axis: int = 0):
     except Exception as e:
         print(f"Errore durante il calcolo dello standard error of the mean (SEM): {e}")
         return None
+
+def stringfy_time(sec: int | float) -> str:
+    ''' Converts number of seconds into a hour-minute-second string representation. '''
+
+    sec = int(sec)
+
+    hours = sec // 3600
+    sec %= 3600
+    minutes = sec // 60
+    sec %= 60
+
+    time_str = ""
+    if hours > 0:
+        time_str += f"{hours} hour{'s' if hours > 1 else ''}, "
+    if minutes > 0:
+        time_str += f"{minutes} minute{'s' if minutes > 1 else ''}, "
+    time_str += f"{sec} second{'s' if sec > 1 else ''}"
+    
+    return time_str

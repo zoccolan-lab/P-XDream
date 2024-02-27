@@ -109,7 +109,7 @@ class DisplayScreen:
 		self._display_size = display_size
 		
 		# Screen master
-		self._master = tk.Tk()
+		self._master = tk.Toplevel()
 		self._master.title(title)
 		
 		# Create a container frame for the image label

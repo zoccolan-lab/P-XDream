@@ -11,7 +11,7 @@ from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectSta
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default
+from .utils.misc import default, stringfy_time
 
 
 @dataclass
@@ -61,23 +61,29 @@ class Experiment(ABC):
     a granular implementation of the data flow.
     '''
 
+    _EXPERIMENT_NAME = "Experiment"
+    '''
+    Experiment title. All experiment outputs will be
+    saved in a sub-directory with its name.
+    '''
+
     @classmethod
     @abstractmethod
     def from_config(cls, args : str | Namespace) -> 'Experiment':
         pass
     
-    def __init__(self, config: ExperimentConfig,  name: str = 'Zdream') -> None:
+    def __init__(self, config: ExperimentConfig,  version: str = 'experiment-1') -> None:
         '''
         The constructor extract the terms from the configuration object.
 
         :param config: Experiment configuration.
         :type config: ExperimentConfig
-        :param name: Name identifier for the experiment, defaults to 'Zdream'
-        :type name: str, optional
+        :param version: Name identifier for the experiment version, defaults to 'experiment-1'
+        :type version: str, optional
         '''
         
         # Experiment Name
-        self._name = name
+        self._version = version
         
         # Configuration attributes
         self._generator      = config.generator
@@ -211,7 +217,7 @@ class Experiment(ABC):
         It is supposed to contain all preliminary operations such as initialization.
         '''
         
-        self._logger.info(mess=f"Running experiment {self._name} with {self._iteration} generations")
+        self._logger.info(mess=f"Running experiment {self._version} with {self._iteration} generations")
         
         self._logger.info(mess=f'Generator: {self.generator}')
         self._logger.info(mess=f'Subject:   {self.subject}')
@@ -224,7 +230,9 @@ class Experiment(ABC):
         The default version logs the experiment elapsed time.
         It is supposed to perform operation of experiment results.
         '''
-        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {self._elapsed_time} s.")
+
+        str_time = stringfy_time(sec=self._elapsed_time)
+        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
     
     def _progress_info(self, i: int) -> str:
         '''
@@ -243,7 +251,7 @@ class Experiment(ABC):
         progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{i * 100 / self._iteration:>5.2f}%'
         
-        return f'Generations: [{progress}] ({perc})'
+        return f'{self._EXPERIMENT_NAME}[{self._version}]: [{progress}] ({perc})'
     
     def _progress(self, i: int):
         '''

@@ -9,7 +9,6 @@ from torchvision.datasets import ImageFolder
 
 from typing import Callable, Dict, Tuple
 
-# --- DATASETS ---
 
 """
 NOTE: TO download
@@ -45,7 +44,6 @@ class MiniImageNet(ImageFolder):
             line.split()[0]: line.split()[2].replace('_', ' ')
             for line in lines
         }
-        self.lbls_presented = []
 
     # TODO Maintain this method here?
     def class_to_lbl(self, lbls : Tensor):
@@ -76,11 +74,14 @@ class RandomImageDataset(Dataset):
     def __len__(self):
         return self.n_img
 
-    def __getitem__(self, idx) -> Tensor:
+    def __getitem__(self, idx) -> Dict[str, Tensor]:
 
         # Simulate finite dataset
         if idx < 0 or idx >= len(self): raise ValueError(f"Invalid image idx: {idx} not in [0, {len(self)})")
 
         rand_img = torch.tensor(np.random.rand(*self.image_size), dtype=torch.float32)
 
-        return rand_img
+        return {
+            'imgs' : rand_img,
+            'lbls' : torch.tensor(['Random']),
+        }

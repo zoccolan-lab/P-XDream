@@ -1,4 +1,5 @@
 import logging
+import tkinter as tk
 
 from PIL import Image
 from loguru import logger
@@ -17,6 +18,11 @@ class Logger:
 	'''
 
 	def __init__(self) -> None:
+
+		# Tinker main screen is mandatory, but we can hide it.
+		self._main_screen = tk.Tk()
+		self._main_screen.withdraw()
+		
 		self._screens : Dict[str, DisplayScreen] = dict()
 
 	def info(self,  mess: str): logging.info(mess)
