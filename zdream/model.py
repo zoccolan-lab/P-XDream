@@ -97,7 +97,7 @@ class _DisplayScreen:
 		self._display_size = display_size
 		
 		# Screen master
-		self._master = tk.Tk()
+		self._master = tk.Toplevel()
 		self._master.title(title)
 		
 		# Create a container frame for the image label
@@ -148,6 +148,11 @@ class Logger:
 	'''
 
 	def __init__(self) -> None:
+		
+		# Tinker main screen is mandatory, but we can hide it.
+		self._main_screen = tk.Tk()
+		self._main_screen.withdraw()
+
 		self._screens : Dict[str, _DisplayScreen] = dict()
 
 	def info(self,  mess: str): logging.info(mess)
