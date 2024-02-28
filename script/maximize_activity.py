@@ -139,7 +139,7 @@ class _MaximizeActivity(Experiment):
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
         best_nat = cast(NDArray, stat_nat['best_score']).mean()
 
-        best_gen_str = f'{" " if best_gen < 1 else ""}best_gen:.1f' # Pad for decimals
+        best_gen_str = f'{" " if best_gen < 1 else ""}{best_gen:.1f}' # Pad for decimals
         curr_gen_str = f'{curr_gen:.1f}'
         best_nat_str = f'{best_nat:.1f}'
         
@@ -171,7 +171,7 @@ class _MaximizeActivity(Experiment):
         self._gif: List[Image.Image] = []
 
         # Last seen labels
-        self._labels: List[str] = []
+        self._labels: List[int] = []
 
         
     def _progress(self, i: int):
@@ -195,9 +195,10 @@ class _MaximizeActivity(Experiment):
             image=to_pil_image(best_natural)
         )
 
-        self._gif.append(
-            best_synthetic_img
-        )
+        if not self._gif or self._gif[-1] != best_synthetic_img:
+            self._gif.append(
+                best_synthetic_img
+            )
         
     def _finish(self):
         
@@ -242,8 +243,7 @@ class _MaximizeActivity(Experiment):
         
         # We save the last set of stimuli
         self._stimuli, msg = data
-
-        self._labels = cast(List[str], msg.label)
+        self._labels.extend(msg.label)
         
         return super()._stimuli_to_sbj_state(data)
     
@@ -285,20 +285,20 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     
     parser.add_argument('-pop_sz',         type=int,   default=20,               help='Number of images per generation')
-    parser.add_argument('-num_gens',       type=int,   default=10,               help='Number of total generations to evolve')
+    parser.add_argument('-num_gens',       type=int,   default=500,               help='Number of total generations to evolve')
     parser.add_argument('-img_size',       type=tuple, default=(256, 256),       help='Size of a given image', nargs=2)
     parser.add_argument('-gen_variant',    type=str,   default='fc8',            help='Variant of InverseAlexGenerator to use')
     parser.add_argument('-optimizer_seed', type=int,   default=123,            help='Random seed in GeneticOptimizer')
     parser.add_argument('-mutation_rate',  type=float, default=0.3,              help='Mutation rate in GeneticOptimizer')
     parser.add_argument('-mutation_size',  type=float, default=0.3,              help='Mutation size in GeneticOptimizer')
-    parser.add_argument('-num_parents',    type=int,   default=4,                help='Number of parents in GeneticOptimizer')
+    parser.add_argument('-num_parents',    type=int,   default=3,                help='Number of parents in GeneticOptimizer')
     parser.add_argument('-temperature',    type=float, default=1.0,              help='Temperature in GeneticOptimizer')
-    parser.add_argument('-mask_template',  type=str ,  default='tffff',          help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
+    parser.add_argument('-mask_template',  type=str ,  default='tf',          help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
     parser.add_argument('-mask_is_random', type=bool , default=False,            help='Defines if the mask is pseudorandom or not')
     parser.add_argument('-rec_layers',     type=tuple, default=(19,21),          help='Layers you want to record from (each int in tuple = nr of the layer)')
 
     parser.add_argument('-score_layers',    type=tuple, default=(21,),          help='Layers you want to score from')
-    parser.add_argument('-score_units',     type=tuple, default=(1,),            help='Units you want to score from')
+    parser.add_argument('-score_units',     type=tuple, default=((0,4),),            help='Units you want to score from')
     parser.add_argument('-score_rseed',     type=tuple, default=31415,            help='random seed for selecting units')
     
     parser.add_argument('-gen_root',       type=str,   default=gen_root,         help='Path to root folder of generator checkpoints')

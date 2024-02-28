@@ -72,7 +72,7 @@ class Message:
           applied to arrays.
     '''
     
-    label   : List[str] | None = None
+    label   : List[int]
     '''
     List of labels associated to the set of stimuli.
     '''

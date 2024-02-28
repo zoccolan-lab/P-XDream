@@ -350,7 +350,7 @@ class Generator(ABC, nn.Module):
         
         # Attach information to the message
         message.mask = np.array(mask)
-        message.label = cast(List[str], labels)
+        message.label = labels
         return out, message
     
     @torch.no_grad()
@@ -464,7 +464,7 @@ class InverseAlexGenerator(Generator):
         #       will be overloaded in the forward method.
         # NOTE: At this moment it's trivial but it offers the possibility
         #       to attach auxiliary information in the future.
-        message = Message(mask=np.array([True]*gens.shape[0])) 
+        message = Message(mask=np.array([True]*gens.shape[0]), label=[]) 
 
         return gens, message
 
