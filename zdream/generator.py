@@ -269,7 +269,7 @@ class Generator(ABC, nn.Module):
                 try:
                     batch = next(self._nat_img_iter)
                     nat_img_list.append(batch['imgs'])
-                    labels_list .extend(batch['lbls'].tolist())
+                    labels_list .extend(batch['lbls'])
                 except StopIteration:
                     # Circular iterator: when all images are loaded, we start back again.
                     self.set_nat_img_loader(nat_img_loader=self._nat_img_loader)
