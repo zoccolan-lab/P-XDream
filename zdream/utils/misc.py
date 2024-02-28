@@ -212,6 +212,20 @@ def read_json(path: str) -> Dict[str, Any]:
     except FileNotFoundError:
         raise FileNotFoundError(f'File not found at path: {path}')
     
+
+def save_json(data: Dict[str, Any], path: str):
+    '''
+    Save JSON data to a file.
+
+    :param data: The JSON data to be saved.
+    :type data: Dict[str, Any]
+    :param path: The path to save the JSON file.
+    :type path: str
+    '''
+    
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=4)
+    
 def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
     '''
     Save a list of input images as a .gif file.

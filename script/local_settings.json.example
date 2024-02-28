@@ -2,5 +2,6 @@
     "inverse_alex_net": "path/to/your/root",
     "tiny_inet_root": "path/to/your/root",
     "image_out": "path/to/store/images",
-    "test_image": "path/to/your/image"
+    "test_image": "path/to/your/image".
+    "config_file_maximize_activity": "path/to/your/config_file/maximize_activity"
 }

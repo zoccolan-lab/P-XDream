@@ -1,4 +1,5 @@
 {
+    "exp_vrs": "experiment",
     "pop_sz": 20,
     "num_gens": 50,
     "img_size": [256, 256],
@@ -13,5 +14,6 @@
     "rec_layers": [19, 21],
     "score_layers": [21],
     "score_units": [[0, 4]],
-    "score_rseed": 31415
+    "score_rseed": 31415,
+    "exp_version": "maximize-activity"
 }

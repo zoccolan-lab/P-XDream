@@ -32,12 +32,21 @@ from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectSta
 matplotlib.use('TKAgg')
 
 
-class _MaximizeActivity(Experiment):
+class _MaximizeActivityExperiment(Experiment):
 
     _EXPERIMENT_NAME = "MaximizeActivity"
 
     @classmethod
-    def from_config(cls, conf : dict[str, Any]) -> '_MaximizeActivity':
+    def from_config(cls, conf : Dict[str, Any]) -> '_MaximizeActivityExperiment':
+        '''
+        Static constructor for a _MaximizeActivityExperiment class from configuration file.
+
+        :param conf: Dictionary-like configuration file.
+        :type conf: Dict[str, Any]
+        :return: _MaximizeActivityExperiment instance with hyperparameters set from configuration.
+        :rtype: _MaximizeActivity
+        '''
+
         # Transform Mask sequence into boolean
         base_seq = [char == 't' for char in conf['mask_template']] # TODO It doesn't check for others letter instead of 'f'
         
@@ -60,7 +69,6 @@ class _MaximizeActivity(Experiment):
                 k_vals = random.sample(range(1000),su)
             score_dict[layer_names[sl]] = k_vals
             
-        print(score_dict)
         # Generator with Dataloader
         mini_IN = MiniImageNet(root=conf['tiny_inet_root'])
         mini_IN_loader = DataLoader(mini_IN, batch_size=10, shuffle=True) #set num_workers
@@ -101,6 +109,13 @@ class _MaximizeActivity(Experiment):
             temperature=conf['temperature'],
             num_parents=conf['num_parents']
         )
+
+        # Logger
+        logger = LoguruLogger(
+            out_dir=conf['save_dir'],
+            exp_name=_MaximizeActivityExperiment._EXPERIMENT_NAME,
+            exp_version=conf['exp_vrs']
+        )
         
         # Mask generator
         mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=conf['mask_is_random'])
@@ -116,19 +131,22 @@ class _MaximizeActivity(Experiment):
             scorer=scorer,
             optimizer=optim,
             subject=sbj_net,
-            logger=LoguruLogger(),
+            logger=logger,
             iteration=conf['num_gens'],
             mask_generator=mask_generator,
             data=data
         )
         
-        return cls(experiment_config, version = conf['exp_name'])
+        experiment = cls(experiment_config, version = conf['exp_vrs'])
+
+        experiment._set_param_configuration(param_config=conf)
+
+        return experiment
 
     def __init__(self, config: ExperimentConfig, version : str, name: str = "maximize_activity") -> None:
         
-        super().__init__(config=config, exp_type=name)
+        super().__init__(config=config, version=name)
         self._data = cast(Dict[str, Any], config.data)
-        self._version = version #per ora lo mollo qua. Credo però sia da mettere in experiment
         
     def _progress_info(self, i: int) -> str:
         
@@ -212,7 +230,7 @@ class _MaximizeActivity(Experiment):
         # 1) Best Images
         
         # We create the directory to store results
-        out_dir_fp = path.join(self._data['save_dir'], self._exp_type, self._version)
+        out_dir_fp = path.join(self._data['save_dir'], self._version, self._version)
         os.makedirs(out_dir_fp, exist_ok=True)
         
         # We retrieve the best code from the optimizer
@@ -228,22 +246,22 @@ class _MaximizeActivity(Experiment):
         out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
         
         # We store them
-        out_fp = path.join(out_dir_fp, f'best_images.png')
+        out_fp = path.join(self.target_dir, f'best_images.png')
         self._logger.info(mess=f"Saving best images to {out_fp}")
         out_image.save(out_fp)
 
         # Gif
-        out_gif_fp = path.join(out_dir_fp, f'best_image.gif')
+        out_gif_fp = path.join(self.target_dir, f'best_image.gif')
         self._logger.info(mess=f"Saving best image gif to {out_gif_fp}")
         to_gif(image_list=self._gif, out_fp=out_gif_fp)
         
         # 2) Score plots
-        plot_optimization_profile(self._optimizer, save_dir = out_dir_fp)
-        plot_scores_by_cat(self._optimizer, self._labels, save_dir = out_dir_fp)
+        plot_optimization_profile(self._optimizer, save_dir = self.target_dir)
+        plot_scores_by_cat(self._optimizer, self._labels, save_dir = self.target_dir)
         
-        pkl_name = '_'.join([self._exp_type, self._version])+'.pkl'
-        with open(path.join(out_dir_fp,pkl_name), 'wb') as file:
-            pickle.dump(self, file)
+        # TODO pkl_name = '_'.join([self._version, self._version])+'.pkl'
+        # TODO with open(path.join(out_dir_fp,pkl_name), 'wb') as file:
+        # TODO     pickle.dump(self, file)
         
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
         
@@ -280,7 +298,7 @@ def main(args):
     
     print(f'Launching MaximizeActivity Experiment with the following configuration:\n {full_conf}')
     
-    experiment = _MaximizeActivity.from_config(full_conf)
+    experiment = _MaximizeActivityExperiment.from_config(full_conf)
     experiment.run()
 
 
@@ -294,13 +312,7 @@ if __name__ == '__main__':
     gen_root   = script_settings['inverse_alex_net']
     image_out  = script_settings['image_out']
     tiny_inet_root = script_settings['tiny_inet_root']
-    config_path = script_settings['config_file']
-    
-    exp_type = "maximize_activity"
-    
-    exptype_dir = path.join(image_out,exp_type)
-    dirs = [d for d in os.listdir(exptype_dir) if os.path.isdir(os.path.join(exptype_dir, d))]
-    def_exp_name = 'v'+str(sum(s[-1].isdigit() for s in dirs))
+    config_path = script_settings['config_file_maximize_activity']
 
     parser = ArgumentParser()
     
@@ -308,8 +320,8 @@ if __name__ == '__main__':
     parser.add_argument('-gen_root',        type=str, default = gen_root,         help='Path to root folder of generator checkpoints')
     parser.add_argument('-tiny_inet_root',  type=str, default = tiny_inet_root,   help='Path to tiny imagenet dataset')
     parser.add_argument('-save_dir',        type=str, default = image_out,        help='Path to store data')
-    parser.add_argument('-exp_name',        type=str, default = def_exp_name,     help='Name of the specific experiment we are carrying out')
     
+    parser.add_argument('--exp_vrs',        type=str,   help='Experiment version name')
     parser.add_argument('--pop_sz',         type=int,   help='Number of images per generation')
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
     parser.add_argument('--img_size',       type=tuple, help='Size of a given image', nargs=2)
@@ -326,8 +338,6 @@ if __name__ == '__main__':
     parser.add_argument('--score_layers',    type=tuple, help='Layers you want to score from')
     parser.add_argument('--score_units',     type=tuple, help='Units you want to score from')
     parser.add_argument('--score_rseed',     type=tuple, help='random seed for selecting units')
-    
-
     
     conf = parser.parse_args()
     

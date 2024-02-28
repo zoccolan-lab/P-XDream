@@ -1,3 +1,4 @@
+from os import path
 import time
 from abc import ABC, abstractmethod
 from argparse import Namespace
@@ -11,7 +12,7 @@ from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectSta
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default, stringfy_time
+from .utils.misc import default, save_json, stringfy_time
 
 
 @dataclass
@@ -72,18 +73,24 @@ class Experiment(ABC):
     def from_config(cls, conf : str | dict[str, Any]) -> 'Experiment':
         pass
     
-    def __init__(self, config: ExperimentConfig,  exp_type: str = 'experiment-1') -> None:
+    def __init__(
+            self, 
+            config: ExperimentConfig,
+            version: str = 'experiment'
+        ) -> None:
         '''
         The constructor extract the terms from the configuration object.
 
         :param config: Experiment configuration.
         :type config: ExperimentConfig
-        :param version: Name identifier for the experiment version, defaults to 'experiment-1'
+        :param version: Name identifier for the experiment version, defaults to 'experiment'.
         :type version: str, optional
+        :param param_config: Dictionary 
+        :type version: Dict[str, Any]
         '''
         
-        # Experiment Name
-        self._exp_type = exp_type
+        # Experiment version
+        self._version = version
         
         # Configuration attributes
         self._generator      = config.generator
@@ -96,6 +103,24 @@ class Experiment(ABC):
         # Defaults mask generator to a None mask, which is handled 
         # by the generator as a synthetic-only stimuli.
         self._mask_generator = default(config.mask_generator, lambda x: None)
+
+        # Param config
+        self._param_config: Dict[str, Any] = dict()
+
+    def _set_param_configuration(self, param_config: Dict[str, Any]):
+        '''
+        Set the parameter configuration file for the experiment
+
+        :param Dict: Parameter configuration dictionary
+        :type Dict: Dict[str, Any])
+        '''
+
+        # NOTE: The method is private and separated from the `__init__()` method
+        #       to make the classmethod `from_config` the only one allowed to
+        #       set the parameter.
+
+        self._param_config = param_config
+
         
     # --- PROPERTIES --- 
         
@@ -125,6 +150,10 @@ class Experiment(ABC):
     
     @property
     def optimizer(self) -> Optimizer:       return self._optimizer
+
+    @property
+    def target_dir(self) -> str:
+        return self._logger.target_dir
     
     # --- DATAFLOW METHODS ---
     
@@ -216,13 +245,34 @@ class Experiment(ABC):
         The default version logs the attributes of the components.
         It is supposed to contain all preliminary operations such as initialization.
         '''
-        
-        self._logger.info(mess=f"Running experiment {self._exp_type} with {self._iteration} generations")
-        
+
+        # Create experiment directory
+        self._logger.create_target_dir()
+
+        # Save and log parameters
+        if self._param_config:
+            
+            # Log
+            self._logger.info(f"")
+            self._logger.info(f"Parameters:")
+            max_key_len = max(len(key) for key in self._param_config.keys()) # for padding
+            for k, v in self._param_config.items():
+                self._logger.info(f'{k:<{max_key_len}}:   {v}')
+
+            # Save
+            config_param_fp = path.join(self.target_dir, 'params.json')
+            self._logger.info(f"Saving param configuration to: {config_param_fp}")
+            save_json(data=self._param_config, path=config_param_fp)
+
+        # Components
+        self._logger.info(f"")
+        self._logger.info(f"Components:")
         self._logger.info(mess=f'Generator: {self.generator}')
         self._logger.info(mess=f'Subject:   {self.subject}')
         self._logger.info(mess=f'Scorer:    {self.scorer}')
         self._logger.info(mess=f'Optimizer: {self.optimizer}')
+        self._logger.info(f"")
+
         
     def _finish(self):
         '''
@@ -251,7 +301,7 @@ class Experiment(ABC):
         progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{i * 100 / self._iteration:>5.2f}%'
         
-        return f'{self._EXPERIMENT_NAME}[{self._exp_type}]: [{progress}] ({perc})'
+        return f'{self._EXPERIMENT_NAME}[{self._version}]: [{progress}] ({perc})'
     
     def _progress(self, i: int):
         '''
