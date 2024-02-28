@@ -72,7 +72,7 @@ class Experiment(ABC):
     def from_config(cls, conf : str | dict[str, Any]) -> 'Experiment':
         pass
     
-    def __init__(self, config: ExperimentConfig,  version: str = 'experiment-1') -> None:
+    def __init__(self, config: ExperimentConfig,  exp_type: str = 'experiment-1') -> None:
         '''
         The constructor extract the terms from the configuration object.
 
@@ -83,7 +83,7 @@ class Experiment(ABC):
         '''
         
         # Experiment Name
-        self._version = version
+        self._exp_type = exp_type
         
         # Configuration attributes
         self._generator      = config.generator
@@ -217,7 +217,7 @@ class Experiment(ABC):
         It is supposed to contain all preliminary operations such as initialization.
         '''
         
-        self._logger.info(mess=f"Running experiment {self._version} with {self._iteration} generations")
+        self._logger.info(mess=f"Running experiment {self._exp_type} with {self._iteration} generations")
         
         self._logger.info(mess=f'Generator: {self.generator}')
         self._logger.info(mess=f'Subject:   {self.subject}')
@@ -251,7 +251,7 @@ class Experiment(ABC):
         progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{i * 100 / self._iteration:>5.2f}%'
         
-        return f'{self._EXPERIMENT_NAME}[{self._version}]: [{progress}] ({perc})'
+        return f'{self._EXPERIMENT_NAME}[{self._exp_type}]: [{progress}] ({perc})'
     
     def _progress(self, i: int):
         '''

@@ -15,6 +15,7 @@ from functools import partial
 import random
 import matplotlib
 from PIL import Image
+import pickle
 
 from zdream.logger import LoguruLogger
 from zdream.generator import InverseAlexGenerator
@@ -121,12 +122,13 @@ class _MaximizeActivity(Experiment):
             data=data
         )
         
-        return cls(experiment_config)
+        return cls(experiment_config, version = conf['exp_name'])
 
-    def __init__(self, config: ExperimentConfig, name: str = "maximize_activity") -> None:
+    def __init__(self, config: ExperimentConfig, version : str, name: str = "maximize_activity") -> None:
         
-        super().__init__(config=config, version=name)
+        super().__init__(config=config, exp_type=name)
         self._data = cast(Dict[str, Any], config.data)
+        self._version = version #per ora lo mollo qua. Credo però sia da mettere in experiment
         
     def _progress_info(self, i: int) -> str:
         
@@ -210,7 +212,7 @@ class _MaximizeActivity(Experiment):
         # 1) Best Images
         
         # We create the directory to store results
-        out_dir_fp = path.join(self._data['save_dir'], self._version)
+        out_dir_fp = path.join(self._data['save_dir'], self._exp_type, self._version)
         os.makedirs(out_dir_fp, exist_ok=True)
         
         # We retrieve the best code from the optimizer
@@ -226,9 +228,9 @@ class _MaximizeActivity(Experiment):
         out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
         
         # We store them
-        out_image_fp = path.join(out_dir_fp, f'best_images.png')
-        self._logger.info(mess=f"Saving best images to {out_image_fp}")
-        out_image.save(out_image_fp)
+        out_fp = path.join(out_dir_fp, f'best_images.png')
+        self._logger.info(mess=f"Saving best images to {out_fp}")
+        out_image.save(out_fp)
 
         # Gif
         out_gif_fp = path.join(out_dir_fp, f'best_image.gif')
@@ -238,6 +240,10 @@ class _MaximizeActivity(Experiment):
         # 2) Score plots
         plot_optimization_profile(self._optimizer, save_dir = out_dir_fp)
         plot_scores_by_cat(self._optimizer, self._labels, save_dir = out_dir_fp)
+        
+        pkl_name = '_'.join([self._exp_type, self._version])+'.pkl'
+        with open(path.join(out_dir_fp,pkl_name), 'wb') as file:
+            pickle.dump(self, file)
         
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
         
@@ -290,12 +296,19 @@ if __name__ == '__main__':
     tiny_inet_root = script_settings['tiny_inet_root']
     config_path = script_settings['config_file']
     
+    exp_type = "maximize_activity"
+    
+    exptype_dir = path.join(image_out,exp_type)
+    dirs = [d for d in os.listdir(exptype_dir) if os.path.isdir(os.path.join(exptype_dir, d))]
+    def_exp_name = 'v'+str(sum(s[-1].isdigit() for s in dirs))
+
     parser = ArgumentParser()
     
-    parser.add_argument('-config',          type=str, default=config_path,      help='Path for the JSON configuration file')
-    parser.add_argument('-gen_root',        type=str, default=gen_root,         help='Path to root folder of generator checkpoints')
-    parser.add_argument('-tiny_inet_root',  type=str, default=tiny_inet_root,   help='Path to tiny imagenet dataset')
-    parser.add_argument('-save_dir',        type=str, default=image_out,        help='Path to store best solution')
+    parser.add_argument('-config',          type=str, default = config_path,      help='Path for the JSON configuration file')
+    parser.add_argument('-gen_root',        type=str, default = gen_root,         help='Path to root folder of generator checkpoints')
+    parser.add_argument('-tiny_inet_root',  type=str, default = tiny_inet_root,   help='Path to tiny imagenet dataset')
+    parser.add_argument('-save_dir',        type=str, default = image_out,        help='Path to store data')
+    parser.add_argument('-exp_name',        type=str, default = def_exp_name,     help='Name of the specific experiment we are carrying out')
     
     parser.add_argument('--pop_sz',         type=int,   help='Number of images per generation')
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
