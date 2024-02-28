@@ -1,0 +1,6 @@
+{
+    "inverse_alex_net": "path/to/your/root",
+    "tiny_inet_root": "path/to/your/root",
+    "image_out" : "path/to/store/images",
+    "test_image": "path/to/your/image"
+}

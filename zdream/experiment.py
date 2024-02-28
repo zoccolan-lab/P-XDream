@@ -69,7 +69,7 @@ class Experiment(ABC):
 
     @classmethod
     @abstractmethod
-    def from_config(cls, args : str | Namespace) -> 'Experiment':
+    def from_config(cls, conf : str | dict[str, Any]) -> 'Experiment':
         pass
     
     def __init__(self, config: ExperimentConfig,  version: str = 'experiment-1') -> None:

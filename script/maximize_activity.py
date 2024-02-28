@@ -36,9 +36,9 @@ class _MaximizeActivity(Experiment):
     _EXPERIMENT_NAME = "MaximizeActivity"
 
     @classmethod
-    def from_config(cls, args: Namespace) -> '_MaximizeActivity':
+    def from_config(cls, conf : dict[str, Any]) -> '_MaximizeActivity':
         # Transform Mask sequence into boolean
-        base_seq = [char == 't' for char in args.mask_template] # TODO It doesn't check for others letter instead of 'f'
+        base_seq = [char == 't' for char in conf['mask_template']] # TODO It doesn't check for others letter instead of 'f'
         
         # Create network subject
         sbj_net = NetworkSubject(network_name='alexnet')
@@ -46,13 +46,13 @@ class _MaximizeActivity(Experiment):
         layer_names = sbj_net.layer_names
         
         # Extract the name of recording layers
-        rec_layers = [layer_names[i] for i in args.rec_layers] # TODO Check input as a tuple
+        rec_layers = [layer_names[i] for i in conf['rec_layers']] # TODO Check input as a tuple
 
         # Building target neurons
         # TODO what is this ifelse doing?
         score_dict = {}
-        random.seed(args.score_rseed)
-        for sl, su in zip(args.score_layers, args.score_units):
+        random.seed(conf['score_rseed'])
+        for sl, su in zip(conf['score_layers'], conf['score_units']):
             if isinstance(su,tuple):
                 k_vals = list(range(su[0], su[1]))
             else:
@@ -61,13 +61,13 @@ class _MaximizeActivity(Experiment):
             
         print(score_dict)
         # Generator with Dataloader
-        mini_IN = MiniImageNet(root=args.tiny_inet_root)
+        mini_IN = MiniImageNet(root=conf['tiny_inet_root'])
         mini_IN_loader = DataLoader(mini_IN, batch_size=10, shuffle=True) #set num_workers
         # mini_IN_loader = DataLoader(RandomImageDataset(1000, (3, 256, 256)), batch_size=2, shuffle=True)
         
         generator = InverseAlexGenerator(
-            root=args.gen_root,
-            variant=args.gen_variant,
+            root=conf['gen_root'],
+            variant=conf['gen_variant'],
             nat_img_loader=mini_IN_loader
         ).to(device)
         
@@ -92,21 +92,21 @@ class _MaximizeActivity(Experiment):
         # Optimizer
         optim = GeneticOptimizer(
             states_shape=generator.input_dim,
-            random_state=args.optimizer_seed,
+            random_state=conf['optimizer_seed'],
             random_distr='normal',
-            mutation_rate=args.mutation_rate,
-            mutation_size=args.mutation_size,
-            population_size=args.pop_sz,
-            temperature=args.temperature,
-            num_parents=args.num_parents
+            mutation_rate=conf['mutation_rate'],
+            mutation_size=conf['mutation_size'],
+            population_size=conf['pop_sz'],
+            temperature=conf['temperature'],
+            num_parents=conf['num_parents']
         )
         
         # Mask generator
-        mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=args.mask_is_random)
+        mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=conf['mask_is_random'])
         
         # Additional data
         data = {
-            "save_dir": args.save_dir
+            "save_dir": conf['save_dir']
         }
         
         # Experiment configuration
@@ -116,7 +116,7 @@ class _MaximizeActivity(Experiment):
             optimizer=optim,
             subject=sbj_net,
             logger=LoguruLogger(),
-            iteration=args.num_gens,
+            iteration=conf['num_gens'],
             mask_generator=mask_generator,
             data=data
         )
@@ -266,7 +266,15 @@ class _MaximizeActivity(Experiment):
 
 def main(args):    
     # Experiment
-    experiment = _MaximizeActivity.from_config(args)
+    
+    json_conf = read_json(args.config)
+    args_conf = {k : v for k, v in vars(args).items() if v}
+    
+    full_conf = {**json_conf, **args_conf}
+    
+    print(f'Launching MaximizeActivity Experiment with the following configuration:\n {full_conf}')
+    
+    experiment = _MaximizeActivity.from_config(full_conf)
     experiment.run()
 
 
@@ -284,28 +292,29 @@ if __name__ == '__main__':
     
     parser = ArgumentParser()
     
-    parser.add_argument('-pop_sz',         type=int,   default=20,               help='Number of images per generation')
-    parser.add_argument('-num_gens',       type=int,   default=50,               help='Number of total generations to evolve')
-    parser.add_argument('-img_size',       type=tuple, default=(256, 256),       help='Size of a given image', nargs=2)
-    parser.add_argument('-gen_variant',    type=str,   default='fc8',            help='Variant of InverseAlexGenerator to use')
-    parser.add_argument('-optimizer_seed', type=int,   default=123,            help='Random seed in GeneticOptimizer')
-    parser.add_argument('-mutation_rate',  type=float, default=0.3,              help='Mutation rate in GeneticOptimizer')
-    parser.add_argument('-mutation_size',  type=float, default=0.3,              help='Mutation size in GeneticOptimizer')
-    parser.add_argument('-num_parents',    type=int,   default=3,                help='Number of parents in GeneticOptimizer')
-    parser.add_argument('-temperature',    type=float, default=1.0,              help='Temperature in GeneticOptimizer')
-    parser.add_argument('-mask_template',  type=str ,  default='tf',          help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
-    parser.add_argument('-mask_is_random', type=bool , default=False,            help='Defines if the mask is pseudorandom or not')
-    parser.add_argument('-rec_layers',     type=tuple, default=(19,21),          help='Layers you want to record from (each int in tuple = nr of the layer)')
+    parser.add_argument('-config',          type=str,   help='Path for the JSON configuration file')
+    parser.add_argument('--pop_sz',         type=int,   help='Number of images per generation')
+    parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
+    parser.add_argument('--img_size',       type=tuple, help='Size of a given image', nargs=2)
+    parser.add_argument('--gen_variant',    type=str,   help='Variant of InverseAlexGenerator to use')
+    parser.add_argument('--optimizer_seed', type=int,   help='Random seed in GeneticOptimizer')
+    parser.add_argument('--mutation_rate',  type=float, help='Mutation rate in GeneticOptimizer')
+    parser.add_argument('--mutation_size',  type=float, help='Mutation size in GeneticOptimizer')
+    parser.add_argument('--num_parents',    type=int,   help='Number of parents in GeneticOptimizer')
+    parser.add_argument('--temperature',    type=float, help='Temperature in GeneticOptimizer')
+    parser.add_argument('--mask_template',  type=str ,  help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
+    parser.add_argument('--mask_is_random', type=bool , help='Defines if the mask is pseudorandom or not')
+    parser.add_argument('--rec_layers',     type=tuple, help='Layers you want to record from (each int in tuple = nr of the layer)')
 
-    parser.add_argument('-score_layers',    type=tuple, default=(21,),          help='Layers you want to score from')
-    parser.add_argument('-score_units',     type=tuple, default=((0,4),),            help='Units you want to score from')
-    parser.add_argument('-score_rseed',     type=tuple, default=31415,            help='random seed for selecting units')
+    parser.add_argument('--score_layers',    type=tuple, help='Layers you want to score from')
+    parser.add_argument('--score_units',     type=tuple, help='Units you want to score from')
+    parser.add_argument('--score_rseed',     type=tuple, help='random seed for selecting units')
     
-    parser.add_argument('-gen_root',       type=str,   default=gen_root,         help='Path to root folder of generator checkpoints')
-    parser.add_argument('-tiny_inet_root', type=str,   default=tiny_inet_root,   help='Path to tiny imagenet dataset')
-    parser.add_argument('-save_dir',       type=str,   default=image_out,        help='Path to store best solution')
+    parser.add_argument('--gen_root',       type=str,    help='Path to root folder of generator checkpoints')
+    parser.add_argument('--tiny_inet_root', type=str,    help='Path to tiny imagenet dataset')
+    parser.add_argument('--save_dir',       type=str,    help='Path to store best solution')
     
-    args = parser.parse_args()
+    conf = parser.parse_args()
     
-    main(args)
+    main(conf)
     
