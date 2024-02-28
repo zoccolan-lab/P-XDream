@@ -327,3 +327,24 @@ def stringfy_time(sec: int | float) -> str:
     time_str += f"{sec} second{'s' if sec > 1 else ''}"
     
     return time_str
+
+
+def merge_dicts(a: dict, b: dict) -> Dict:
+    ''' Recursively overwrite the first dictionary with the second one. '''
+
+    for key in a:
+        if key in b:
+            if isinstance(b[key], dict) and isinstance(a[key], dict):
+                merge_dicts(a[key], b[key])
+        else:
+            b[key] = a[key]
+    return b
+
+def overwrite_dict(a: dict, b: dict) -> Dict:
+    ''' A is nested, B is flat'''
+    for key in a:
+        if isinstance(a[key], dict):
+            merge_dicts(a[key], b)
+        elif b[key]:
+            a[key] = b[key]
+    return a

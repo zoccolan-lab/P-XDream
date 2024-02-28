@@ -26,7 +26,7 @@ from zdream.scores import MaxActivityScorer
 from zdream.optimizer import GeneticOptimizer
 from zdream.experiment import Experiment, ExperimentConfig
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import concatenate_images, read_json, repeat_pattern, device, to_gif
+from zdream.utils.misc import concatenate_images, merge_dicts, overwrite_dict, read_json, repeat_pattern, device, to_gif
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState
 
 matplotlib.use('TKAgg')
@@ -37,7 +37,7 @@ class _MaximizeActivityExperiment(Experiment):
     _EXPERIMENT_NAME = "MaximizeActivity"
 
     @classmethod
-    def from_config(cls, conf : Dict[str, Any]) -> '_MaximizeActivityExperiment':
+    def _from_config(cls, conf : Dict[str, Any]) -> '_MaximizeActivityExperiment':
         '''
         Static constructor for a _MaximizeActivityExperiment class from configuration file.
 
@@ -102,7 +102,7 @@ class _MaximizeActivityExperiment(Experiment):
         optim = GeneticOptimizer(
             states_shape=generator.input_dim,
             random_state=conf['optimizer_seed'],
-            random_distr='normal',
+            random_distr='normal', # TODO add config
             mutation_rate=conf['mutation_rate'],
             mutation_size=conf['mutation_size'],
             population_size=conf['pop_sz'],
@@ -138,8 +138,6 @@ class _MaximizeActivityExperiment(Experiment):
         )
         
         experiment = cls(experiment_config, version = conf['exp_vrs'])
-
-        experiment._set_param_configuration(param_config=conf)
 
         return experiment
 
@@ -288,15 +286,19 @@ class _MaximizeActivityExperiment(Experiment):
         
         return super()._stm_score_to_codes((sub_score, msg))
 
+
+LOCAL_SETTINGS = 'local_settings.json'
+
 def main(args):    
+
     # Experiment
-    
+
     json_conf = read_json(args.config)
     args_conf = {k : v for k, v in vars(args).items() if v}
     
-    full_conf = {**json_conf, **args_conf}
+    full_conf = overwrite_dict(json_conf, args_conf)
     
-    print(f'Launching MaximizeActivity Experiment with the following configuration:\n {full_conf}')
+    print(full_conf)
     
     experiment = _MaximizeActivityExperiment.from_config(full_conf)
     experiment.run()
@@ -304,42 +306,59 @@ def main(args):
 
 if __name__ == '__main__':
     
-    # Loading `local_settings.json` for custom local settings
-    local_folder = path.dirname(path.abspath(__file__))
-    script_settings_fp = path.join(local_folder, 'local_settings.json')
-    script_settings = read_json(path=script_settings_fp)
+    # Loading custom local settings
+    local_folder       = path.dirname(path.abspath(__file__))
+    script_settings_fp = path.join(local_folder, LOCAL_SETTINGS)
+    script_settings    = read_json(path=script_settings_fp)
     
-    gen_root   = script_settings['inverse_alex_net']
-    image_out  = script_settings['image_out']
-    tiny_inet_root = script_settings['tiny_inet_root']
-    config_path = script_settings['config_file_maximize_activity']
+    # Set as defaults
+    gen_weights  = script_settings['gen_weights']
+    out_dir      = script_settings['out_dir']
+    tiny_inet    = script_settings['tiny_inet']
+    config_path  = script_settings['maximize_activity_config']
 
     parser = ArgumentParser()
-    
-    parser.add_argument('-config',          type=str, default = config_path,      help='Path for the JSON configuration file')
-    parser.add_argument('-gen_root',        type=str, default = gen_root,         help='Path to root folder of generator checkpoints')
-    parser.add_argument('-tiny_inet_root',  type=str, default = tiny_inet_root,   help='Path to tiny imagenet dataset')
-    parser.add_argument('-save_dir',        type=str, default = image_out,        help='Path to store data')
-    
-    parser.add_argument('--exp_vrs',        type=str,   help='Experiment version name')
-    parser.add_argument('--pop_sz',         type=int,   help='Number of images per generation')
-    parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
-    parser.add_argument('--img_size',       type=tuple, help='Size of a given image', nargs=2)
-    parser.add_argument('--gen_variant',    type=str,   help='Variant of InverseAlexGenerator to use')
-    parser.add_argument('--optimizer_seed', type=int,   help='Random seed in GeneticOptimizer')
-    parser.add_argument('--mutation_rate',  type=float, help='Mutation rate in GeneticOptimizer')
-    parser.add_argument('--mutation_size',  type=float, help='Mutation size in GeneticOptimizer')
-    parser.add_argument('--num_parents',    type=int,   help='Number of parents in GeneticOptimizer')
-    parser.add_argument('--temperature',    type=float, help='Temperature in GeneticOptimizer')
-    parser.add_argument('--mask_template',  type=str ,  help='String of True(t) and False(f). It will be converted in the basic sequence of the mask')
-    parser.add_argument('--mask_is_random', type=bool , help='Defines if the mask is pseudorandom or not')
-    parser.add_argument('--rec_layers',     type=tuple, help='Layers you want to record from (each int in tuple = nr of the layer)')
 
-    parser.add_argument('--score_layers',    type=tuple, help='Layers you want to score from')
-    parser.add_argument('--score_units',     type=tuple, help='Units you want to score from')
-    parser.add_argument('--score_rseed',     type=tuple, help='random seed for selecting units')
+    
+    # Paths
+    parser.add_argument('-config',          type=str,   help='Path for the JSON configuration file',          default = config_path,)
+    parser.add_argument('-gen_weights',     type=str,   help='Path to folder of generator weights',           default = gen_weights,)
+    parser.add_argument('-tiny_inet',       type=str,   help='Path to tiny tiny imagenet dataset',            default = tiny_inet,)
+    parser.add_argument('-out_dir',         type=str,   help='Path to directory to save outputs',             default = out_dir,)
+    
+    # Generator
+    parser.add_argument('--img_size',       type=tuple, help='Size of a given image', nargs=2)
+    parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
+    
+    # Mask generator
+    parser.add_argument('--template',       type=str ,  help='String of True(T) and False(F) as the basic sequence of the mask')
+    parser.add_argument('--shuffle',        type=bool , help='If to shuffle mask pattern')
+
+    # Subject
+    parser.add_argument('--rec_layers',     type=tuple, help='Recording layers')
+
+    # Scorer
+    parser.add_argument('--target_layers',  type=tuple, help='Target scoring layers')
+    parser.add_argument('--target_units',   type=tuple, help='Target scoring neurons')
+    parser.add_argument('--aggregation',    type=tuple, help='Name of scoring aggregation function between layers')
+    parser.add_argument('--rseed',          type=tuple, help='Random seed for neurons selection')
+    
+    # Optimizer
+    parser.add_argument('--pop_sz',         type=int,   help='Starting number of the population')
+    parser.add_argument('--rseed',          type=int,   help='Random seed in for the optimizer')
+    parser.add_argument('--mutation_rate',  type=float, help='Mutation rate for the optimizer')
+    parser.add_argument('--mutation_size',  type=float, help='Mutation size for the optimizer')
+    parser.add_argument('--num_parents',    type=int,   help='Number of parents for the optimizer')
+    parser.add_argument('--temperature',    type=float, help='Temperature for the optimizer')
+    parser.add_argument('--random_state',   type=bool , help='Random state for the optimizer')
+    
+    # Logger
+    parser.add_argument('--name',           type=str,   help='Experiment name')
+    parser.add_argument('--version',        type=int,   help='Experiment version')
+    
+    # Iterations
+    parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
     
     conf = parser.parse_args()
     
     main(conf)
-    

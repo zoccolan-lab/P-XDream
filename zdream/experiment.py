@@ -12,7 +12,7 @@ from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectSta
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default, save_json, stringfy_time
+from .utils.misc import default, merge_dicts, save_json, stringfy_time
 
 
 @dataclass
@@ -62,15 +62,25 @@ class Experiment(ABC):
     a granular implementation of the data flow.
     '''
 
-    _EXPERIMENT_NAME = "Experiment"
+    EXPERIMENT_TITLE = "Experiment"
     '''
     Experiment title. All experiment outputs will be
     saved in a sub-directory with its name.
     '''
 
     @classmethod
+    def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
+        
+        experiment = cls._from_config(conf=conf)
+
+        experiment._set_param_configuration(param_config=conf)
+
+        return experiment
+    
+
+    @classmethod
     @abstractmethod
-    def from_config(cls, conf : str | dict[str, Any]) -> 'Experiment':
+    def _from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
         pass
     
     def __init__(
@@ -301,7 +311,7 @@ class Experiment(ABC):
         progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{i * 100 / self._iteration:>5.2f}%'
         
-        return f'{self._EXPERIMENT_NAME}[{self._version}]: [{progress}] ({perc})'
+        return f'{self.EXPERIMENT_TITLE}[{self._version}]: [{progress}] ({perc})'
     
     def _progress(self, i: int):
         '''
@@ -394,8 +404,7 @@ class MultiExperiment:
 
     def run(self):
         for conf in self.search_config:
-            exp_config = {**self.base_config, **conf}
-            exp_config = Namespace(**exp_config)
+            exp_config = merge_dicts(self.base_config, conf)
             
             exp = self.Exp.from_config(exp_config)
             

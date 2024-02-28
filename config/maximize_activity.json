@@ -1,19 +1,39 @@
 {
-    "exp_vrs": "experiment",
-    "pop_sz": 20,
-    "num_gens": 50,
-    "img_size": [256, 256],
-    "gen_variant": "fc8",
-    "optimizer_seed": 123,
-    "mutation_rate": 0.3,
-    "mutation_size": 0.3,
-    "num_parents": 3,
-    "temperature": 1.0,
-    "mask_template": "tffff",
-    "mask_is_random": false,
-    "rec_layers": [19, 21],
-    "score_layers": [21],
-    "score_units": [[0, 4]],
-    "score_rseed": 31415,
-    "exp_version": "maximize-activity"
+    "paths": {
+        "config": null,
+        "gen_weights": null,
+        "tiny_inet": null,
+        "out_dir": null
+    },
+    "generator": {
+        "img_size": [256, 256],
+        "variant": "fc8"
+    },
+    "mask_generator": {
+        "template": "TFFFF",
+        "shuffle": false
+    },
+    "subject": {
+        "rec_layers": [19, 21]
+    },
+    "scorer": {
+        "target_layers": [19,21],
+        "target_units": [[2, 3], [0, 4]],
+        "aggregation": "mean",
+        "rseed": 31415
+    },
+    "optimizer": {
+        "pop_sz": 20,
+        "rseed": 123,
+        "mutation_rate": 0.3,
+        "mutation_size": 0.3,
+        "num_parents": 3,
+        "temperature": 1.0,
+        "random_state": "normal"
+    },
+    "logger": {
+        "name": "experiment",
+        "version": null
+    },
+    "num_gens": 50
 }

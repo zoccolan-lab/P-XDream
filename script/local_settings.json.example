@@ -1,7 +1,7 @@
 {
-    "inverse_alex_net": "path/to/your/root",
-    "tiny_inet_root": "path/to/your/root",
-    "image_out": "path/to/store/images",
+    "gen_weights": "path/to/your/root",
+    "tiny_inet": "path/to/your/root",
+    "out_dir": "path/to/output/directory",
     "test_image": "path/to/your/image".
-    "config_file_maximize_activity": "path/to/your/config_file/maximize_activity"
+    "maximize_activity_config": "path/to/your/config_file/maximize_activity"
 }
