@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import tkinter as tk
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -50,6 +50,30 @@ Receptive Field bounding box, usually expected in
 the form (x0, x1, y0, y1) but generalizable to
 arbitrary number of dimensions.
 '''
+
+ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]
+'''
+Function evaluating the StimuliScore for each layer-specific activations
+in a SubjectState.
+'''
+
+AggregateFunction = Callable[[Dict[str, StimuliScore]], StimuliScore]
+'''
+Function aggregating the StimuliScore for different layer into
+a single StimuliScore.
+'''
+
+# --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
+
+scoring_functions: Dict[str, ScoringFunction] = { # TODO
+
+}
+
+aggregating_functions: Dict[str, ScoringFunction] = { # TODO
+	'mean'  : lambda x: np.mean  (np.stack(list(x.values())), axis=0),
+	'sum'   : lambda x: np.sum   (np.stack(list(x.values())), axis=0),
+	'median': lambda x: np.median(np.stack(list(x.values())), axis=0),
+}
 
 # --- MESSAGE ---
 

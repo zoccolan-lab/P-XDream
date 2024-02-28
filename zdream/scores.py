@@ -10,13 +10,13 @@ from einops.einops import Reduction
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 
+from zdream.utils.model import ScoringFunction
+from zdream.utils.model import AggregateFunction
+
 from .utils.model import Message
 from .utils.model import StimuliScore
 from .utils.model import SubjectState
 from .utils.misc import default
-
-ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]
-AggregateFunction = Callable[[Dict[str, StimuliScore]], StimuliScore]
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
 #       which we need to redefine for issues with importing private variables from modules.
