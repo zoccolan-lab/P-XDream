@@ -1,6 +1,17 @@
 {
-    "inverse_alex_net": "path/to/your/root",
-    "tiny_inet_root": "path/to/your/root",
-    "image_out" : "path/to/store/images",
-    "test_image": "path/to/your/image"
+    "pop_sz": 20,
+    "num_gens": 50,
+    "img_size": [256, 256],
+    "gen_variant": "fc8",
+    "optimizer_seed": 123,
+    "mutation_rate": 0.3,
+    "mutation_size": 0.3,
+    "num_parents": 3,
+    "temperature": 1.0,
+    "mask_template": "tffff",
+    "mask_is_random": false,
+    "rec_layers": [19, 21],
+    "score_layers": [21],
+    "score_units": [[0, 4]],
+    "score_rseed": 31415
 }

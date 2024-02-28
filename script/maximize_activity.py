@@ -53,7 +53,7 @@ class _MaximizeActivity(Experiment):
         score_dict = {}
         random.seed(conf['score_rseed'])
         for sl, su in zip(conf['score_layers'], conf['score_units']):
-            if isinstance(su,tuple):
+            if isinstance(su,list):
                 k_vals = list(range(su[0], su[1]))
             else:
                 k_vals = random.sample(range(1000),su)
@@ -286,13 +286,17 @@ if __name__ == '__main__':
     script_settings = read_json(path=script_settings_fp)
     
     gen_root   = script_settings['inverse_alex_net']
-    test_image = script_settings['test_image']
     image_out  = script_settings['image_out']
     tiny_inet_root = script_settings['tiny_inet_root']
+    config_path = script_settings['config_file']
     
     parser = ArgumentParser()
     
-    parser.add_argument('-config',          type=str,   help='Path for the JSON configuration file')
+    parser.add_argument('-config',          type=str, default=config_path,      help='Path for the JSON configuration file')
+    parser.add_argument('-gen_root',        type=str, default=gen_root,         help='Path to root folder of generator checkpoints')
+    parser.add_argument('-tiny_inet_root',  type=str, default=tiny_inet_root,   help='Path to tiny imagenet dataset')
+    parser.add_argument('-save_dir',        type=str, default=image_out,        help='Path to store best solution')
+    
     parser.add_argument('--pop_sz',         type=int,   help='Number of images per generation')
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
     parser.add_argument('--img_size',       type=tuple, help='Size of a given image', nargs=2)
@@ -310,9 +314,7 @@ if __name__ == '__main__':
     parser.add_argument('--score_units',     type=tuple, help='Units you want to score from')
     parser.add_argument('--score_rseed',     type=tuple, help='random seed for selecting units')
     
-    parser.add_argument('--gen_root',       type=str,    help='Path to root folder of generator checkpoints')
-    parser.add_argument('--tiny_inet_root', type=str,    help='Path to tiny imagenet dataset')
-    parser.add_argument('--save_dir',       type=str,    help='Path to store best solution')
+
     
     conf = parser.parse_args()
     
