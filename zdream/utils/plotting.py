@@ -64,9 +64,9 @@ def set_default_matplotlib_params(l_side: float = 15, shape: Literal['square', '
     #default params
     writing_sz = 35; standard_lw = 4; marker_sz = 20
     box_lw = 3; box_c = 'black'; median_lw = 4; median_c = 'red'
-    subplot_distance = 0.3
+    subplot_distance = 0.3; axes_lw = 3; tick_length = 6
     
-    if ~(xlabels==[]):
+    if not(xlabels==[]):
         writing_sz =  min(Get_appropriate_fontsz(xlabels, figure_width= l_side),writing_sz)
     params = {
         'figure.figsize': (l_side, other_side),
@@ -94,6 +94,11 @@ def set_default_matplotlib_params(l_side: float = 15, shape: Literal['square', '
         'boxplot.capprops.color': box_c,
         'axes.spines.top': False,
         'axes.spines.right': False,
+        'axes.linewidth': axes_lw,
+        'xtick.major.width': axes_lw,
+        'ytick.major.width': axes_lw,
+        'xtick.major.size': tick_length,
+        'ytick.major.size': tick_length,
         'figure.subplot.hspace': subplot_distance,
         'figure.subplot.wspace': subplot_distance
     }
@@ -122,7 +127,7 @@ def Zoccolan_style_axes(ax: Axes):
     for side, (low_b,up_b) in zip(['left','bottom'], ((t1y, t2y), (t1x, t2x))):
         if re.sub(r'[−.]', '',low_b).isdigit():
             #case 1(numeric): just set as bounds the 1st and last thicks as floats
-            ax.spines[side].set_bounds(float(low_b),float(up_b))
+            ax.spines[side].set_bounds(float(low_b.replace('−','-')),float(up_b.replace('−','-')))
         else:
             #case 2(categorical): set as bounds the index of first and last thicks
             ticks = tick_positions_y if side=='left' else tick_positions_x
@@ -132,7 +137,7 @@ def Zoccolan_style_axes(ax: Axes):
 
 def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, str| list[float]]]
                               ={'gen':{'lbl':'Synthetic','col':'k'}, 'nat':{'lbl':'Natural','col':'g'}},
-                              save_dir: str |None = None):
+                              num_bins = 25, save_dir: str |None = None):
     """
     Plot the progression of the optimization. The first plot displays the activation of the best image per 
     optimization step (left) and the average activation pm SEM per iteration (right), for both natural and synthetic
@@ -178,13 +183,14 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     if save_dir:
         fig_lp.savefig(path.join(save_dir, f'scores_lineplot.png'), bbox_inches="tight")
     plt.show()
+    
 
     #PLOT 2) SCORES HISTOGRAM/DISTRIBUTION
     fig_hist, ax = plt.subplots(1) 
     #get all scores of all images
     score_nat =np.stack(optim._score_nat)
     score_gen =np.stack(optim._score)
-
+    
     data_min = min(score_nat.min(), score_gen.min())
     data_max = max(score_nat.max(), score_gen.max())
 
@@ -199,36 +205,68 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
                  density=True,edgecolor= col_gen, linewidth =3)
     hgen = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max),
                     density=True ,color = col_gen,edgecolor= col_gen)
-
+    #for both the natural imgs histogram and for the one of gen edges, i set the columns to be transparent
     for patch_nat, patch_hgen_edg in zip(hnat[-1], hgen_edg[-1]):
         patch_nat.set_facecolor('none')
         patch_hgen_edg.set_facecolor('none')
-
+    
     n_gens = score_gen.shape[0]
+    #here i set the alpha values for each column of the hgen histogram.
+    #i iterate over each column, taking its upper bound and the related graphic object
     for up_bound, patch in zip(hgen[1][1:], hgen[-1]):
+        #i compute the probability for each generation of being less than the upper bound
+        #of the column of interest
         is_less = np.mean(score_gen < up_bound, axis = 1)
+        #the alpha is the weighted average of these probabilities, where the weights are
+        #the indexes of the generations. The later the generation, the higher its weight 
+        # (the stronger the shade of black).
+        #POSSIBLE ISSUE: is weighting too steep in this way?
         alpha_col = np.sum(is_less*range(n_gens))/np.sum(range(n_gens))
         patch.set_alpha(alpha_col)
-
+    #plot details
     plt.legend()
     plt.xlabel('Target Activation')
     plt.ylabel('Prob. density')
+    Zoccolan_style_axes(ax)
     if save_dir:
         fig_hist.savefig(path.join(save_dir, f'scores_hist.png'), bbox_inches="tight")
 
     plt.show()
 
 
-def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
+def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =3, 
+                       n_gens_considered: int = 5, save_dir: str|None = None):
+    """
+    Plot illustrating the average pm SEM scores of the topk best and worst natural images categories.
+    Moreover, it shows the average pm SEM scores of generated images in the first and last n_gens_considered.
+    
+    :param optim: Optimizer. We will use in particular its attributes "scores"
+    :type optim: Optimizer
+    :param lbls_presented: List of the labels of the natural images presented during the
+                           optimization.
+    :type lbls_presented: list[bool]
+    :param topk: number of top and bottom nat imgs classes by score considered. Default is 3
+    :type topk: int
+    :param n_gens_considered: number of generations considered at the beginning and end considered. Default is 5
+    :type n_gens_considered: int
+    :param save_dir: Directory where to save the plots (default is None)
+    :type save_dir: str |None
+    """
+    #organize scores and labels as np arrays. nat_scores are flattened to be
+    #easily indexed by the nat_lbls vector
     nat_scores = np.stack(optim._score_nat).flatten()
     gen_scores = np.stack(optim._score)
     nat_lbls = np.array(lbls_presented)
-    unique_lbls, counts_lbls = np.unique(nat_lbls, return_counts=True)
+    #get the unique labels present in the dataset
+    unique_lbls, _ = np.unique(nat_lbls, return_counts=True)
+    #gather in the lbl_acts dictionary the score statistics of interest
+    # (mean, SEM and max) for each of the labels
     lbl_acts = {}
     for lb in unique_lbls:
         lb_scores = nat_scores[np.where(nat_lbls == lb)[0]]
         lbl_acts[lb] = (np.mean(lb_scores),SEMf(lb_scores), np.amax(lb_scores))
-
+    #sort the scores by the average (we take the vals of the dict (x[1]) and 
+    # we select the first element of each tuple ([0]))
     sorted_lblA = sorted(lbl_acts.items(), key=lambda x: x[1][0])
     # Extracting top 3 and bottom 3 categories
     top_categories = sorted_lblA[-topk:]
@@ -236,18 +274,23 @@ def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
     # Unpacking top and bottom categories for plotting
     top_labels, top_values = zip(*top_categories)
     bottom_labels, bottom_values = zip(*bottom_categories)
-    gen_dict = {'Early': (np.mean(gen_scores[:5,:]), SEMf(gen_scores[:5,:].flatten())),
-                'Late': (np.mean(gen_scores[-5:,:]), SEMf(gen_scores[-5:,:].flatten()))}
-
+    #in gen_dict i define the mean and std of early and late generation epochs
+    gen_dict = {'Early': (np.mean(gen_scores[:n_gens_considered,:]), SEMf(gen_scores[:n_gens_considered,:].flatten())),
+                'Late': (np.mean(gen_scores[-n_gens_considered:,:]), SEMf(gen_scores[-n_gens_considered:,:].flatten()))}
+    
+    #Now i plot the data
     set_default_matplotlib_params(shape='rect_wide', l_side = 30)
     fig, ax = plt.subplots(2,1)
+    #first i plot the averages pm sem of the best and worst topk nat images and of early and late gens
     ax[0].barh(top_labels, [val[0] for val in top_values], xerr=[val[1] for val in top_values], label='Top 3', color='green')
     ax[0].barh(bottom_labels, [val[0] for val in bottom_values], xerr=[val[1] for val in bottom_values], label='Bottom 3', color='red')
     ax[0].barh(list(gen_dict.keys()), [v[0] for _,v in gen_dict.items()], xerr=[v[1] for _,v in gen_dict.items()], label='Gens', color='black')
 
-    ax[0].set_xlabel('Average Activation')
+    ax[0].set_xlabel('Average activation')
     ax[0].legend()
-
+    Zoccolan_style_axes(ax[0])
+    
+    #now i plot the best scores, with a logic identical to what i did for average
     sorted_lblA_bymax = sorted(lbl_acts.items(), key=lambda x: x[1][2])
     top_categories = sorted_lblA_bymax[-topk:]
     bottom_categories = sorted_lblA_bymax[:topk]
@@ -255,7 +298,7 @@ def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
     bottom_labels, bottom_values = zip(*bottom_categories)
     ax[1].barh(top_labels, [val[2] for val in top_values], label='Top 3', color='green')
     ax[1].barh(bottom_labels, [val[2] for val in bottom_values], label='Bottom 3', color='red')
-
+    Zoccolan_style_axes(ax[1])
     if save_dir:
         fig.savefig(path.join(save_dir, f'scores_by_label.png'), bbox_inches="tight")
     plt.show()
