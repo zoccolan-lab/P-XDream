@@ -1,9 +1,12 @@
 from os import path
+import os
 import time
 from abc import ABC, abstractmethod
 from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Tuple
+
+import numpy as np
 
 from .logger import Logger
 
@@ -299,6 +302,8 @@ class Experiment(ABC):
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
+
+        self.dump()
     
     def _progress_info(self, i: int) -> str:
         '''
@@ -373,6 +378,32 @@ class Experiment(ABC):
         self._elapsed_time = end_time - start_time
         
         self._finish()
+
+    # DUMP
+        
+    def dump(self):
+        ''' Perform a memory dump of experiment state '''
+
+        state_dir = path.join(self.target_dir, 'state')
+        self._logger.info(mess=f'Saving experiment state to {state_dir}')
+        os.makedirs(state_dir, exist_ok=True)
+
+        self._dump_sbj_states(out_dir=state_dir)
+        self._logger.info(mess=f'')
+
+    def _dump_sbj_states(self, out_dir: str):
+
+        sbj_states = self.subject.states_history
+
+        sbj_states_fp = path.join(out_dir, 'sbj_states.npz')
+        self._logger.info(mess=f'Saving subject states to: {sbj_states_fp}')
+
+        np.savez(sbj_states_fp, **sbj_states)
+
+
+        
+
+
 
 class MultiExperiment:
     '''

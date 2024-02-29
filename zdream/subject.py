@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Dict, List
 from typing import Tuple, cast
+import numpy as np
 
 import torch
 from torch import nn
@@ -36,6 +37,10 @@ class Subject(ABC):
     
     
 class InSilicoSubject(Subject):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._states: List[SubjectState] = []
     
     @abstractmethod
     def __call__(
@@ -44,6 +49,22 @@ class InSilicoSubject(Subject):
     ) -> Tuple[SubjectState, Message]:
         
         raise NotImplementedError("Cannot instantiate a InSilicoSubject")
+    
+    @property
+    def states_history(self) -> SubjectState:
+        ''' 
+        Returns the history of subject states as a single
+        subject state with stacked activations
+        '''
+        if not self._states:
+            raise ValueError("No state produced yet. ") 
+        
+        keys = self._states[0].keys()
+        
+        return {
+            key: np.array([state[key] for state in self._states])
+            for key in keys
+    }
     
     
     
@@ -149,11 +170,15 @@ class NetworkSubject(InSilicoSubject, nn.Module):
             if raise_no_probe: assert False, warn_msg
             else: print(warn_msg)
 
-        return self.forward(
+        state, msg =  self.forward(
             data=data,
             probe=probe,
             auto_clean=auto_clean
         )
+
+        self._states.append(state)
+
+        return state, msg
 
     # @torch.no_grad()
     def forward(
