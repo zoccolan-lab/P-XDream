@@ -45,13 +45,12 @@ class MiniImageNet(ImageFolder):
             for line in lines
         }
 
-    def class_to_lbl(self, lbl : int):
+    def class_to_lbl(self, lbl : int) -> str:
         # Takes in input the labels and outputs their categories
             return self.label_dict[self.classes[lbl]]
 
     def __getitem__(self, index: int) -> Dict[str, Tensor | str]: #if want to correct type error put  Tuple[Any, Any]
         img, lbl = super().__getitem__(index)
-        lbl = self.class_to_lbl(lbl)
         return {
             'imgs' : img,
             'lbls' : lbl,

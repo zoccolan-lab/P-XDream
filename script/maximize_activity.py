@@ -57,7 +57,7 @@ class _MaximizeActivityExperiment(Experiment):
         # --- GENERATOR ---
 
         # Dataloader
-        dataset    = MiniImageNet(root=gen_conf['tiny_inet'])
+        dataset    = MiniImageNet(root=gen_conf['mini_inet'])
         dataloader = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
         
         # Instance
@@ -128,15 +128,20 @@ class _MaximizeActivityExperiment(Experiment):
             num_parents    = opt_conf['num_parents']
         )
 
-        # Logger
+        #  --- LOGGER --- 
         log_conf['title'] = _MaximizeActivityExperiment._EXPERIMENT_NAME
         logger = LoguruLogger(
             log_conf=log_conf
         )
         
-        # Mask generator
+        # --- MASK GENERATOR ---
         base_seq = [char == 'T' for char in msk_conf['template']] 
         mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=msk_conf['shuffle'])
+
+        # --- DATA ---
+        data = {
+            "dataset": dataset
+        }
         
         # Experiment configuration
         experiment_config = ExperimentConfig(
@@ -146,12 +151,21 @@ class _MaximizeActivityExperiment(Experiment):
             subject=sbj_net,
             logger=logger,
             iteration=conf['num_gens'],
-            mask_generator=mask_generator
+            mask_generator=mask_generator,
+            data=data
         )
         
         experiment = cls(experiment_config, name=log_conf['name'])
 
         return experiment
+    
+    def __init__(self, config: ExperimentConfig, name: str = 'experiment') -> None:
+
+        super().__init__(config, name)
+
+        config.data = cast(Dict[str, Any], config.data)
+
+        self._dataset = cast(MiniImageNet, config.data['dataset'])
 
         
     def _progress_info(self, i: int) -> str:
@@ -263,7 +277,7 @@ class _MaximizeActivityExperiment(Experiment):
         
         # 2) Score plots
         plot_optimization_profile(self._optimizer, save_dir = self.target_dir)
-        plot_scores_by_cat(self._optimizer, self._labels, save_dir = self.target_dir)
+        plot_scores_by_cat(self._optimizer, self._labels, save_dir = self.target_dir, dataset=self._dataset)
         
         # TODO pkl_name = '_'.join([self._version, self._version])+'.pkl'
         # TODO with open(path.join(out_dir_fp,pkl_name), 'wb') as file:
@@ -322,7 +336,7 @@ if __name__ == '__main__':
     # Set as defaults
     gen_weights  = script_settings['gen_weights']
     out_dir      = script_settings['out_dir']
-    tiny_inet    = script_settings['tiny_inet']
+    mini_inet    = script_settings['mini_inet']
     config_path  = script_settings['maximize_activity_config']
 
     parser = ArgumentParser()
@@ -331,7 +345,7 @@ if __name__ == '__main__':
     
     # Generator
     parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',     default = gen_weights,)
-    parser.add_argument('--tiny_inet',      type=str,   help='Path to tiny tiny imagenet dataset',      default = tiny_inet,)
+    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet dataset',      default = mini_inet,)
     parser.add_argument('--batch_size',     type=int,   help='Natural image dataloader batch size')
     parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
     

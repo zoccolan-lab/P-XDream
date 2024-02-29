@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from typing import List, Literal, Union, Any
 import numpy as np
+from zdream.utils.dataset import MiniImageNet
 from zdream.utils.misc import SEMf
 from zdream.optimizer import Optimizer
 
@@ -234,8 +235,8 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     plt.show()
 
 
-def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =3, 
-                       n_gens_considered: int = 5, save_dir: str|None = None):
+def plot_scores_by_cat(optim: Optimizer, lbls_presented: List[int], dataset: MiniImageNet,
+                       topk: int =3, n_gens_considered: int = 5, save_dir: str|None = None, ):
     """
     Plot illustrating the average pm SEM scores of the topk best and worst natural images categories.
     Moreover, it shows the average pm SEM scores of generated images in the first and last n_gens_considered.
@@ -245,6 +246,8 @@ def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =
     :param lbls_presented: List of the labels of the natural images presented during the
                            optimization.
     :type lbls_presented: list[bool]
+    :param dataset: TODO
+    :type dataset: MiniImageNet
     :param topk: number of top and bottom nat imgs classes by score considered. Default is 3
     :type topk: int
     :param n_gens_considered: number of generations considered at the beginning and end considered. Default is 5
@@ -256,7 +259,8 @@ def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =
     #easily indexed by the nat_lbls vector
     nat_scores = np.stack(optim._score_nat).flatten()
     gen_scores = np.stack(optim._score)
-    nat_lbls = np.array(lbls_presented)
+    vectorized_lambda = np.vectorize(lambda x: dataset.class_to_lbl(lbl=x))
+    nat_lbls = vectorized_lambda(lbls_presented)
     #get the unique labels present in the dataset
     unique_lbls, _ = np.unique(nat_lbls, return_counts=True)
     #gather in the lbl_acts dictionary the score statistics of interest

@@ -2,7 +2,7 @@
     "config": null,
     "generator": {
         "weights": null,
-        "tiny_inet": null,
+        "mini_inet": null,
         "batch_size": 2,
         "variant": "fc8"
     },
