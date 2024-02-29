@@ -68,10 +68,10 @@ class Logger:
 		# If new version wasn't specified
 		if not version:
 			existing_dirs = os.listdir(exp_dir) if path.exists(exp_dir) else []
-			same_version = [filename for filename in existing_dirs if filename.startswith(f'{name}-')]
-			if same_version:
+			if existing_dirs:
 				# The new version is one plus the old version
-				version = int(same_version[-1].split('-')[1]) + 1
+				versions = sorted([int(version_name.split('-')[1]) for version_name in existing_dirs])
+				version = versions[-1] + 1
 			else:
 				# First version
 				version = 0
