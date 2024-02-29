@@ -64,9 +64,9 @@ def set_default_matplotlib_params(l_side: float = 15, shape: Literal['square', '
     #default params
     writing_sz = 35; standard_lw = 4; marker_sz = 20
     box_lw = 3; box_c = 'black'; median_lw = 4; median_c = 'red'
-    subplot_distance = 0.3
+    subplot_distance = 0.3; axes_lw = 3
     
-    if ~(xlabels==[]):
+    if not(xlabels==[]):
         writing_sz =  min(Get_appropriate_fontsz(xlabels, figure_width= l_side),writing_sz)
     params = {
         'figure.figsize': (l_side, other_side),
@@ -94,6 +94,9 @@ def set_default_matplotlib_params(l_side: float = 15, shape: Literal['square', '
         'boxplot.capprops.color': box_c,
         'axes.spines.top': False,
         'axes.spines.right': False,
+        'axes.linewidth': axes_lw,
+        'xtick.major.width': axes_lw,
+        'ytick.major.width': axes_lw,
         'figure.subplot.hspace': subplot_distance,
         'figure.subplot.wspace': subplot_distance
     }
@@ -122,7 +125,7 @@ def Zoccolan_style_axes(ax: Axes):
     for side, (low_b,up_b) in zip(['left','bottom'], ((t1y, t2y), (t1x, t2x))):
         if re.sub(r'[−.]', '',low_b).isdigit():
             #case 1(numeric): just set as bounds the 1st and last thicks as floats
-            ax.spines[side].set_bounds(float(low_b),float(up_b))
+            ax.spines[side].set_bounds(float(low_b.replace('−','-')),float(up_b.replace('−','-')))
         else:
             #case 2(categorical): set as bounds the index of first and last thicks
             ticks = tick_positions_y if side=='left' else tick_positions_x
@@ -132,7 +135,7 @@ def Zoccolan_style_axes(ax: Axes):
 
 def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, str| list[float]]]
                               ={'gen':{'lbl':'Synthetic','col':'k'}, 'nat':{'lbl':'Natural','col':'g'}},
-                              save_dir: str |None = None):
+                              num_bins = 25, save_dir: str |None = None):
     """
     Plot the progression of the optimization. The first plot displays the activation of the best image per 
     optimization step (left) and the average activation pm SEM per iteration (right), for both natural and synthetic
@@ -185,7 +188,7 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     #get all scores of all images
     score_nat =np.stack(optim._score_nat)
     score_gen =np.stack(optim._score)
-
+    
     data_min = min(score_nat.min(), score_gen.min())
     data_max = max(score_nat.max(), score_gen.max())
 
@@ -222,6 +225,7 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     plt.legend()
     plt.xlabel('Target Activation')
     plt.ylabel('Prob. density')
+    Zoccolan_style_axes(ax)
     if save_dir:
         fig_hist.savefig(path.join(save_dir, f'scores_hist.png'), bbox_inches="tight")
 
