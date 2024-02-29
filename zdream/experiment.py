@@ -12,7 +12,7 @@ from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectSta
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default, flatten_dict, merge_dicts, save_json, stringfy_time
+from .utils.misc import default, flatten_dict, merge_dicts, overwrite_dict, save_json, stringfy_time
 
 
 @dataclass
@@ -381,7 +381,7 @@ class MultiExperiment:
     
     def __init__(
         self,
-        experiment : Experiment,
+        experiment : 'Experiment',
         base_config   : Dict[str, Any],
         search_config : Dict[str, Tuple[Any]], 
     ) -> None:
@@ -396,10 +396,10 @@ class MultiExperiment:
         provide coherent number of experiment runs.
         '''
         values = list(search_config.values())
-        assert all([len(v) == values[0] for v in values]), err_msg
+        assert all([len(v) == len(values[0]) for v in values]), err_msg
         
-        self.Exp = experiment
-        self.base_config = base_config
+        self._Exp = experiment
+        self._base_config = base_config
         
         # Convert the search configuration from 
         keys, vals = search_config.keys(), search_config.values()
@@ -410,9 +410,10 @@ class MultiExperiment:
 
     def run(self):
         for conf in self.search_config:
-            exp_config = merge_dicts(self.base_config, conf)
-            
-            exp = self.Exp.from_config(exp_config)
+
+            exp_config = overwrite_dict(self._base_config, conf)
+            print("Here")
+            exp = self._Exp.from_config(exp_config)
             
             exp.run()
 

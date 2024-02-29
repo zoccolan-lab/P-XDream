@@ -5,12 +5,12 @@ TODO Experiment description
 from os import path
 from argparse import ArgumentParser
 import matplotlib
+from zdream.experiment import MultiExperiment
 
 from zdream.utils.experiment_types import _MaximizeActivityExperiment
 from zdream.utils.misc import overwrite_dict, read_json
 
 matplotlib.use('TKAgg')
-
 
 LOCAL_SETTINGS = 'local_settings.json'
 
@@ -19,12 +19,19 @@ def main(args):
     # Experiment
 
     json_conf = read_json(args.config)
-    args_conf = {k : v for k, v in vars(args).items() if v}
-    
-    full_conf = overwrite_dict(json_conf, args_conf)
-    
-    experiment = _MaximizeActivityExperiment.from_config(full_conf)
-    experiment.run()
+    print("Here")
+
+    args_conf = {k : [v]*3 for k, v in vars(args).items() if v}
+    args_conf['num_gens'] = (2, 3, 4)
+
+    mrun_experiment = MultiExperiment(
+        experiment=_MaximizeActivityExperiment,
+        base_config=json_conf,
+        search_config=args_conf
+    )
+
+    mrun_experiment.run()
+
 
 
 if __name__ == '__main__':
