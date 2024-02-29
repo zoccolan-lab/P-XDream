@@ -43,7 +43,7 @@ class InSilicoSubject(Subject):
         data : Tuple[Stimuli, Message]
     ) -> Tuple[SubjectState, Message]:
         
-        raise NotImplementedError("Cannot call a InSilicoSubject")
+        raise NotImplementedError("Cannot instantiate a InSilicoSubject")
     
     
     

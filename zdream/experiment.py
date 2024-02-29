@@ -12,7 +12,7 @@ from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectSta
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default, merge_dicts, save_json, stringfy_time
+from .utils.misc import default, flatten_dict, merge_dicts, save_json, stringfy_time
 
 
 @dataclass
@@ -261,13 +261,18 @@ class Experiment(ABC):
 
         # Save and log parameters
         if self._param_config:
+
+            flat_dict = flatten_dict(self._param_config)
             
             # Log
             self._logger.info(f"")
             self._logger.info(f"Parameters:")
-            max_key_len = max(len(key) for key in self._param_config.keys()) # for padding
-            for k, v in self._param_config.items():
-                self._logger.info(f'{k:<{max_key_len}}:   {v}')
+
+            max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
+
+            for k, v in flat_dict.items():
+                k_ = f"{k}:"
+                self._logger.info(f'{k_:<{max_key_len}}   {v}')
 
             # Save
             config_param_fp = path.join(self.target_dir, 'params.json')
@@ -293,6 +298,7 @@ class Experiment(ABC):
 
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
+        self._logger.info(mess="")
     
     def _progress_info(self, i: int) -> str:
         '''

@@ -148,6 +148,18 @@ class Logger:
 
 class LoguruLogger(Logger):
 	""" Logger overriding logger methods with `loguru` ones"""
+
+	def __init__(self, log_conf: Dict[str, str]) -> None:
+		super().__init__(log_conf)
+
+		self._loguru_settings()
+
+		
+	def _loguru_settings(self):
+		
+		# Configure logger to write to both file and terminal
+		log_file = path.join(self.target_dir, 'info.log')
+		logger.add(log_file, level=0, enqueue=True) # Log to file
 	
 	def info(self, mess: str): logger.info(mess)
 	def warn(self, mess: str): logger.warning(mess)
