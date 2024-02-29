@@ -178,6 +178,7 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     if save_dir:
         fig_lp.savefig(path.join(save_dir, f'scores_lineplot.png'), bbox_inches="tight")
     plt.show()
+    
 
     #PLOT 2) SCORES HISTOGRAM/DISTRIBUTION
     fig_hist, ax = plt.subplots(1) 
@@ -199,17 +200,25 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
                  density=True,edgecolor= col_gen, linewidth =3)
     hgen = plt.hist(score_gen.flatten(), bins=num_bins, range=(data_min, data_max),
                     density=True ,color = col_gen,edgecolor= col_gen)
-
+    #for both the natural imgs histogram and for the one of gen edges, i set the columns to be transparent
     for patch_nat, patch_hgen_edg in zip(hnat[-1], hgen_edg[-1]):
         patch_nat.set_facecolor('none')
         patch_hgen_edg.set_facecolor('none')
-
+    
     n_gens = score_gen.shape[0]
+    #here i set the alpha values for each column of the hgen histogram.
+    #i iterate over each column, taking its upper bound and the related graphic object
     for up_bound, patch in zip(hgen[1][1:], hgen[-1]):
+        #i compute the probability for each generation of being less than the upper bound
+        #of the column of interest
         is_less = np.mean(score_gen < up_bound, axis = 1)
+        #the alpha is the weighted average of these probabilities, where the weights are
+        #the indexes of the generations. The later the generation, the higher its weight 
+        # (the stronger the shade of black).
+        #POSSIBLE ISSUE: is weighting too steep in this way?
         alpha_col = np.sum(is_less*range(n_gens))/np.sum(range(n_gens))
         patch.set_alpha(alpha_col)
-
+    #plot details
     plt.legend()
     plt.xlabel('Target Activation')
     plt.ylabel('Prob. density')
@@ -219,16 +228,39 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     plt.show()
 
 
-def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
+def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =3, 
+                       n_gens_considered: int = 5, save_dir: str|None = None):
+    """
+    Plot illustrating the average pm SEM scores of the topk best and worst natural images categories.
+    Moreover, it shows the average pm SEM scores of generated images in the first and last n_gens_considered.
+    
+    :param optim: Optimizer. We will use in particular its attributes "scores"
+    :type optim: Optimizer
+    :param lbls_presented: List of the labels of the natural images presented during the
+                           optimization.
+    :type lbls_presented: list[bool]
+    :param topk: number of top and bottom nat imgs classes by score considered. Default is 3
+    :type topk: int
+    :param n_gens_considered: number of generations considered at the beginning and end considered. Default is 5
+    :type n_gens_considered: int
+    :param save_dir: Directory where to save the plots (default is None)
+    :type save_dir: str |None
+    """
+    #organize scores and labels as np arrays. nat_scores are flattened to be
+    #easily indexed by the nat_lbls vector
     nat_scores = np.stack(optim._score_nat).flatten()
     gen_scores = np.stack(optim._score)
     nat_lbls = np.array(lbls_presented)
-    unique_lbls, counts_lbls = np.unique(nat_lbls, return_counts=True)
+    #get the unique labels present in the dataset
+    unique_lbls, _ = np.unique(nat_lbls, return_counts=True)
+    #gather in the lbl_acts dictionary the score statistics of interest
+    # (mean, SEM and max) for each of the labels
     lbl_acts = {}
     for lb in unique_lbls:
         lb_scores = nat_scores[np.where(nat_lbls == lb)[0]]
         lbl_acts[lb] = (np.mean(lb_scores),SEMf(lb_scores), np.amax(lb_scores))
-
+    #sort the scores by the average (we take the vals of the dict (x[1]) and 
+    # we select the first element of each tuple ([0]))
     sorted_lblA = sorted(lbl_acts.items(), key=lambda x: x[1][0])
     # Extracting top 3 and bottom 3 categories
     top_categories = sorted_lblA[-topk:]
@@ -236,8 +268,9 @@ def plot_scores_by_cat(optim, lbls_presented, topk =3, save_dir = None):
     # Unpacking top and bottom categories for plotting
     top_labels, top_values = zip(*top_categories)
     bottom_labels, bottom_values = zip(*bottom_categories)
-    gen_dict = {'Early': (np.mean(gen_scores[:5,:]), SEMf(gen_scores[:5,:].flatten())),
-                'Late': (np.mean(gen_scores[-5:,:]), SEMf(gen_scores[-5:,:].flatten()))}
+    #in gen_dict 
+    gen_dict = {'Early': (np.mean(gen_scores[:n_gens_considered,:]), SEMf(gen_scores[:n_gens_considered,:].flatten())),
+                'Late': (np.mean(gen_scores[-n_gens_considered:,:]), SEMf(gen_scores[-n_gens_considered:,:].flatten()))}
 
     set_default_matplotlib_params(shape='rect_wide', l_side = 30)
     fig, ax = plt.subplots(2,1)
