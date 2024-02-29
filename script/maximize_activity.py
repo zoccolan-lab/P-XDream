@@ -15,11 +15,10 @@ from functools import partial
 import random
 import matplotlib
 from PIL import Image
-import pickle
 
 from zdream.logger import LoguruLogger
 from zdream.generator import InverseAlexGenerator
-from zdream.plot_utils import plot_optimization_profile, plot_scores_by_cat
+from zdream.utils.plotting import plot_optimization_profile, plot_scores_by_cat
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 from zdream.scores import MaxActivityScorer
@@ -27,7 +26,7 @@ from zdream.optimizer import GeneticOptimizer
 from zdream.experiment import Experiment, ExperimentConfig
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.misc import concatenate_images, merge_dicts, overwrite_dict, read_json, repeat_pattern, device, to_gif
-from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState
+from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions
 
 matplotlib.use('TKAgg')
 
@@ -47,83 +46,97 @@ class _MaximizeActivityExperiment(Experiment):
         :rtype: _MaximizeActivity
         '''
 
-        # Transform Mask sequence into boolean
-        base_seq = [char == 't' for char in conf['mask_template']] # TODO It doesn't check for others letter instead of 'f'
-        
-        # Create network subject
-        sbj_net = NetworkSubject(network_name='alexnet')
-        
-        layer_names = sbj_net.layer_names
-        
-        # Extract the name of recording layers
-        rec_layers = [layer_names[i] for i in conf['rec_layers']] # TODO Check input as a tuple
+        # Extract specific configurations
+        gen_conf = conf['generator']
+        msk_conf = conf['mask_generator']
+        sbj_conf = conf['subject']
+        scr_conf = conf['scorer']
+        opt_conf = conf['optimizer']
+        log_conf = conf['logger']
 
-        # Building target neurons
-        # TODO what is this ifelse doing?
-        score_dict = {}
-        random.seed(conf['score_rseed'])
-        for sl, su in zip(conf['score_layers'], conf['score_units']):
-            if isinstance(su,list):
-                k_vals = list(range(su[0], su[1]))
-            else:
-                k_vals = random.sample(range(1000),su)
-            score_dict[layer_names[sl]] = k_vals
-            
-        # Generator with Dataloader
-        mini_IN = MiniImageNet(root=conf['tiny_inet_root'])
-        mini_IN_loader = DataLoader(mini_IN, batch_size=10, shuffle=True) #set num_workers
-        # mini_IN_loader = DataLoader(RandomImageDataset(1000, (3, 256, 256)), batch_size=2, shuffle=True)
+        # --- GENERATOR ---
+
+        # Dataloader
+        dataset    = MiniImageNet(root=gen_conf['tiny_inet'])
+        dataloader = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
         
+        # Instance
         generator = InverseAlexGenerator(
-            root=conf['gen_root'],
-            variant=conf['gen_variant'],
-            nat_img_loader=mini_IN_loader
+            root           = gen_conf['weights'],
+            variant        = gen_conf['variant'],
+            nat_img_loader = dataloader
         ).to(device)
+
+
+        # --- SUBJECT ---
+
+        # Create a on-the-fly network subject to extract all network layer names
+        layer_names: List[str] = NetworkSubject(network_name=sbj_conf['net_name']).layer_names
+
         
-        # Initialize  NetworkSubject with a recording probe
-        
-        record_target = {l: None for l in rec_layers} # Record from any layers
-        probe = RecordingProbe(target = record_target) # type: ignore TODO check typing
+        # Probe
+        record_target = {layer_names[i]: None for i in sbj_conf['rec_layers']} # Record from any neurons in input layers
+        probe = RecordingProbe(target = record_target) # type: ignore
         
         sbj_net = NetworkSubject(
             record_probe=probe, 
-            network_name='alexnet'
+            network_name=sbj_conf['net_name']
         )
         sbj_net._network.eval() # TODO cannot access private attribute, make public method to call the eval
         
-        # Scorer
-        aggregate = lambda x: np.mean(np.stack(list(x.values())), axis=0)
+        # --- SCORER ---
+
+        # Target neurons
+        score_dict = {}
+        random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
+
+        for layer, units in zip(scr_conf['target_layers'], scr_conf['target_units']):
+
+            # In the case the units are a list of length two we take
+            # the neurons in their range
+            if isinstance(units, list):
+                if len(units) == 2:
+                    start, end = units
+                    neurons = list(range(start, end))
+                else:
+                    raise ValueError('Units provided must be one or two')
+            # In the case the units are a single number 
+            # we uniformly sample that number of neurons
+            elif isinstance(units, int):
+                neurons = random.sample(range(np.prod(generator.input_dim)), units)
+            else:
+                raise TypeError('Units must be a list of length two or integers.')
+            
+            # Add layer and neurons to scoring
+            score_dict[layer_names[layer]] = neurons
+
         scorer = MaxActivityScorer(
             trg_neurons=score_dict,
-            aggregate=aggregate
+            aggregate=aggregating_functions[scr_conf['aggregation']]
         )
 
-        # Optimizer
+        # --- OPTIMIZER ---
+
         optim = GeneticOptimizer(
-            states_shape=generator.input_dim,
-            random_state=conf['optimizer_seed'],
-            random_distr='normal', # TODO add config
-            mutation_rate=conf['mutation_rate'],
-            mutation_size=conf['mutation_size'],
-            population_size=conf['pop_sz'],
-            temperature=conf['temperature'],
-            num_parents=conf['num_parents']
+            states_shape   = generator.input_dim,
+            random_state   = opt_conf['optim_rseed'],
+            random_distr   = opt_conf['random_state'],
+            mutation_rate  = opt_conf['mutation_rate'],
+            mutation_size  = opt_conf['mutation_size'],
+            population_size= opt_conf['pop_sz'],
+            temperature    = opt_conf['temperature'],
+            num_parents    = opt_conf['num_parents']
         )
 
         # Logger
+        log_conf['title'] = _MaximizeActivityExperiment._EXPERIMENT_NAME
         logger = LoguruLogger(
-            out_dir=conf['save_dir'],
-            exp_name=_MaximizeActivityExperiment._EXPERIMENT_NAME,
-            exp_version=conf['exp_vrs']
+            log_conf=log_conf
         )
         
         # Mask generator
-        mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=conf['mask_is_random'])
-        
-        # Additional data
-        data = {
-            "save_dir": conf['save_dir']
-        }
+        base_seq = [char == 'T' for char in msk_conf['template']] 
+        mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=msk_conf['shuffle'])
         
         # Experiment configuration
         experiment_config = ExperimentConfig(
@@ -133,18 +146,13 @@ class _MaximizeActivityExperiment(Experiment):
             subject=sbj_net,
             logger=logger,
             iteration=conf['num_gens'],
-            mask_generator=mask_generator,
-            data=data
+            mask_generator=mask_generator
         )
         
-        experiment = cls(experiment_config, version = conf['exp_vrs'])
+        experiment = cls(experiment_config, name=log_conf['name'])
 
         return experiment
 
-    def __init__(self, config: ExperimentConfig, version : str, name: str = "maximize_activity") -> None:
-        
-        super().__init__(config=config, version=name)
-        self._data = cast(Dict[str, Any], config.data)
         
     def _progress_info(self, i: int) -> str:
         
@@ -228,7 +236,7 @@ class _MaximizeActivityExperiment(Experiment):
         # 1) Best Images
         
         # We create the directory to store results
-        out_dir_fp = path.join(self._data['save_dir'], self._version, self._version)
+        out_dir_fp = path.join(self.target_dir, self._name, self._name)
         os.makedirs(out_dir_fp, exist_ok=True)
         
         # We retrieve the best code from the optimizer
@@ -318,16 +326,13 @@ if __name__ == '__main__':
     config_path  = script_settings['maximize_activity_config']
 
     parser = ArgumentParser()
-
     
-    # Paths
-    parser.add_argument('-config',          type=str,   help='Path for the JSON configuration file',          default = config_path,)
-    parser.add_argument('-gen_weights',     type=str,   help='Path to folder of generator weights',           default = gen_weights,)
-    parser.add_argument('-tiny_inet',       type=str,   help='Path to tiny tiny imagenet dataset',            default = tiny_inet,)
-    parser.add_argument('-out_dir',         type=str,   help='Path to directory to save outputs',             default = out_dir,)
+    parser.add_argument('--config',          type=str,   help='Path for the JSON configuration file',   default = config_path,)
     
     # Generator
-    parser.add_argument('--img_size',       type=tuple, help='Size of a given image', nargs=2)
+    parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',     default = gen_weights,)
+    parser.add_argument('--tiny_inet',      type=str,   help='Path to tiny tiny imagenet dataset',      default = tiny_inet,)
+    parser.add_argument('--batch_size',     type=int,   help='Natural image dataloader batch size')
     parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
     
     # Mask generator
@@ -335,17 +340,18 @@ if __name__ == '__main__':
     parser.add_argument('--shuffle',        type=bool , help='If to shuffle mask pattern')
 
     # Subject
+    parser.add_argument('--net_name',       type=str,   help='SubjectNetwork name')
     parser.add_argument('--rec_layers',     type=tuple, help='Recording layers')
 
     # Scorer
     parser.add_argument('--target_layers',  type=tuple, help='Target scoring layers')
     parser.add_argument('--target_units',   type=tuple, help='Target scoring neurons')
     parser.add_argument('--aggregation',    type=tuple, help='Name of scoring aggregation function between layers')
-    parser.add_argument('--rseed',          type=tuple, help='Random seed for neurons selection')
+    parser.add_argument('--scr_rseed',      type=tuple, help='Random seed for neurons selection')
     
     # Optimizer
     parser.add_argument('--pop_sz',         type=int,   help='Starting number of the population')
-    parser.add_argument('--rseed',          type=int,   help='Random seed in for the optimizer')
+    parser.add_argument('--optim_rseed',    type=int,   help='Random seed in for the optimizer')
     parser.add_argument('--mutation_rate',  type=float, help='Mutation rate for the optimizer')
     parser.add_argument('--mutation_size',  type=float, help='Mutation size for the optimizer')
     parser.add_argument('--num_parents',    type=int,   help='Number of parents for the optimizer')
@@ -355,6 +361,7 @@ if __name__ == '__main__':
     # Logger
     parser.add_argument('--name',           type=str,   help='Experiment name')
     parser.add_argument('--version',        type=int,   help='Experiment version')
+    parser.add_argument('--out_dir',        type=str,   help='Path to directory to save outputs',       default = out_dir,)
     
     # Iterations
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')

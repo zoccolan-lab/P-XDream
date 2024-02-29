@@ -1,12 +1,9 @@
 {
-    "paths": {
-        "config": null,
-        "gen_weights": null,
-        "tiny_inet": null,
-        "out_dir": null
-    },
+    "config": null,
     "generator": {
-        "img_size": [256, 256],
+        "weights": null,
+        "tiny_inet": null,
+        "batch_size": 2,
         "variant": "fc8"
     },
     "mask_generator": {
@@ -14,17 +11,18 @@
         "shuffle": false
     },
     "subject": {
-        "rec_layers": [19, 21]
+        "net_name": "alexnet",
+        "rec_layers": [21]
     },
     "scorer": {
-        "target_layers": [19,21],
-        "target_units": [[2, 3], [0, 4]],
+        "target_layers": [21],
+        "target_units": [[0, 4]],
         "aggregation": "mean",
-        "rseed": 31415
+        "scr_rseed": 31415
     },
     "optimizer": {
         "pop_sz": 20,
-        "rseed": 123,
+        "optim_rseed": 123,
         "mutation_rate": 0.3,
         "mutation_size": 0.3,
         "num_parents": 3,
@@ -32,6 +30,7 @@
         "random_state": "normal"
     },
     "logger": {
+        "out_dir": null,
         "name": "experiment",
         "version": null
     },

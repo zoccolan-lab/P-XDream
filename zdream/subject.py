@@ -272,11 +272,11 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         return next(self._network.parameters()).device
     
     @property
-    def layer_names(self) -> List[int]:
+    def layer_names(self) -> List[str]:
         '''
         Return layers names in the network architecture.
         
         :return: List of layers names.
-        :rtype: List[int]
+        :rtype: List[str]
         '''
         return [layer.name for layer in unpack(self._network)]

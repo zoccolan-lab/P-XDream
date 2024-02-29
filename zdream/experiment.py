@@ -86,21 +86,21 @@ class Experiment(ABC):
     def __init__(
             self, 
             config: ExperimentConfig,
-            version: str = 'experiment'
+            name: str = 'experiment'
         ) -> None:
         '''
         The constructor extract the terms from the configuration object.
 
         :param config: Experiment configuration.
         :type config: ExperimentConfig
-        :param version: Name identifier for the experiment version, defaults to 'experiment'.
-        :type version: str, optional
+        :param name: Name identifier for the experiment version, defaults to 'experiment'.
+        :type name: str, optional
         :param param_config: Dictionary 
         :type version: Dict[str, Any]
         '''
         
-        # Experiment version
-        self._version = version
+        # Experiment name
+        self._name = name
         
         # Configuration attributes
         self._generator      = config.generator
@@ -311,7 +311,7 @@ class Experiment(ABC):
         progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{i * 100 / self._iteration:>5.2f}%'
         
-        return f'{self.EXPERIMENT_TITLE}[{self._version}]: [{progress}] ({perc})'
+        return f'{self.EXPERIMENT_TITLE}[{self._name}]: [{progress}] ({perc})'
     
     def _progress(self, i: int):
         '''

@@ -6,6 +6,7 @@ import tkinter as tk
 from PIL import Image
 from loguru import logger
 from typing import Dict, Tuple
+from zdream.utils.misc import rmdir
 
 from zdream.utils.model import DisplayScreen
 
@@ -19,20 +20,16 @@ class Logger:
 	and technologies.
 	'''
 
-	def __init__(self, out_dir: str, exp_name: str, exp_version: str) -> None:
+	def __init__(self, log_conf: Dict[str, str]) -> None:
 		'''
 		Initialize the logger with a specific target directory
 
-		:param out_dir: _description_
-		:type out_dir: str
-		:param exp_name: _description_
-		:type exp_name: str
-		:param exp_version: _description_
-		:type exp_version: str
+		:param log_conf: mapping for experiment directory, title, name and version.
+		:type out_dir: Dict[str, str]
 		'''
 
 		# Set empty target directory
-		self._target_dir: str = self._get_target_dir(out_dir=out_dir, exp_name=exp_name, exp_version=exp_version)
+		self._target_dir: str = self._get_target_dir(log_conf=log_conf)
 
 		# Tinker main screen is mandatory, but we can hide it.
 		self._main_screen = tk.Tk()
@@ -51,21 +48,48 @@ class Logger:
 
 	# TARGET DIRECTORY
 
-	def _get_target_dir(self, out_dir: str, exp_name: str, exp_version: str) -> str:
+	def _get_target_dir(self, log_conf: Dict[str, str]) -> str:
+		'''
+		Return the target directory where to save results.
+
+		:param log_conf: mapping for experiment directory, title, name and version.
+		:type out_dir: Dict[str, str]
+		'''
+
+		# Parameters
+		out_dir = log_conf['out_dir']
+		title   = log_conf['title']
+		name    = log_conf['name']
+		version = log_conf['version']
 	
 		# Experiment directory
-		exp_dir = path.join(out_dir, exp_name)
+		exp_dir = path.join(out_dir, title, name)
 
-		# Retrieve and create Experiment version directory
-		same_version   = len(
-			[filename for filename in os.listdir(exp_dir) if filename.startswith(exp_version)]
-		) if os.path.exists(exp_dir) else 0
+		# If new version wasn't specified
+		if not version:
+			existing_dirs = os.listdir(exp_dir) if path.exists(exp_dir) else []
+			same_version = [filename for filename in existing_dirs if filename.startswith(f'{name}-')]
+			if same_version:
+				# The new version is one plus the old version
+				version = int(same_version[-1].split('-')[1]) + 1
+			else:
+				# First version
+				version = 0
+		
+		version_name = f'{name}-{version}'
+		target_dir   = path.join(exp_dir, version_name)
 
-		version_number = '' if same_version == 0 else f'-{same_version}'
-		version_name   = f'{exp_version}{version_number}'
-
-		# Set target directory
-		target_dir = path.join(exp_dir, version_name)
+		# Check if it's overwriting and raise a warning in the case
+		if path.exists(target_dir):
+			self.warn(mess=f'The version will overwrite {target_dir}. Continue [y/n]')
+			inp = input()
+			# If continue we remove old directory
+			if inp == 'y' or inp == 'Y':
+				rmdir(target_dir)
+			# otherwise we exit	
+			else:
+				self.error(" Choose an another version for non overwrite preexisting files. Exiting...")
+				exit(1)
 
 		return target_dir
 	
@@ -124,9 +148,6 @@ class Logger:
 
 class LoguruLogger(Logger):
 	""" Logger overriding logger methods with `loguru` ones"""
-
-	def __init__(self, out_dir: str, exp_name: str, exp_version: str):
-		super().__init__(out_dir, exp_name, exp_version)
 	
 	def info(self, mess: str): logger.info(mess)
 	def warn(self, mess: str): logger.warning(mess)

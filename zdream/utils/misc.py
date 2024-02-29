@@ -1,3 +1,4 @@
+import os
 import re
 import random
 import json
@@ -245,6 +246,27 @@ def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
         append_images=image_list[1:], 
         loop=0, duration=duration
     )
+
+def rmdir(directory):
+    """
+    Recursively removes the contents of a directory and the directory itself.
+    """
+
+    # Iterate over the contents of the directory
+    for item in os.listdir(directory):
+
+        # Construct the full path of the item
+        item_path = os.path.join(directory, item)
+        
+        # Check if the item is a file
+        if os.path.isfile(item_path):
+            os.remove(item_path)
+        # If the item is a directory, recursively remove its contents
+        elif os.path.isdir(item_path):
+            rmdir(item_path)
+    
+    # After removing all contents, remove the directory itself
+    os.rmdir(directory)
     
 # --- IMAGES ---
 
@@ -341,10 +363,27 @@ def merge_dicts(a: dict, b: dict) -> Dict:
     return b
 
 def overwrite_dict(a: dict, b: dict) -> Dict:
-    ''' A is nested, B is flat'''
+    ''' 
+    Overwrite keys of a nested dictionary A with those of a 
+    second flat dictionary B is their values are not none.
+    '''
     for key in a:
         if isinstance(a[key], dict):
-            merge_dicts(a[key], b)
-        elif b[key]:
+            overwrite_dict(a[key], b)
+        elif key in b:
             a[key] = b[key]
     return a
+
+def flatten_dict(d: Dict):
+    """
+    Flatten a nested dictionary recursively to multiple levels.
+    """
+    flattened_dict = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            nested_flattened = flatten_dict(v)
+            for nk, nv in nested_flattened.items():
+                flattened_dict[nk] = nv
+        else:
+            flattened_dict[k] = v
+    return flattened_dict

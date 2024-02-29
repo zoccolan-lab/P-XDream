@@ -69,7 +69,7 @@ scoring_functions: Dict[str, ScoringFunction] = { # TODO
 
 }
 
-aggregating_functions: Dict[str, ScoringFunction] = { # TODO
+aggregating_functions: Dict[str, AggregateFunction] = { # TODO
 	'mean'  : lambda x: np.mean  (np.stack(list(x.values())), axis=0),
 	'sum'   : lambda x: np.sum   (np.stack(list(x.values())), axis=0),
 	'median': lambda x: np.median(np.stack(list(x.values())), axis=0),
