@@ -49,7 +49,7 @@ class MiniImageNet(ImageFolder):
         # Takes in input the labels and outputs their categories
             return self.label_dict[self.classes[lbl]]
 
-    def __getitem__(self, index: int) -> Dict[str, Tensor | str]: #if want to correct type error put  Tuple[Any, Any]
+    def __getitem__(self, index: int) -> Dict[str, Tensor | int]: #if want to correct type error put  Tuple[Any, Any]
         img, lbl = super().__getitem__(index)
         return {
             'imgs' : img,
