@@ -64,7 +64,7 @@ def set_default_matplotlib_params(l_side: float = 15, shape: Literal['square', '
     #default params
     writing_sz = 35; standard_lw = 4; marker_sz = 20
     box_lw = 3; box_c = 'black'; median_lw = 4; median_c = 'red'
-    subplot_distance = 0.3; axes_lw = 3
+    subplot_distance = 0.3; axes_lw = 3; tick_length = 6
     
     if not(xlabels==[]):
         writing_sz =  min(Get_appropriate_fontsz(xlabels, figure_width= l_side),writing_sz)
@@ -97,6 +97,8 @@ def set_default_matplotlib_params(l_side: float = 15, shape: Literal['square', '
         'axes.linewidth': axes_lw,
         'xtick.major.width': axes_lw,
         'ytick.major.width': axes_lw,
+        'xtick.major.size': tick_length,
+        'ytick.major.size': tick_length,
         'figure.subplot.hspace': subplot_distance,
         'figure.subplot.wspace': subplot_distance
     }
@@ -272,19 +274,23 @@ def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =
     # Unpacking top and bottom categories for plotting
     top_labels, top_values = zip(*top_categories)
     bottom_labels, bottom_values = zip(*bottom_categories)
-    #in gen_dict 
+    #in gen_dict i define the mean and std of early and late generation epochs
     gen_dict = {'Early': (np.mean(gen_scores[:n_gens_considered,:]), SEMf(gen_scores[:n_gens_considered,:].flatten())),
                 'Late': (np.mean(gen_scores[-n_gens_considered:,:]), SEMf(gen_scores[-n_gens_considered:,:].flatten()))}
-
+    
+    #Now i plot the data
     set_default_matplotlib_params(shape='rect_wide', l_side = 30)
     fig, ax = plt.subplots(2,1)
+    #first i plot the averages pm sem of the best and worst topk nat images and of early and late gens
     ax[0].barh(top_labels, [val[0] for val in top_values], xerr=[val[1] for val in top_values], label='Top 3', color='green')
     ax[0].barh(bottom_labels, [val[0] for val in bottom_values], xerr=[val[1] for val in bottom_values], label='Bottom 3', color='red')
     ax[0].barh(list(gen_dict.keys()), [v[0] for _,v in gen_dict.items()], xerr=[v[1] for _,v in gen_dict.items()], label='Gens', color='black')
 
-    ax[0].set_xlabel('Average Activation')
+    ax[0].set_xlabel('Average activation')
     ax[0].legend()
-
+    Zoccolan_style_axes(ax[0])
+    
+    #now i plot the best scores, with a logic identical to what i did for average
     sorted_lblA_bymax = sorted(lbl_acts.items(), key=lambda x: x[1][2])
     top_categories = sorted_lblA_bymax[-topk:]
     bottom_categories = sorted_lblA_bymax[:topk]
@@ -292,7 +298,7 @@ def plot_scores_by_cat(optim: Optimizer, lbls_presented: list[bool], topk: int =
     bottom_labels, bottom_values = zip(*bottom_categories)
     ax[1].barh(top_labels, [val[2] for val in top_values], label='Top 3', color='green')
     ax[1].barh(bottom_labels, [val[2] for val in bottom_values], label='Bottom 3', color='red')
-
+    Zoccolan_style_axes(ax[1])
     if save_dir:
         fig.savefig(path.join(save_dir, f'scores_by_label.png'), bbox_inches="tight")
     plt.show()
