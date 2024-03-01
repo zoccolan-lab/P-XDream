@@ -268,6 +268,11 @@ def rmdir(directory):
     # After removing all contents, remove the directory itself
     os.rmdir(directory)
 
+def numbers_from_file(file_path: str) -> List[int]:
+    with open(file_path, 'r') as file:
+        numbers = [int(line.strip()) for line in file]
+    return numbers
+
 # -- PARSING --
 
 def parse_boolean_string(boolean_str: str) -> List[bool]:
@@ -292,6 +297,8 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
     Where units specification can be:
         - individual unit specification; requires neurons index to be separated by a space;
             [A B ... C]
+        - units from file; requires to specify a path to a .txt file containing one neuron number per line;
+            [file.txt]
         - range specification; requires to specify start and end neurons in a range separated by an underscore;
             [A_B]
         - random set of neurons; requires the number of random units followed by an r
@@ -343,8 +350,17 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
                 neurons = list(range(low, up))
             except ValueError:
                 raise SyntaxError(f'Invalid format in {units}. Expected a single `_`.')
+            
+        # 2. File
+        if units.endswith('.txt'):
+            neurons = numbers_from_file(file_path=units)
+
+            neurons_err = [u for u in neurons if u > tot_in_units]
+            if len(neurons_err):
+                raise ValueError(f'Trying to record {neurons_err} units, but there\'s a total of {tot_in_units}.')
+
         
-        # 2. Random
+        # 3. Random
         elif units.count('r') == 1:
 
             try: 
@@ -357,7 +373,7 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
             
             neurons = random.sample(range(tot_in_units), n_rand)
 
-        # 3, Specific neurons
+        # 4. Specific neurons
         elif all(ch.isdigit() for ch in units.replace(' ', '')):
 
             neurons = [int(unit) for unit in units.split()]# if unit.strip()]
@@ -371,9 +387,10 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
             Invalid input string;  valid formats are:
                 layer1: [units1], layer2: [units2], ..., layerN: [unitsN]
             with units specified either as:
-                - single units: [A B ... C]
-                - range_units:  [A_B]
-                - random_units: [Ar]
+                - single units:    [A B ... C]
+                - units from file: [neurons.txt]
+                - range_units:     [A_B]
+                - random_units:    [Ar]
             '''
             raise SyntaxError(error_msg)
         
