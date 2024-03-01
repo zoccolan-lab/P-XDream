@@ -18,24 +18,38 @@ LOCAL_SETTINGS = 'local_settings.json'
 def main(args):    
 
     # Experiment
-
+    #load the standard configuration
     json_conf = read_json(args.config)
+    #creates a flat dict types_json_dict that contains the types of
+    #all entries of the standard configuration
     types_json_dict = flatten_dict(json_conf, get_type=True)
-
+    
+    #i initialize the parser-based dictionary and the counter n_items.
+    #n_items will be used to assure that all inputs parsed have the same length
     args_conf = {}; n_items = None
     for k,v in vars(args).items():
+        #in this if i will work only with the parsed arguments collected from 
+        #the user (i.e. from standard input). These inputs are all strings, and they
+        #are not paths (unlike the parsed local paths (e.g. to the config file)).
         if isinstance(v, str) and not('/' in v):
+            #to split input for different runs of mrun, we use # as separator
             v_list = v.split('#')
+            #get the correspondent type from types_json_dict
             v_type = types_json_dict[k]
+            #convert each element of the list to the appropriate type
             args_conf[k] = [v_type(v) for v in v_list]
+            #in case of incongruent n_items (BUT NOT when len(v_list)==1)
             if n_items and not(n_items == len(v_list) or len(v_list)==1):
                 raise ValueError('inputs of different lengths')
-            
+            #when v_list is longer than 1, update n_items
             if len(v_list) > 1:
                 n_items = len(v_list)  
+        #in case of other entries (null or paths),just copy them in args_conf
         elif v:
             args_conf[k] = v 
-                
+    
+    #for all non None values of the dictionary args_conf that are not already repeated
+    #(e.g. paths), repeat them the correct number of times (i.e. n_items)
     for k, v in args_conf.items():
         if (v and not isinstance(v,list)):
             args_conf[k] = [v]*cast(int,n_items)
