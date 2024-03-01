@@ -330,7 +330,7 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
         try:
             layer, units = target.split(':')
         except ValueError as e:
-            raise ValueError(f'Invalid format in {target}. Expected a single `:`.')
+            raise SyntaxError(f'Invalid format in {target}. Expected a single `:`.')
 
         # Layer and units parsing
         layer = int(layer.strip())        # Layer cast to int
@@ -342,7 +342,7 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
                 low, up = [int(v) for v in units.split('_')]
                 neurons = list(range(low, up))
             except ValueError:
-                raise ValueError(f'Invalid format in {units}. Expected a single `_`.')
+                raise SyntaxError(f'Invalid format in {units}. Expected a single `_`.')
         
         # 2. Random
         elif units.count('r') == 1:
@@ -350,7 +350,7 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
             try: 
                 n_rand = int(units.strip('r'))
             except ValueError:
-                raise ValueError(f'Invalid format in {units}. Expected the number of random units followed by an `t`.')
+                raise SyntaxError(f'Invalid format in {units}. Expected the number of random units followed by an `t`.')
             
             if n_rand > tot_in_units:
                 raise ValueError(f'Trying to generate {n_rand} random units from  a total of {tot_in_units}.')
@@ -375,7 +375,7 @@ def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict
                 - range_units:  [A_B]
                 - random_units: [Ar]
             '''
-            raise ValueError(error_msg)
+            raise SyntaxError(error_msg)
         
         # Convert inputs to input dimension
         # neurons = [neuron_to_input_shape(n) for n in neurons] TODO What to do for structured neurons
@@ -469,46 +469,28 @@ def stringfy_time(sec: int | float) -> str:
     return time_str
 
 
-def merge_dicts(a: dict, b: dict) -> Dict:
-    ''' Recursively overwrite the first dictionary with the second one. '''
-
-    for key in a:
-        if key in b:
-            if isinstance(b[key], dict) and isinstance(a[key], dict):
-                merge_dicts(a[key], b[key])
-        else:
-            b[key] = a[key]
-    return b
-
-def overwrite_dict(a: dict, b: dict) -> Dict:
+def overwrite_dict(a: Dict, b: Dict) -> Dict:
     ''' 
     Overwrite keys of a nested dictionary A with those of a 
     second flat dictionary B is their values are not none.
     '''
     for key in a:
-        if isinstance(a[key], dict):
+        if isinstance(a[key], Dict):
             overwrite_dict(a[key], b)
         elif key in b:
             a[key] = b[key]
     return a
 
-def flatten_dict(d: dict, get_type:bool = False)-> dict[Any, Any]:
+def flatten_dict(d: Dict)-> Dict[Any, Any]:
     """
     Flatten a nested dictionary recursively to multiple levels.
-    If get_type = True, it returns the types of the entries of the dict.
     """
     flattened_dict = {}
     for k, v in d.items():
-        if isinstance(v, dict):
+        if isinstance(v, Dict):
             nested_flattened = flatten_dict(v)
             for nk, nv in nested_flattened.items():
-                if get_type:
-                    flattened_dict[nk] = type(nv)
-                else:
-                    flattened_dict[nk] = nv
+                flattened_dict[nk] = nv
         else:
-            if get_type:
-                flattened_dict[k] = type(v)
-            else:
-                flattened_dict[k] = v
+            flattened_dict[k] = v
     return flattened_dict

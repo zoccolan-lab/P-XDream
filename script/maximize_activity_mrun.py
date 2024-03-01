@@ -15,45 +15,52 @@ matplotlib.use('TKAgg')
 
 LOCAL_SETTINGS = 'local_settings.json'
 
-def main(args):    
+def main(args):   
 
-    # Experiment
-    #load the standard configuration
-    json_conf = read_json(args.config)
-    #creates a flat dict types_json_dict that contains the types of
-    #all entries of the standard configuration
-    types_json_dict = flatten_dict(json_conf, get_type=True)
+    # Filter out None i.e. input not given
+    args = {k: v for k, v in args.items() if v} 
+
+    # Load default configuration
+    json_conf = read_json(args['config'])
+
+    # Get type dictionary for casting
+    dict_type = {k: type(v) for k, v in flatten_dict(json_conf).items()}
+
+    # Config from command line
+    args_conf = {}
+
+    # Keep track of argument lengths
+    observed_lens = set()
+
+    # Loop on input arguments
+    for k, arg in args.items():
+
+        # Get typing for cast
+        type_cast = dict_type[k]
+
+        # Split input line with separator # and cast
+        args_conf[k] = [
+            type_cast(a.strip()) for a in arg.split('#')
+        ]
+
+        # Add observed length if different from one
+        n_arg = len(args_conf[k])
+        if n_arg != 1:
+            observed_lens.add(n_arg)
+
+    # Check if multiple lengths
+    if len(observed_lens) > 1:
+        raise SyntaxError(f'Multiple argument with different lengths: {observed_lens}')
     
-    #i initialize the parser-based dictionary and the counter n_items.
-    #n_items will be used to assure that all inputs parsed have the same length
-    args_conf = {}; n_items = None
-    for k,v in vars(args).items():
-        #in this if i will work only with the parsed arguments collected from 
-        #the user (i.e. from standard input). These inputs are all strings, and they
-        #are not paths (unlike the parsed local paths (e.g. to the config file)).
-        if isinstance(v, str) and not('/' in v):
-            #to split input for different runs of mrun, we use # as separator
-            v_list = v.split('#')
-            #get the correspondent type from types_json_dict
-            v_type = types_json_dict[k]
-            #convert each element of the list to the appropriate type
-            args_conf[k] = [v_type(v) for v in v_list]
-            #in case of incongruent n_items (BUT NOT when len(v_list)==1)
-            if n_items and not(n_items == len(v_list) or len(v_list)==1):
-                raise ValueError('inputs of different lengths')
-            #when v_list is longer than 1, update n_items
-            if len(v_list) > 1:
-                n_items = len(v_list)  
-        #in case of other entries (null or paths),just copy them in args_conf
-        elif v:
-            args_conf[k] = v 
+    # Check for no multiple args specified
+    if len(observed_lens) == 0:
+        raise SyntaxError(f'No multiple argument was specified.')
     
-    #for all non None values of the dictionary args_conf that are not already repeated
-    #(e.g. paths), repeat them the correct number of times (i.e. n_items)
-    for k, v in args_conf.items():
-        if (v and not isinstance(v,list)):
-            args_conf[k] = [v]*cast(int,n_items)
-    
+    # Adjust 1-length values
+    n_args = list(observed_lens)[0]
+    args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
+
+    print(args_conf)
 
     mrun_experiment = MultiExperiment(
         experiment=_MaximizeActivityExperiment,
@@ -83,8 +90,8 @@ if __name__ == '__main__':
     parser.add_argument('--config',         type=str,   help='Path for the JSON configuration file',   default = config_path,)
     
     # Generator
-    parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',     default = gen_weights,)
-    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet dataset',      default = mini_inet,)
+    parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',    default = gen_weights,)
+    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet dataset',     default = mini_inet,)
     parser.add_argument('--batch_size',     type=str,   help='Natural image dataloader batch size')
     parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
     
@@ -98,8 +105,8 @@ if __name__ == '__main__':
 
     # Scorer
     parser.add_argument('--targets',        type=str,   help='Target scoring layers and neurons')
-    parser.add_argument('--aggregation',    type=tuple, help='Name of scoring aggregation function between layers')
-    parser.add_argument('--scr_rseed',      type=tuple, help='Random seed for neurons selection')
+    parser.add_argument('--aggregation',    type=str, help='Name of scoring aggregation function between layers')
+    parser.add_argument('--scr_rseed',      type=str, help='Random seed for neurons selection')
     
     # Optimizer
     parser.add_argument('--pop_sz',         type=str,   help='Starting number of the population')
@@ -108,15 +115,16 @@ if __name__ == '__main__':
     parser.add_argument('--mutation_size',  type=str,   help='Mutation size for the optimizer')
     parser.add_argument('--num_parents',    type=str,   help='Number of parents for the optimizer')
     parser.add_argument('--temperature',    type=str,   help='Temperature for the optimizer')
-    parser.add_argument('--random_state',   type=bool , help='Random state for the optimizer')
+    parser.add_argument('--random_state',   type=str , help='Random state for the optimizer')
     
     # Logger
     parser.add_argument('--name',           type=str,   help='Experiment name')
-    parser.add_argument('--version',        type=int,   help='Experiment version')
+    parser.add_argument('--version',        type=str,   help='Experiment version')
     parser.add_argument('--out_dir',        type=str,   help='Path to directory to save outputs',       default = out_dir,)
     
     # Iterations
     parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve')
     
-    conf = parser.parse_args()
+    conf = vars(parser.parse_args())
+
     main(conf)

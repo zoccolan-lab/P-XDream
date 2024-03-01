@@ -572,7 +572,6 @@ class MultiExperiment:
         for conf in self.search_config:
 
             exp_config = overwrite_dict(self._base_config, conf)
-            print("Here")
             exp = self._Exp.from_config(exp_config)
             
             exp.run()

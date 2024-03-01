@@ -1,8 +1,8 @@
 {
-    "config": null,
+    "config": "",
     "generator": {
-        "weights": null,
-        "mini_inet": null,
+        "weights": "",
+        "mini_inet": "",
         "batch_size": 2,
         "variant": "fc8"
     },
@@ -29,9 +29,9 @@
         "random_state": "normal"
     },
     "logger": {
-        "out_dir": null,
+        "out_dir": "",
         "name": "experiment",
-        "version": null
+        "version": 0
     },
     "num_gens": 100
 }
