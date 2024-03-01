@@ -59,8 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('--rec_layers',     type=tuple, help='Recording layers')
 
     # Scorer
-    parser.add_argument('--target_layers',  type=tuple, help='Target scoring layers')
-    parser.add_argument('--target_units',   type=tuple, help='Target scoring neurons')
+    parser.add_argument('--targets',        type=str, help='Target scoring layers and neurons')
     parser.add_argument('--aggregation',    type=tuple, help='Name of scoring aggregation function between layers')
     parser.add_argument('--scr_rseed',      type=tuple, help='Random seed for neurons selection')
     

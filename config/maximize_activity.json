@@ -15,8 +15,7 @@
         "rec_layers": [21]
     },
     "scorer": {
-        "target_layers": [21],
-        "target_units": [[0, 4]],
+        "targets": "21:[0_20]",
         "aggregation": "mean",
         "scr_rseed": 31415
     },

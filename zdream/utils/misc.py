@@ -374,16 +374,23 @@ def overwrite_dict(a: dict, b: dict) -> Dict:
             a[key] = b[key]
     return a
 
-def flatten_dict(d: Dict):
+def flatten_dict(d: dict, get_type:bool = False)-> dict[Any, Any]:
     """
     Flatten a nested dictionary recursively to multiple levels.
+    If get_type = True, it returns the types of the entries of the dict.
     """
     flattened_dict = {}
     for k, v in d.items():
         if isinstance(v, dict):
             nested_flattened = flatten_dict(v)
             for nk, nv in nested_flattened.items():
-                flattened_dict[nk] = nv
+                if get_type:
+                    flattened_dict[nk] = type(nv)
+                else:
+                    flattened_dict[nk] = nv
         else:
-            flattened_dict[k] = v
+            if get_type:
+                flattened_dict[k] = type(v)
+            else:
+                flattened_dict[k] = v
     return flattened_dict

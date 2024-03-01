@@ -543,7 +543,7 @@ class MultiExperiment:
         self,
         experiment : 'Experiment',
         base_config   : Dict[str, Any],
-        search_config : Dict[str, Tuple[Any]], 
+        search_config : Dict[str, list[Any]], 
     ) -> None:
         
         # Check that provided search configuration argument

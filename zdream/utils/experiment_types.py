@@ -85,25 +85,30 @@ class _MaximizeActivityExperiment(Experiment):
         score_dict = {}
         random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
 
-        for layer, units in zip(scr_conf['target_layers'], scr_conf['target_units']):
-        
-            # In the case the units are a list of length two we take
-            # the neurons in their range
-            if isinstance(units, list):
-                if len(units) == 2:
-                    start, end = units
-                    neurons = list(range(start, end))
-                else:
-                    raise ValueError('Units provided must be one or two')
-            # In the case the units are a single number 
-            # we uniformly sample that number of neurons
-            elif isinstance(units, int):
-                neurons = random.sample(range(np.prod(generator.input_dim)), units)
+        parts = scr_conf['targets'].split(',')
+        score_dict = {}
+        for p in parts:
+            k_v_list = p.split(':')
+            layer = int(k_v_list[0])
+            val = k_v_list[1].replace('[', '').replace(']', '')
+            if '_' in val:
+                low_b, up_b =[int(v) for v in val.split('_')]
+                neurons = list(range(low_b, up_b))
+            elif 'r' in val:
+                neurons = random.sample(range(np.prod(generator.input_dim)), int(val.replace('r', '')))
+            elif all(char.isdigit() for char in val.replace(' ', '')):
+                neurons = [int(x) for x in val.split() if x.strip()]
             else:
-                raise TypeError('Units must be a list of length two or integers.')
-
+                error_msg = """Input string is not conform to rules. please write as in the following examples:
+                    21:[0_4] (for interval)
+                    21:[0 4 7] (for specific target units)
+                    21:[4r] for k (here = 4) random units
+                """
+                raise ValueError(error_msg)
+            
             # Add layer and neurons to scoring
             score_dict[layer_names[layer]] = neurons
+
 
         scorer = MaxActivityScorer(
             trg_neurons=score_dict,
