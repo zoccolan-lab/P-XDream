@@ -32,16 +32,14 @@ def main(args):
                 raise ValueError('inputs of different lengths')
             
             if len(v_list) > 1:
-                n_items = len(v_list) 
+                n_items = len(v_list)  
+        elif v:
+            args_conf[k] = v 
                 
+    for k, v in args_conf.items():
+        if (v and not isinstance(v,list)):
+            args_conf[k] = [v]*cast(int,n_items)
     
-    args_conf = {k : [v]*cast(int,n_items) for k, v in args_conf.items() if (v and len(v) == 1)}
-
-            
-    print(args_conf)
-
-    #args_conf = {k : [v]*3 for k, v in vars(args).items() if v}
-    #args_conf['num_gens'] = (2, 3, 4)
 
     mrun_experiment = MultiExperiment(
         experiment=_MaximizeActivityExperiment,
