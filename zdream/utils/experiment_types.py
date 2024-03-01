@@ -6,7 +6,7 @@ from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
 from zdream.subject import NetworkSubject
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import concatenate_images, device, repeat_pattern, to_gif
+from zdream.utils.misc import concatenate_images, device, parse_boolean_string, parse_layer_target_units, repeat_pattern, to_gif
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions
 from zdream.utils.plotting import plot_optimization_profile, plot_scores_by_cat
 
@@ -83,31 +83,15 @@ class _MaximizeActivityExperiment(Experiment):
 
         # Target neurons
         score_dict = {}
+
         random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
 
-        parts = scr_conf['targets'].split(',')
-        score_dict = {}
-        for p in parts:
-            k_v_list = p.split(':')
-            layer = int(k_v_list[0])
-            val = k_v_list[1].replace('[', '').replace(']', '')
-            if '_' in val:
-                low_b, up_b =[int(v) for v in val.split('_')]
-                neurons = list(range(low_b, up_b))
-            elif 'r' in val:
-                neurons = random.sample(range(np.prod(generator.input_dim)), int(val.replace('r', '')))
-            elif all(char.isdigit() for char in val.replace(' ', '')):
-                neurons = [int(x) for x in val.split() if x.strip()]
-            else:
-                error_msg = """Input string is not conform to rules. please write as in the following examples:
-                    21:[0_4] (for interval)
-                    21:[0 4 7] (for specific target units)
-                    21:[4r] for k (here = 4) random units
-                """
-                raise ValueError(error_msg)
-            
+        score_dict_i = parse_layer_target_units(input_str=scr_conf['targets'], input_dim=generator.input_dim)
+
+        for layer_i, neurons in score_dict_i.items():
+
             # Add layer and neurons to scoring
-            score_dict[layer_names[layer]] = neurons
+            score_dict[layer_names[layer_i]] = neurons
 
 
         scorer = MaxActivityScorer(
@@ -129,13 +113,15 @@ class _MaximizeActivityExperiment(Experiment):
         )
 
         #  --- LOGGER --- 
+
         log_conf['title'] = _MaximizeActivityExperiment._EXPERIMENT_NAME
         logger = LoguruLogger(
             log_conf=log_conf
         )
 
         # --- MASK GENERATOR ---
-        base_seq = [char == 'T' for char in msk_conf['template']]
+
+        base_seq = parse_boolean_string(boolean_str=msk_conf['template'])
         mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=msk_conf['shuffle'])
 
         # --- DATA ---

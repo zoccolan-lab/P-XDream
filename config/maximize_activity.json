@@ -15,7 +15,7 @@
         "rec_layers": [21]
     },
     "scorer": {
-        "targets": "21:[0_20]",
+        "targets": "21:[0_19]",
         "aggregation": "mean",
         "scr_rseed": 31415
     },
@@ -33,5 +33,5 @@
         "name": "experiment",
         "version": null
     },
-    "num_gens": 50
+    "num_gens": 100
 }

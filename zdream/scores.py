@@ -154,7 +154,7 @@ class MaxActivityScorer(Scorer):
         
     def __str__(self) -> str:
         
-        dims = ", ".join([f"{k}: {len(v)}" for k, v in self._trg_neurons.items()])
+        dims = ", ".join([f"{k}: {len(v)} units" for k, v in self._trg_neurons.items()])
         
         return f'MaximizeActivityScorer[target neurons: ({dims})]'
     
