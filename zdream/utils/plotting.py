@@ -189,8 +189,8 @@ def plot_optimization_profile(optim: Optimizer, lab_col : dict[str, dict[str, st
     #PLOT 2) SCORES HISTOGRAM/DISTRIBUTION
     fig_hist, ax = plt.subplots(1) 
     #get all scores of all images
-    score_nat =np.stack(optim._score_nat)
-    score_gen =np.stack(optim._score)
+    score_nat =np.stack(optim._scores_nat)
+    score_gen =np.stack(optim._scores)
     
     data_min = min(score_nat.min(), score_gen.min())
     data_max = max(score_nat.max(), score_gen.max())
@@ -257,8 +257,8 @@ def plot_scores_by_cat(optim: Optimizer, lbls_presented: List[int], dataset: Min
     """
     #organize scores and labels as np arrays. nat_scores are flattened to be
     #easily indexed by the nat_lbls vector
-    nat_scores = np.stack(optim._score_nat).flatten()
-    gen_scores = np.stack(optim._score)
+    nat_scores = np.stack(optim._scores_nat).flatten()
+    gen_scores = np.stack(optim._scores)
     vectorized_lambda = np.vectorize(lambda x: dataset.class_to_lbl(lbl=x))
     nat_lbls = vectorized_lambda(lbls_presented)
     #get the unique labels present in the dataset

@@ -100,7 +100,8 @@ class Message:
     '''
     List of labels associated to the set of stimuli.
     '''
-    
+
+# --- NETWORKS --- 
 
 class InputLayer(nn.Module):
 
@@ -113,7 +114,7 @@ class InputLayer(nn.Module):
     def _get_name(self):
         return 'Input'
 
-# --- LOGGER ---
+# --- SCREEN ---
 
 class DisplayScreen:
 	''' Screen to display and update images'''

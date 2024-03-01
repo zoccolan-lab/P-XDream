@@ -62,7 +62,7 @@ class InSilicoSubject(Subject):
         keys = self._states[0].keys()
         
         return {
-            key: np.array([state[key] for state in self._states])
+            key: np.stack([state[key] for state in self._states])
             for key in keys
     }
     

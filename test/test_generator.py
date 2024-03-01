@@ -52,7 +52,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         inp_dim = generator.input_dim
         mock_inp = np.random.rand(self.num_gen, *inp_dim)
         
-        return generator(mock_inp, mask)
+        return generator(codes=mock_inp, mask=mask)
 
     def _get_generator_with_nat_img(
         self,
@@ -247,10 +247,10 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
         mock_inp = np.random.rand(self.num_gen, *generator.input_dim)
         
-        stimuli_1, _ = generator(mock_inp, [True]*(self.num_gen))
-        stimuli_2, _ = generator(mock_inp, [])
-        stimuli_3, _ = generator(mock_inp)
-        
+        stimuli_1, _ = generator(codes=mock_inp, mask=[True]*(self.num_gen))
+        stimuli_2, _ = generator(codes=mock_inp, mask=[])
+        stimuli_3, _ = generator(codes=mock_inp)
+    
         self.assertTrue(torch.allclose(stimuli_1, stimuli_2, atol=1e-6))
         self.assertTrue(torch.allclose(stimuli_1, stimuli_3, atol=1e-4))
         

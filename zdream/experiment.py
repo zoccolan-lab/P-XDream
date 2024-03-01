@@ -1,21 +1,162 @@
+from __future__ import annotations
+
 from os import path
 import os
 import time
 from abc import ABC, abstractmethod
-from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
-from .logger import Logger
+from .logger import Logger, MutedLogger
 
 from .generator import Generator
 from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default, flatten_dict, merge_dicts, overwrite_dict, save_json, stringfy_time
+from .utils.misc import default, flatten_dict, overwrite_dict, save_json, stringfy_time
+
+@dataclass
+class ExperimentState:
+    '''
+    TODO
+    '''
+
+    mask:         NDArray[np.bool_]               | None  # [generations x (n_gen + n_nat)]
+    labels:       NDArray[np.int32]               | None  # [generations x n_nat]
+    states:       Dict[str, NDArray[np.float64]]  | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
+    codes:        NDArray[np.float64]             | None  # [generations x n_gen x code_len] 
+    scores:       NDArray[np.float64]             | None  # [generations x n_gen]
+    scores_nat:   NDArray[np.float64]             | None  # [generations x n_nat]
+
+    @classmethod
+    def from_experiment(cls, experiment: Experiment):
+
+        return ExperimentState(
+            mask       = experiment.generator.masks_history,
+            labels     = experiment.generator.labels_history,
+            states     = experiment.subject.states_history,
+            codes      = experiment.optimizer.codes_history,
+            scores     = experiment.optimizer.scores_history,
+            scores_nat = experiment.optimizer.scores_nat_history,
+        )
+
+    @classmethod
+    def from_path(cls, in_dir: str, logger: Logger | None = None):
+
+        logger = default(logger, MutedLogger())
+
+        logger.info(f'Loading experiment from {in_dir}')
+
+        # Masks
+        mask_fp = path.join(in_dir, 'mask.npy')
+        if path.exists(mask_fp):
+            logger.info(f"> Loading mask history from {mask_fp}")
+            mask = np.load(mask_fp)
+        else:
+            logger.warn(f"> Unable to fetch {mask_fp}")
+            mask = None
+
+        # Labels
+        labels_fp = path.join(in_dir, 'labels.npy')
+        if path.exists(labels_fp):
+            logger.info(f"> Loading labels history from {labels_fp}")
+            labels = np.load(labels_fp)
+        else:
+            logger.warn(f"> Unable to fetch {labels_fp}")
+            labels = None
+
+        # States
+        states_fp = path.join(in_dir, 'states.npz')
+        if path.exists(states_fp):
+            logger.info(f"> Loading states history from {states_fp}")
+            states = dict(np.load(states_fp))
+        else:
+            logger.warn(f"> Unable to fetch {states_fp}")
+            states = None
+
+        # Codes
+        codes_fp = path.join(in_dir, 'codes.npy')
+        if path.exists(codes_fp):
+            logger.info(f"> Loading codes history from {codes_fp}")
+            codes = np.load(codes_fp)
+        else:
+            logger.warn(f"> Unable to fetch {codes_fp}")
+            codes = None
+
+        # Scores
+        scores_fp = path.join(in_dir, 'scores.npy')
+        if path.exists(scores_fp):
+            logger.info(f"> Loading scores history from {scores_fp}")
+            scores = np.load(scores_fp)
+        else:
+            logger.warn(f"> Unable to fetch {scores_fp}")
+            scores = None
+
+        # Scores Natural
+        scores_nat_fp = path.join(in_dir, 'scores_nat.npy')
+        if path.exists(scores_nat_fp):
+            logger.info(f"> Loading scores of natural images history from {scores_nat_fp}")
+            scores_nat = np.load(scores_nat_fp)
+        else:
+            logger.warn(f"> Unable to fetch {scores_nat_fp}")
+            scores_nat = None
+
+        return cls(
+            mask       = mask,
+            labels     = labels,
+            states     = states,
+            codes      = codes,
+            scores     = scores,
+            scores_nat = scores_nat,
+        )
+
+
+    def dump(self, out_dir: str, logger: Logger | None = None):
+
+        logger = default(logger, MutedLogger())
+
+        logger.info(f'Dumping experiment to {out_dir}')
+        os.makedirs(out_dir, exist_ok=True)
+
+        # Masks
+        if self.mask is not None:
+            mask_fp = path.join(out_dir, 'mask.npy')
+            logger.info(f"> Saving mask history to {mask_fp}")
+            np.save(mask_fp, self.mask)
+
+        # Labels
+        if self.labels is not None:
+            labels_fp = path.join(out_dir, 'labels.npy')
+            logger.info(f"> Saving labels history to {labels_fp}")
+            np.save(labels_fp, self.labels)
+
+        # States
+        if self.states is not None:
+            states_fp = path.join(out_dir, 'states.npz')
+            logger.info(f"> Saving states history to {states_fp}")
+            np.savez(states_fp, **self.states)
+
+        # Codes
+        if self.codes is not None:
+            codes_fp = path.join(out_dir, 'codes.npy')
+            logger.info(f"> Saving codes history to {codes_fp}")
+            np.save(codes_fp, self.codes)
+
+        # Scores
+        if self.scores is not None:
+            scores_fp = path.join(out_dir, 'scores.npy')
+            logger.info(f"> Saving scores history to {scores_fp}")
+            np.save(scores_fp, self.scores)
+
+        # Scores Natural
+        if self.scores_nat is not None:
+            scores_nat_fp = path.join(out_dir, 'scores_nat.npy')
+            logger.info(f"> Saving scores of natural images history to {scores_nat_fp}")
+            np.save(scores_nat_fp, self.scores_nat)
 
 
 @dataclass
@@ -133,6 +274,9 @@ class Experiment(ABC):
         #       set the parameter.
 
         self._param_config = param_config
+
+    def __str__(self)  -> str: return f'{self.EXPERIMENT_TITLE}[{self._name}]'
+    def __repr__(self) -> str: return str(self)
 
         
     # --- PROPERTIES --- 
@@ -269,6 +413,7 @@ class Experiment(ABC):
             
             # Log
             self._logger.info(f"")
+            self._logger.info(mess=str(self))
             self._logger.info(f"Parameters:")
 
             max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
@@ -299,11 +444,17 @@ class Experiment(ABC):
         It is supposed to perform operation of experiment results.
         '''
 
+        # Total elapsed time
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
 
-        self.dump()
+        # Dump
+        state = ExperimentState.from_experiment(self)
+        state.dump(
+            out_dir=path.join(self.target_dir, 'state'),
+            logger=self._logger
+        )
     
     def _progress_info(self, i: int) -> str:
         '''
@@ -322,7 +473,7 @@ class Experiment(ABC):
         progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{i * 100 / self._iteration:>5.2f}%'
         
-        return f'{self.EXPERIMENT_TITLE}[{self._name}]: [{progress}] ({perc})'
+        return f'{self}: [{progress}] ({perc})'
     
     def _progress(self, i: int):
         '''
@@ -379,29 +530,7 @@ class Experiment(ABC):
         
         self._finish()
 
-    # DUMP
-        
-    def dump(self):
-        ''' Perform a memory dump of experiment state '''
 
-        state_dir = path.join(self.target_dir, 'state')
-        self._logger.info(mess=f'Saving experiment state to {state_dir}')
-        os.makedirs(state_dir, exist_ok=True)
-
-        self._dump_sbj_states(out_dir=state_dir)
-        self._logger.info(mess=f'')
-
-    def _dump_sbj_states(self, out_dir: str):
-
-        sbj_states = self.subject.states_history
-
-        sbj_states_fp = path.join(out_dir, 'sbj_states.npz')
-        self._logger.info(mess=f'Saving subject states to: {sbj_states_fp}')
-
-        np.savez(sbj_states_fp, **sbj_states)
-
-
-        
 
 
 

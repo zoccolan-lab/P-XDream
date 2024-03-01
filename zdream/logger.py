@@ -20,7 +20,7 @@ class Logger:
 	and technologies.
 	'''
 
-	def __init__(self, log_conf: Dict[str, str]) -> None:
+	def __init__(self, log_conf: Dict[str, str] | None = None) -> None:
 		'''
 		Initialize the logger with a specific target directory
 
@@ -28,8 +28,11 @@ class Logger:
 		:type out_dir: Dict[str, str]
 		'''
 
-		# Set empty target directory
-		self._target_dir: str = self._get_target_dir(log_conf=log_conf)
+		# Set target directory
+		if log_conf:
+			self._target_dir: str = self._get_target_dir(log_conf=log_conf)
+		else:
+			self._target_dir = ''
 
 		# Tinker main screen is mandatory, but we can hide it.
 		self._main_screen = tk.Tk()
@@ -100,7 +103,10 @@ class Logger:
 		
 	@property
 	def target_dir(self) -> str:
-		return self._target_dir
+		if self._target_dir:
+			return self._target_dir
+		raise ValueError('Target directory was not provided during logger initialization. '\
+				         'Use the parameter log_config to set one.')
 
 
 	# SCREEN
@@ -147,12 +153,14 @@ class Logger:
 
 
 class LoguruLogger(Logger):
-	""" Logger overriding logger methods with `loguru` ones"""
+	""" Logger using `loguru` technology """
 
-	def __init__(self, log_conf: Dict[str, str]) -> None:
+	def __init__(self, log_conf: Dict[str, str] | None = None) -> None:
+
 		super().__init__(log_conf)
-
-		self._loguru_settings()
+		
+		if log_conf:
+			self._loguru_settings()
 
 		
 	def _loguru_settings(self):
@@ -164,3 +172,11 @@ class LoguruLogger(Logger):
 	def info(self, mess: str): logger.info(mess)
 	def warn(self, mess: str): logger.warning(mess)
 	def err (self, mess: str): logger.error(mess)
+
+class MutedLogger(Logger):
+	""" Logger for no logging info """
+
+	def __init__(self) -> None:
+		super().__init__(log_conf=None)
+	
+	def info(self, mess: str): pass

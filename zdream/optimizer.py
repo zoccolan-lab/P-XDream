@@ -65,14 +65,23 @@ class Optimizer(ABC):
         
         # Optimizer scores for synthetic and natural images
         # We keep track of scores among generations to compute basic statistics
-        self._score     : List[NDArray] = []
-        self._score_nat : List[NDArray] = []
+        self._scores     : List[NDArray] = []
+        self._scores_nat : List[NDArray] = []
         
         # Random distribution
         # NOTE: We also initialize the internal random number generator 
         #       for reproducibility, if not given it isn't set.
         self._distr = random_distr
         self._rng   = np.random.default_rng(random_state)
+
+    @property
+    def codes_history(self)      -> NDArray: return np.stack(self._codes)
+
+    @property
+    def scores_history(self)     -> NDArray: return np.stack(self._scores)
+
+    @property
+    def scores_nat_history(self) -> NDArray: return np.stack(self._scores_nat)
         
     @property
     def n_states(self) -> int: return 1
@@ -103,10 +112,10 @@ class Optimizer(ABC):
         '''
         Returns codes score after the last step.
         '''
-        if not self._score:
+        if not self._scores:
             err_msg = 'Scores are not available yet'
             raise ValueError(err_msg)
-        return self._score[-1]
+        return self._scores[-1]
     
     @property
     def codes(self) -> Codes:
@@ -130,8 +139,8 @@ class Optimizer(ABC):
         '''
         
         # Extract indexes for best scores
-        flat_idx : np.intp  = np.argmax(self._score)
-        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._score))
+        flat_idx : np.intp  = np.argmax(self._scores)
+        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._scores))
         
         # Extract the best code from generation and index
         best_code = self._codes[best_gen][best_idx]
@@ -232,12 +241,12 @@ class Optimizer(ABC):
     @property
     def stats(self) -> Dict[str, Any]:
         ''' Return statistics for synthetic codes '''
-        return self._get_stats(scores=self._score, synthetic=True)
+        return self._get_stats(scores=self._scores, synthetic=True)
     
     @property
     def stats_nat(self) -> Dict[str, Any]: 
         ''' Return statistics for natural images '''
-        return self._get_stats(scores=self._score_nat, synthetic=False)
+        return self._get_stats(scores=self._scores_nat, synthetic=False)
 
     
 class GeneticOptimizer(Optimizer):
@@ -359,7 +368,7 @@ class GeneticOptimizer(Optimizer):
         
         # Use message mask for filtering out natural images
         # and track their scores
-        self._score_nat.append(scores[~msg.mask])
+        self._scores_nat.append(scores[~msg.mask])
         
         # Optimization parameter
         scores      = scores[msg.mask]                         # Use only synthetic images
@@ -409,7 +418,7 @@ class GeneticOptimizer(Optimizer):
         #       off-by-one as observed states correspond
         #       to last parameter set and we are devising
         #       the new one right now (hence why old_score)
-        self._score.append(scores)
+        self._scores.append(scores)
         self._codes.append(codes_new)
         
         return codes_new

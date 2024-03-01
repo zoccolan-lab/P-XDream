@@ -8,6 +8,7 @@ from typing import List, Dict, cast, Callable, Tuple, Literal
 import numpy as np
 import torch
 import torch.nn as nn
+from numpy.typing import NDArray
 from PIL import Image
 from einops import rearrange
 from einops.layers.torch import Rearrange
@@ -84,6 +85,10 @@ class Generator(ABC, nn.Module):
 
         # List for tracking image history
         self._im_hist : List[Image.Image] = [] # TODO Never used (?)
+
+        # History
+        self._masks:  List[NDArray[np.bool_]] = []
+        self._labels: List[NDArray[np.int64]] = []
 
     def set_nat_img_loader(self, nat_img_loader : DataLoader | None) -> None:
         '''
@@ -291,13 +296,23 @@ class Generator(ABC, nn.Module):
     def __call__(
         self, 
         codes: Codes,
-        mask : Mask | None = None
+        mask : Mask | None = None,
+        pipeline: bool = True
+
     ) -> Tuple[Stimuli, Message]:
         
-        return self.forward(
+        stimuli, msg = self.forward(
             codes=codes,
             mask=mask
         )
+
+        if pipeline:
+
+            # History
+            self._masks .append(msg.mask)
+            self._labels.append(np.array(msg.label))
+
+        return stimuli, msg
 
     def forward(
         self, 
@@ -349,7 +364,7 @@ class Generator(ABC, nn.Module):
         out[~mask_ten] = nat_img
         
         # Attach information to the message
-        message.mask = np.array(mask)
+        message.mask = np.array(mask, dtype=np.bool_)
         message.label = labels
         return out, message
     
@@ -487,6 +502,13 @@ class InverseAlexGenerator(Generator):
             case 'norm1': return (3, 240, 240)
             case 'norm2': return (3, 240, 240)
             case _: return (3, 256, 256)
+
+    @property
+    def masks_history(self)   -> NDArray[np.bool_]:
+        return np.stack(self._masks)
+
+    @property
+    def labels_history(self) -> NDArray[np.int64]: return np.stack(self._labels)
             
     def _get_pipe(self, variant : InverseAlexVariant) -> Callable[[Tensor], Tensor]:
         def _opt1(imgs : Tensor) -> Tensor:

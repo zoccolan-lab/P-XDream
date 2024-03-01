@@ -86,7 +86,7 @@ class _MaximizeActivityExperiment(Experiment):
         random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
 
         for layer, units in zip(scr_conf['target_layers'], scr_conf['target_units']):
-
+        
             # In the case the units are a list of length two we take
             # the neurons in their range
             if isinstance(units, list):
@@ -215,7 +215,7 @@ class _MaximizeActivityExperiment(Experiment):
 
         # Get best stimuli
         best_code = self.optimizer.solution
-        best_synthetic, _ = self.generator(best_code)
+        best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
         best_synthetic_img = to_pil_image(best_synthetic[0])
 
         best_natural = self._best_img['nat']
@@ -251,7 +251,7 @@ class _MaximizeActivityExperiment(Experiment):
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
         best_code = self.optimizer.solution
-        best_synthetic, _ = self.generator(best_code)
+        best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
 
         # We retrieve the stored best natural image
         best_natural = self._best_img['nat']

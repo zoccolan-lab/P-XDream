@@ -95,7 +95,7 @@ class _TargetRecoveryExperiment(Experiment):
     
         # Save the best performing image to file
         best_state = self.optimizer.solution
-        best_image, msg = self.generator(best_state)
+        best_image, msg = self.generator(codes=best_state, pipeline=False)
 
         trg_img = self.scorer.target['image']
         
