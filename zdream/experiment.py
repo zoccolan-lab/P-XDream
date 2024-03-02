@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
-from .utils.model import Codes, Mask, Message, Stimuli, StimuliScore, SubjectState
+from .utils.model import Codes, Mask, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
@@ -184,7 +184,7 @@ class ExperimentConfig:
     logger: Logger
     ''' Logger instance to log information, warnings and errors.'''
     
-    mask_generator: Callable[[int], Mask | None] | None = None
+    mask_generator: MaskGenerator | None = None
     ''' 
     Function for mask generation. The boolean mask discriminates between synthetic
     and natural images in the stimuli. A new mask is potentially generated at 

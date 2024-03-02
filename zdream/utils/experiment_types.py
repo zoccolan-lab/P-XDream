@@ -6,8 +6,8 @@ from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
 from zdream.subject import NetworkSubject
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import concatenate_images, device, parse_boolean_string, parse_layer_target_units, repeat_pattern, to_gif
-from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions
+from zdream.utils.misc import concatenate_images, device, parse_boolean_string, parse_layer_target_units, to_gif
+from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
 from zdream.utils.plotting import plot_optimization_profile, plot_scores_by_cat
 
 
@@ -21,7 +21,6 @@ from torchvision.transforms.functional import to_pil_image
 
 import os
 import random
-from functools import partial
 from os import path
 from typing import Any, Dict, List, Tuple, cast
 
@@ -122,8 +121,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         # --- MASK GENERATOR ---
 
-        base_seq = parse_boolean_string(boolean_str=msk_conf['template'])
-        mask_generator = partial(repeat_pattern, base_seq=base_seq, shuffle=msk_conf['shuffle'])
+        template = parse_boolean_string(boolean_str=msk_conf['template'])
+        mask_generator = mask_generator_from_template(template=template, shuffle=msk_conf['shuffle'])
 
         # --- DATA ---
         data = {

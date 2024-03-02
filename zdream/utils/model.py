@@ -1,3 +1,4 @@
+import random
 import tkinter as tk
 from dataclasses import dataclass
 from typing      import Callable, Dict, List, Tuple
@@ -8,8 +9,6 @@ import torch.nn as nn
 from numpy.typing import NDArray
 from torch        import Tensor
 from PIL          import Image, ImageTk
-
-from zdream.utils.misc import repeat_pattern
 
 
 # --- TYPE ALIASES ---
@@ -64,7 +63,7 @@ Function aggregating the StimuliScore for different layer into
 a single StimuliScore.
 '''
 
-MaskGenerator = Callable[[int], List[bool]]
+MaskGenerator = Callable[[int], Mask]
 '''
 Function producing a boolean mask for an input number of synthetic images in a stimuli set.
 The number of True values in the mask must correspond to the number of input synthetic images.
@@ -102,8 +101,30 @@ def mask_generator_from_template(
 			synthetic images in a a set of stimuli.
 	:rtype: MaskGenerator
 	'''
-
-	return partial(repeat_pattern, base_seq=template, shuffle=shuffle)
+      
+	def repeat_pattern(
+		n : int,
+		template: List[bool], 
+		shuffle: bool
+	) -> List[bool]:
+		'''
+		Generate a list by repeating an input pattern with shuffling option.
+		'''
+		
+		bool_l = []
+		
+		for _ in range(n):
+			if shuffle:
+				random.shuffle(template)
+			bool_l.extend(template)
+			
+		return bool_l
+	
+	n_true = template.count(True)
+	if n_true != 1:
+		raise ValueError(f'Expected template to contain 1 True value, but {n_true} were found.')
+	
+	return partial(repeat_pattern, template=template, shuffle=shuffle)
 
 
 # --- MESSAGE ---

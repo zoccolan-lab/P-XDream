@@ -271,8 +271,8 @@ class NetworkSubject(InSilicoSubject, nn.Module):
     def get_layer(self, layer_name: str) -> nn.Module | None:
         '''
         Return the network layer matching the name in input.
-        NOTE The layer is expected to have attribute "name" which
-            is its identifier in layer indexing
+        NOTE: The layer is expected to have attribute "name" which
+              is its identifier in layer indexing
         
         :param layer_name: Layer name in the architecture.
         :type layer_name: str
