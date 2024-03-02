@@ -117,7 +117,7 @@ class _MaximizeActivityExperiment(Experiment):
 
         log_conf['title'] = _MaximizeActivityExperiment._EXPERIMENT_NAME
         logger = LoguruLogger(
-            log_conf=log_conf
+            conf=log_conf
         )
 
         # --- MASK GENERATOR ---

@@ -13,7 +13,8 @@ from torchvision.utils import make_grid
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 from einops import rearrange
-import pandas as pd
+from pandas import DataFrame
+from numpy.typing import NDArray
 
 from .model import RFBox
 
