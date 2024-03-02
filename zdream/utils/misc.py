@@ -67,27 +67,26 @@ def fit_bbox(
     return tuple(bbox)
 
 
-def convert_to_numpy(data: Union[list, tuple, np.ndarray, torch.Tensor, pd.DataFrame]):
+def convert_to_numpy(data: Union[list, tuple, Tensor, DataFrame]) -> NDArray:
     """
-    Converte un qualsiasi dato in un array NumPy.
-
-    Parameters:
-    - data: Il dato da convertire (può essere una lista, una tupla, un array NumPy, un tensore PyTorch o un DataFrame pandas).
-
-    Returns:
-    - numpy_array: L'array NumPy risultante.
+    convert data of different formats into numpy NDArray
+    
+    :param data: your dataset. It will be converted into a numpy ndarray
+    :type data: Union[list, tuple, NDArray, Tensor, DataFrame]
+    
+    :return: data converted into  numpy ndarray
+    :rtype: NDArray
     """
     try:
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, DataFrame):
             numpy_array = data.to_numpy()
-        elif isinstance(data, torch.Tensor):
+        elif isinstance(data, Tensor):
             numpy_array = data.numpy()
         else:
             numpy_array = np.array(data)
         return numpy_array
     except Exception as e:
-        print(f"Errore durante la conversione in NumPy array: {e}")
-        return None
+        print(f"Error during numpy array conversion: {e}")
 
 # --- TORCH ---
 
@@ -448,32 +447,33 @@ def concatenate_images(img_list: List[Tensor], nrow: int = 2):
     return grid_images
 
 
-def SEMf(data: Union[List[float], Tuple[float], np.ndarray], axis: int = 0):
+def SEMf(data: Union[List[float], Tuple[float], NDArray], 
+         axis: int = 0) -> NDArray:
     """
-    Calcola lo standard error of the mean (SEM) per una sequenza di numeri.
+    Compute standard error of the mean (SEM) for a sequence of numbers
 
-    Parameters:
-    - data: Sequenza di numeri (lista, tupla, array NumPy, ecc.).
-    - axis: Asse lungo il quale calcolare la deviazione standard (valido solo per array NumPy).
-
-    Returns:
-    - sem: Standard error of the mean (SEM).
+    :param data: your dataset. It will be converted into a numpy ndarray
+    :type data: Union[List[float], Tuple[float], NDArray]
+    :param axis: axis used to compute SEM (valid for NDArray data only)
+    :type axis: int
+    :return: The computed SEMs
+    :rtype: NDArray
     """
     try:
-        # Converte la sequenza in un array NumPy utilizzando la funzione convert_to_numpy
+        #  convert data into NDArray
         data_array = convert_to_numpy(data)
         
-        # Calcola la deviazione standard e il numero di campioni specificando l'asse se necessario
+        # compute standard deviation and sample size on the specified axis
         std_dev = np.nanstd(data_array, axis=axis) if data_array.ndim > 1 else np.nanstd(data_array)
         sample_size = data_array.shape[axis]
         
-        # Calcola lo standard error of the mean (SEM)
+        # compute SEM
         sem = std_dev / np.sqrt(sample_size)
-        
         return sem
+    
     except Exception as e:
-        print(f"Errore durante il calcolo dello standard error of the mean (SEM): {e}")
-        return None
+        print(f"Error during SEM computation: {e}")
+
 
 def stringfy_time(sec: int | float) -> str:
     ''' Converts number of seconds into a hour-minute-second string representation. '''
