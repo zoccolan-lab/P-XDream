@@ -167,31 +167,31 @@ def multichar_split(my_string: str, separator_chars: List[str] = ['-', '.'])-> L
     
     
 def repeat_pattern(
-    n : int,
-    base_seq: List[Any] = [True, False], 
-    shuffle: bool = True
-) -> List[Any]:
-    '''
-    Generate a list by repeating a pattern with shuffling option.
+		n : int,
+		base_seq: List[bool], 
+		shuffle: bool
+	) -> List[bool]:
+		'''
+		Generate a list by repeating an input pattern with shuffling option.
 
-    :param n: The number of times to repeat the pattern.
-    :type n: int
-    :param base_seq: The base sequence to repeat, defaults to [True, False].
-    :type base_seq: List[Any], optional
-    :param rand: Whether to shuffle the base sequence before repeating, defaults to True.
-    :type rand: bool, optional
-    :return: A list containing the repeated pattern.
-    :rtype: List[Any]
-    '''
-    
-    bool_l = []
-    
-    for _ in range(n):
-        if shuffle:
-            random.shuffle(base_seq)
-        bool_l.extend(base_seq)
-        
-    return bool_l
+		:param n: The number of times to repeat the pattern.
+		:type n: int
+		:param base_seq: The base sequence to repeat, defaults to [True, False].
+		:type base_seq: List[Any], optional
+		:param rand: Whether to shuffle the base sequence before repeating, defaults to True.
+		:type rand: bool, optional
+		:return: A list containing the repeated pattern.
+		:rtype: List[Any]
+		'''
+		
+		bool_l = []
+		
+		for _ in range(n):
+			if shuffle:
+				random.shuffle(base_seq)
+			bool_l.extend(base_seq)
+			
+		return bool_l
 
 # --- I/O ---
 

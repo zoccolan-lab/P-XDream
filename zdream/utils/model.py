@@ -1,15 +1,16 @@
-from dataclasses import dataclass
 import tkinter as tk
-from typing import Callable, Dict, List, Tuple
+from dataclasses import dataclass
+from typing      import Callable, Dict, List, Tuple
+from functools   import partial
 
-import numpy as np
-from numpy.typing import NDArray
-from torch import Tensor
-from PIL import Image, ImageTk
-
-from typing import Tuple
-
+import numpy    as np
 import torch.nn as nn
+from numpy.typing import NDArray
+from torch        import Tensor
+from PIL          import Image, ImageTk
+
+from zdream.utils.misc import repeat_pattern
+
 
 # --- TYPE ALIASES ---
 
@@ -63,17 +64,47 @@ Function aggregating the StimuliScore for different layer into
 a single StimuliScore.
 '''
 
+MaskGenerator = Callable[[int], List[bool]]
+'''
+Function producing a boolean mask for an input number of synthetic images in a stimuli set.
+The number of True values in the mask must correspond to the number of input synthetic images.
+'''
+
 # --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
 
-scoring_functions: Dict[str, ScoringFunction] = { # TODO
+scoring_functions: Dict[str, ScoringFunction] = {
 
 }
 
-aggregating_functions: Dict[str, AggregateFunction] = { # TODO
+aggregating_functions: Dict[str, AggregateFunction] = {
 	'mean'  : lambda x: np.mean  (np.stack(list(x.values())), axis=0),
 	'sum'   : lambda x: np.sum   (np.stack(list(x.values())), axis=0),
 	'median': lambda x: np.median(np.stack(list(x.values())), axis=0),
 }
+
+# --- MASK GENERATOR
+
+def mask_generator_from_template(
+        template: List[bool] = [True], 
+        shuffle: bool = False
+    ) -> MaskGenerator:
+	'''
+	Function to produce a mask generator from a given template 
+	with shuffling option. The template is expected to contain a 
+	single True and an arbitrary number of False.
+	
+	:param template: Boolean template with one single True value,
+					defaults to [True].
+	:type template: List[bool]
+	:param shuffle: If to shuffle the template, defaults to False.
+	:type shuffle: bool
+	:return: Function for generating mask for template for an arbitrary number of 
+			synthetic images in a a set of stimuli.
+	:rtype: MaskGenerator
+	'''
+
+	return partial(repeat_pattern, base_seq=template, shuffle=shuffle)
+
 
 # --- MESSAGE ---
 
@@ -91,7 +122,7 @@ class Message:
     Boolean mask associated to a set of stimuli indicating if they are
     synthetic of natural images.
     
-    NOTE: The mask has not `Mask` type because it's not a list but an array.
+    NOTE: The mask has not `Mask` as it's not a list but an array.
           This is made to facilitate filtering operations that are primarily
           applied to arrays.
     '''
@@ -99,11 +130,15 @@ class Message:
     label   : List[int]
     '''
     List of labels associated to the set of stimuli.
+    
+    NOTE: Labels are only associated to natural images so they are
+          they only refers to 'False' entries in the mask.
     '''
 
 # --- NETWORKS --- 
 
 class InputLayer(nn.Module):
+    ''' Class representing a trivial input layer for an ANN '''
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
@@ -111,7 +146,7 @@ class InputLayer(nn.Module):
     def forward(self, x : Tensor) -> Tensor:
         return x
 
-    def _get_name(self):
+    def _get_name(self) -> str:
         return 'Input'
 
 # --- SCREEN ---
@@ -133,12 +168,12 @@ class DisplayScreen:
 		self._title  = title
 		self._display_size = display_size
 		
-		# Screen master
-		self._master = tk.Toplevel()
-		self._master.title(title)
+		# Screen controller
+		self._controller = tk.Toplevel()
+		self._controller.title(self._title)
 		
 		# Create a container frame for the image label
-		self._image_frame = tk.Frame(self._master)
+		self._image_frame = tk.Frame(self._controller)
 		self._image_label = tk.Label(self._image_frame)
 		
 		self._image_frame.pack()
@@ -163,12 +198,14 @@ class DisplayScreen:
 		self._image_label.image = photo              # type: ignore
 		
 		# Update the frame
-		self._master.update()
+		self._controller.update()
 
 	def close(self):
 		'''
 		Method to be invoked to close the screen.
-		NOTE: After this, the object becomes useless and a new one
-			  needs to be instantiated.
+            
+		NOTE: After this, the object becomes useless as the garbage
+              collector takes controler with no more reference.
+              The object becomes useless and a new one needs to be instantiated.
 		'''
-		self._master.after(100, self._master.destroy) 
+		self._controller.after(100, self._controller.destroy) 
