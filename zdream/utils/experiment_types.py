@@ -70,7 +70,8 @@ class _MaximizeActivityExperiment(Experiment):
 
 
         # Probe
-        record_target = {layer_names[i]: None for i in sbj_conf['rec_layers']} # Record from any neurons in input layers
+        record_target_i = parse_layer_target_units(input_str=sbj_conf['rec_layers'], input_dim=generator.input_dim)
+        record_target = {layer_names[i]: v for i, v in record_target_i.items()}
         probe = RecordingProbe(target = record_target) # type: ignore
 
         sbj_net = NetworkSubject(

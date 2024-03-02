@@ -12,7 +12,7 @@
     },
     "subject": {
         "net_name": "alexnet",
-        "rec_layers": [21]
+        "rec_layers": "21:[]"
     },
     "scorer": {
         "targets": "21:[0_19]",
