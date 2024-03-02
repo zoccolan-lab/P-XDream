@@ -1,4 +1,5 @@
 import os
+import re
 import warnings
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -22,7 +23,6 @@ from .utils.model import Codes
 from .utils.model import Mask
 from .utils.model import Message
 from .utils.misc import default
-from .utils.misc import multichar_split
 
 
 """ 
@@ -528,8 +528,10 @@ class InverseAlexGenerator(Generator):
             case _: return _opt1 
 
     def _build(self, variant : str = 'fc8') -> nn.Module:
+
         # Get type of network (i.e: norm, conv, pool, fc)
-        self.type_net = multichar_split(variant)[0][:-1]
+        # by separating the layer name from unit count
+        self.type_net, _ = re.match(r'([a-zA-Z]+)(\d+)', variant).groups() # type: ignore
 
         match variant:
             case 'fc8': num_inputs = 1000

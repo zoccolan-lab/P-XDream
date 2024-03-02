@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 from PIL    import Image
 from loguru import logger
 
-from zdream.utils.misc  import rmdir
+from zdream.utils.io_  import rmdir
 from zdream.utils.model import DisplayScreen
 
 class Logger:
@@ -57,6 +57,8 @@ class Logger:
 
 		:param conf: Mapping for experiment directory, title, name and version.
 		:type conf: Dict[str, str]
+		:return: Target directory.
+		:rtype: str
 		'''
 
 		# Extract parameters

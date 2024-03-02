@@ -9,13 +9,14 @@ import torch
 import numpy as np
 from typing import List, Tuple, Dict, Any
 from zdream.utils.dataset import RandomImageDataset
+from zdream.utils.io_ import read_json
 from zdream.utils.model import Mask
 from zdream.utils.model import Stimuli
 from zdream.generator import InverseAlexGenerator
 from zdream.utils.model import Message
 from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
-from zdream.utils.misc import device, read_json
+from zdream.utils.misc import device
 
 # Loading `local_settings.json` for custom local settings
 test_folder = path.dirname(path.abspath(__file__))

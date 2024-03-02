@@ -6,8 +6,10 @@ from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
 from zdream.subject import NetworkSubject
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import concatenate_images, device, parse_boolean_string, parse_layer_target_units, to_gif
+from zdream.utils.io_ import to_gif
+from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
+from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units
 from zdream.utils.plotting import plot_optimization_profile, plot_scores_by_cat
 
 

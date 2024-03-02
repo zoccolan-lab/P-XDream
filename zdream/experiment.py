@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from .utils.io_ import save_json
+
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
@@ -17,7 +19,7 @@ from .utils.model import Codes, Mask, MaskGenerator, Message, Stimuli, StimuliSc
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
-from .utils.misc import default, flatten_dict, overwrite_dict, save_json, stringfy_time
+from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
 
 @dataclass
 class ExperimentState:

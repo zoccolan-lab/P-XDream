@@ -1,7 +1,4 @@
-import os
 import re
-import random
-import json
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
 
 import numpy as np
@@ -15,6 +12,7 @@ from PIL import Image
 from einops import rearrange
 from pandas import DataFrame
 from numpy.typing import NDArray
+
 
 from .model import RFBox
 
@@ -68,44 +66,35 @@ def fit_bbox(
     return tuple(bbox)
 
 
-def convert_to_numpy(data: Union[list, tuple, Tensor, DataFrame]) -> NDArray:
-    """
-    convert data of different formats into numpy NDArray
+def to_numpy(data: List | Tuple | Tensor | DataFrame) -> NDArray:
+    '''
+    Convert data from different formats into a numpy NDArray.
     
-    :param data: your dataset. It will be converted into a numpy ndarray
-    :type data: Union[list, tuple, NDArray, Tensor, DataFrame]
+    :param data: Data structure to convert into a numpy array.
+    :type data: List | Tuple | Tensor | DataFrame
     
-    :return: data converted into  numpy ndarray
+    :return: Data converted into a numpy array.
     :rtype: NDArray
-    """
+    '''
+
     try:
         if isinstance(data, DataFrame):
             numpy_array = data.to_numpy()
         elif isinstance(data, Tensor):
             numpy_array = data.numpy()
-        else:
+        elif isinstance(data, List) or isinstance(data, Tuple):
             numpy_array = np.array(data)
+        else:
+            raise TypeError(f'Invalid input type {type(data)} for array conversion. ')
         return numpy_array
+    
     except Exception as e:
-        print(f"Error during numpy array conversion: {e}")
+        raise RuntimeError(f"Error during numpy array conversion: {e}")
 
 # --- TORCH ---
 
 # Default device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def count_nans(arr):
-    '''
-    Count the number of NaN values in a NumPy array or PyTorch tensor.
-
-    :param arr: The input array or tensor.
-    :type arr: numpy.ndarray or torch.Tensor
-    :return: The number of NaN values in the array or tensor.
-    :rtype: int
-    '''
-    if   isinstance(arr, np.ndarray):   return np.sum(np.isnan(arr))
-    elif isinstance(arr, torch.Tensor): return torch.sum(torch.isnan(arr)).item()
-    else: raise ValueError("Input must be a NumPy array or a PyTorch tensor.")
 
 def unpack(model : nn.Module) -> nn.ModuleList:
     '''
@@ -127,265 +116,30 @@ def unpack(model : nn.Module) -> nn.ModuleList:
     
     return nn.ModuleList(unpacked)
 
-# NOTE: Code taken from github issue:
-# https://github.com/pytorch/vision/issues/6699
-def _replace_inplace(module : nn.Module) -> None:
+# NOTE: Code taken from github issue: https://github.com/pytorch/vision/issues/6699
+def replace_inplace(module : nn.Module) -> None:
+    '''
+    Recursively replaces instances of nn.ReLU and nn.ReLU6 modules within a given
+    nn.Module with instances of nn.ReLU with inplace=False.
+
+    :param module: The PyTorch module whose ReLU modules need to be replaced.
+    :type module: nn.Module
+    '''
+
     reassign = {}
     
     for name, mod in module.named_children(): 
-        _replace_inplace(mod) 
-        # Checking for explicit type instead of instance 
-        # as we only want to replace modules of the exact type 
-        # not inherited classes 
+
+        replace_inplace(mod) 
+
+        # NOTE: Checking for explicit type instead of instance 
+        #       as we only want to replace modules of the exact type 
+        #       not inherited classes 
         if type(mod) is nn.ReLU or type(mod) is nn.ReLU6: 
             reassign[name] = nn.ReLU(inplace=False) 
 
     for key, value in reassign.items(): 
         module._modules[key] = value 
-
-# --- STRING ---
-
-def multichar_split(my_string: str, separator_chars: List[str] = ['-', '.'])-> List[str]:
-    '''
-    Split a string using multiple separator characters.
-
-    :param my_string: The input string to be split.
-    :type my_string: str
-    :param separator_chars: List of separator characters, defaults to ['-', '.']
-    :type separator_chars: List[str], optional
-    :return: List containing the substrings resulting from the split.
-    :rtype: List[str]
-    '''
-    
-    # Build the regular expression pattern to match any of the separator characters
-    pattern = '[' + re.escape(''.join(separator_chars)) + ']'
-    
-    # Split the string using the pattern as separator
-    split = re.split(pattern, my_string) 
-    
-    return split
-    
-    
-
-
-# --- I/O ---
-
-def read_json(path: str) -> Dict[str, Any]:
-    '''
-    Read JSON data from a file.
-
-    :param path: The path to the JSON file.
-    :type path: str
-    :raises FileNotFoundError: If the specified file is not found.
-    :return: The JSON data read from the file.
-    :rtype: Dict[str, Any]
-    '''
-    
-    try:
-        with open(path, 'r') as f:
-            data = json.load(f)
-        return data
-    except FileNotFoundError:
-        raise FileNotFoundError(f'File not found at path: {path}')
-    
-
-def save_json(data: Dict[str, Any], path: str):
-    '''
-    Save JSON data to a file.
-
-    :param data: The JSON data to be saved.
-    :type data: Dict[str, Any]
-    :param path: The path to save the JSON file.
-    :type path: str
-    '''
-    
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=4)
-    
-def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
-    '''
-    Save a list of input images as a .gif file.
-
-    :param image_list: List of images to be saved as .gif file.
-    :type image_list: List[Image.Image]
-    :param out_fp: File path where to save the image.
-    :type out_fp: str
-    :param duration: Duration of image frame in milliseconds, defaults to 100.
-    :type duration: int, optional
-    '''
-
-    image_list[0].save(
-        out_fp, 
-        save_all=True,
-        optimize=False, 
-        append_images=image_list[1:], 
-        loop=0, duration=duration
-    )
-
-def rmdir(directory):
-    """
-    Recursively removes the contents of a directory and the directory itself.
-    """
-
-    # Iterate over the contents of the directory
-    for item in os.listdir(directory):
-
-        # Construct the full path of the item
-        item_path = os.path.join(directory, item)
-        
-        # Check if the item is a file
-        if os.path.isfile(item_path):
-            os.remove(item_path)
-        # If the item is a directory, recursively remove its contents
-        elif os.path.isdir(item_path):
-            rmdir(item_path)
-    
-    # After removing all contents, remove the directory itself
-    os.rmdir(directory)
-
-def numbers_from_file(file_path: str) -> List[int]:
-    with open(file_path, 'r') as file:
-        numbers = [int(line.strip()) for line in file]
-    return numbers
-
-# -- PARSING --
-
-def parse_boolean_string(boolean_str: str) -> List[bool]:
-    ''' Converts a boolean string of T and F in a boolean list'''
-
-    def char_to_bool(ch: str) -> bool:
-        match ch:
-            case 'T': return True
-            case 'F': return False
-            case _: raise ValueError('Boolean string must contain only T and F symbols.')
-
-    return[char_to_bool(ch=ch) for ch in boolean_str]
-
-def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict[int, Tuple[int, ...]]:
-    '''
-    Converts a input string indicating the units associated to each layer
-    to a dictionary mapping layer number to units indices.
-
-    The format to specify the structure is requires separating dictionaries with comma:
-        layer1: [units1], layer2: [units2], ..., layerN: [unitsN]
-
-    Where units specification can be:
-        - individual unit specification; requires neurons index to be separated by a space:
-            [A B ... C]
-        - units from file; requires to specify a path to a .txt file containing one neuron number per line:
-            [file.txt]
-        - range specification; requires to specify start and end neurons in a range separated by an underscore:
-            [A_B]
-        - random set of neurons; requires the number of random units followed by an r:
-            [Ar]
-        - all neurons; requires no specification:
-            []
-    '''
-
-    # Total input units across dimensions
-    tot_in_units = np.prod(input_dim)
-
-    def neuron_to_input_shape(unit: int) -> Tuple[int, ...]:
-        '''
-        The function converts flat input number to the input dimensionality
-        '''
-
-        # Check unit incompatible with input dimension
-        if unit > tot_in_units: raise ValueError(f'Invalid unit: {unit}')
-
-        # Convert to tuple version
-        out_unit = []
-        
-        for dim in input_dim:
-            out_unit.append(unit % dim)
-            unit = unit // dim
-        
-        return tuple(out_unit)
-    
-    # Output dictionary
-    target_dict = dict()
-
-    # Split targets separated by a comma
-    targets = input_str.split(',')
-
-    for target in targets:
-
-        # Layer units split
-        try:
-            layer, units = target.split(':')
-        except ValueError as e:
-            raise SyntaxError(f'Invalid format in {target}. Expected a single `:`.')
-
-        # Layer and units parsing
-        layer = int(layer.strip())        # Layer cast to int
-        units = units.strip("[] ") # Units without square brackets
-
-        # 1. Range
-        if '_' in units:
-            try:
-                low, up = [int(v) for v in units.split('_')]
-                neurons = list(range(low, up))
-            except ValueError:
-                raise SyntaxError(f'Invalid format in {units}. Expected a single `_`.')
-            
-        # 2. File
-        elif units.endswith('.txt'):
-            neurons = numbers_from_file(file_path=units)
-
-            neurons_err = [u for u in neurons if u > tot_in_units]
-            if len(neurons_err):
-                raise ValueError(f'Trying to record {neurons_err} units, but there\'s a total of {tot_in_units}.')
-
-        
-        # 3. Random
-        elif units.count('r') == 1:
-
-            try: 
-                n_rand = int(units.strip('r'))
-            except ValueError:
-                raise SyntaxError(f'Invalid format in {units}. Expected the number of random units followed by an `t`.')
-            
-            if n_rand > tot_in_units:
-                raise ValueError(f'Trying to generate {n_rand} random units from  a total of {tot_in_units}.')
-            
-            neurons = random.sample(range(tot_in_units), n_rand)
-
-        # 4. All neurons
-        elif units.replace(' ', '') == '':
-
-            neurons = None
-
-        # 5. Specific neurons
-        elif all(ch.isdigit() for ch in units.replace(' ', '')):
-
-            neurons = [int(unit) for unit in units.split()]# if unit.strip()]
-
-            neurons_err = [u for u in neurons if u > tot_in_units]
-            if len(neurons_err):
-                raise ValueError(f'Trying to record {neurons_err} units, but there\'s a total of {tot_in_units}.')
-
-        else:
-            error_msg = '''
-            Invalid input string;  valid formats are:
-                layer1: [units1], layer2: [units2], ..., layerN: [unitsN]
-            with units specified either as:
-                - single units:    [A B ... C]
-                - units from file: [neurons.txt]
-                - range units:     [A_B]
-                - random units:    [Ar]
-                - all units:       []
-            '''
-            raise SyntaxError(error_msg)
-        
-        # Convert inputs to input dimension
-        # if neurons:
-        #     neurons = [neuron_to_input_shape(n) for n in neurons] TODO What to do for structured neurons
-
-        target_dict[layer] = neurons
-
-    return target_dict
-
-
 
 # --- IMAGES ---
 
@@ -414,7 +168,11 @@ def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
     
     return img_arr
 
-def concatenate_images(img_list: List[Tensor], nrow: int = 2):
+def concatenate_images(img_list: List[Tensor], nrow: int = 2) -> Image.Image:
+    ''' 
+    Concatenate an input number of images as tensors into a single image
+    with the specified number of rows.
+    '''
     
     grid_images = make_grid(img_list, nrow=nrow)
     grid_images = to_pil_image(grid_images)
@@ -422,45 +180,52 @@ def concatenate_images(img_list: List[Tensor], nrow: int = 2):
     
     return grid_images
 
+# --- STATISTICS
 
-def SEMf(data: Union[List[float], Tuple[float], NDArray], 
-         axis: int = 0) -> NDArray:
-    """
+def SEMf(
+        data: List[float] | Tuple[float] | NDArray, 
+        axis: int = 0
+    ) -> NDArray:
+    '''
     Compute standard error of the mean (SEM) for a sequence of numbers
 
-    :param data: your dataset. It will be converted into a numpy ndarray
-    :type data: Union[List[float], Tuple[float], NDArray]
-    :param axis: axis used to compute SEM (valid for NDArray data only)
+    :param data: Data to which compute the statistics.
+    :type data: List[float] | Tuple[float]
+    :param axis: Axis to compute SEM (valid for NDArray data only), default to zero.
     :type axis: int
-    :return: The computed SEMs
+    :return: Computed statistics SEMs
     :rtype: NDArray
-    """
-    try:
-        #  convert data into NDArray
-        data_array = convert_to_numpy(data)
-        
-        # compute standard deviation and sample size on the specified axis
-        std_dev = np.nanstd(data_array, axis=axis) if data_array.ndim > 1 else np.nanstd(data_array)
-        sample_size = data_array.shape[axis]
-        
-        # compute SEM
-        sem = std_dev / np.sqrt(sample_size)
-        return sem
-    
-    except Exception as e:
-        print(f"Error during SEM computation: {e}")
+    '''
 
+    # Convert data into NDArray
+    if not isinstance(data, np.ndarray):
+        data = to_numpy(data)
+    
+    # Compute standard deviation and sample size on the specified axis
+    std_dev = np.nanstd(data, axis=axis) if data.ndim > 1 else np.nanstd(data)
+    sample_size = data.shape[axis]
+    
+    # Compute SEM
+    sem = std_dev / np.sqrt(sample_size)
+
+    return sem
+
+
+# --- TIME ---
 
 def stringfy_time(sec: int | float) -> str:
     ''' Converts number of seconds into a hour-minute-second string representation. '''
 
+    # Round seconds
     sec = int(sec)
 
+    # Compute hours, minutes and seconds
     hours = sec // 3600
     sec %= 3600
     minutes = sec // 60
     sec %= 60
 
+    # Handle possible formats
     time_str = ""
     if hours > 0:
         time_str += f"{hours} hour{'s' if hours > 1 else ''}, "
@@ -470,12 +235,14 @@ def stringfy_time(sec: int | float) -> str:
     
     return time_str
 
+# --- DICTIONARIES ---
 
 def overwrite_dict(a: Dict, b: Dict) -> Dict:
     ''' 
     Overwrite keys of a nested dictionary A with those of a 
     second flat dictionary B is their values are not none.
     '''
+    
     for key in a:
         if isinstance(a[key], Dict):
             overwrite_dict(a[key], b)
@@ -483,10 +250,11 @@ def overwrite_dict(a: Dict, b: Dict) -> Dict:
             a[key] = b[key]
     return a
 
-def flatten_dict(d: Dict)-> Dict[Any, Any]:
-    """
-    Flatten a nested dictionary recursively to multiple levels.
-    """
+def flatten_dict(d: Dict)-> Dict:
+    '''
+    Recursively flat an input nested dictionary.
+    '''
+
     flattened_dict = {}
     for k, v in d.items():
         if isinstance(v, Dict):

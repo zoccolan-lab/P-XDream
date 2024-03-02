@@ -20,7 +20,7 @@ from .utils.model import InputLayer
 from .utils.misc import default
 from .utils.misc import device
 from .utils.misc import unpack
-from .utils.misc import _replace_inplace
+from .utils.misc import replace_inplace
 
 class Subject(ABC):
     '''
@@ -123,7 +123,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         # NOTE: Here we make sure no inplace operations are used in the network
         #       to avoid weird behaviors (e.g. if a backward hook is attached
         #       to the network) at the cost of small memory increase
-        _replace_inplace(self._network)
+        replace_inplace(self._network)
         
         self._probes : Dict[SilicoProbe, List[RemovableHandle]] = defaultdict(list)
 

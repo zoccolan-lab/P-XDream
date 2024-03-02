@@ -8,7 +8,8 @@ import matplotlib
 from zdream.experiment import MultiExperiment
 
 from zdream.utils.experiment_types import _MaximizeActivityExperiment
-from zdream.utils.misc import overwrite_dict, read_json, flatten_dict
+from zdream.utils.io_ import read_json
+from zdream.utils.misc import overwrite_dict, flatten_dict
 from typing import cast
 
 matplotlib.use('TKAgg')

@@ -7,7 +7,8 @@ from argparse import ArgumentParser
 import matplotlib
 
 from zdream.utils.experiment_types import _MaximizeActivityExperiment
-from zdream.utils.misc import overwrite_dict, read_json
+from zdream.utils.io_ import read_json
+from zdream.utils.misc import overwrite_dict
 
 matplotlib.use('TKAgg')
 
