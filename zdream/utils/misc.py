@@ -182,7 +182,7 @@ def concatenate_images(img_list: List[Tensor], nrow: int = 2) -> Image.Image:
 
 # --- STATISTICS
 
-def SEMf(
+def SEM(
         data: List[float] | Tuple[float] | NDArray, 
         axis: int = 0
     ) -> NDArray:

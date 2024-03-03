@@ -159,6 +159,8 @@ class ExperimentState:
             scores_nat_fp = path.join(out_dir, 'scores_nat.npy')
             logger.info(f"> Saving scores of natural images history to {scores_nat_fp}")
             np.save(scores_nat_fp, self.scores_nat)
+            
+        logger.info(f'')
 
 
 @dataclass
@@ -446,10 +448,13 @@ class Experiment(ABC):
         It is supposed to perform operation of experiment results.
         '''
 
-        # Total elapsed time
+        # Log total elapsed time
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
+        
+        # Close screens
+        self._logger.remove_all_screens()
 
         # Dump
         state = ExperimentState.from_experiment(self)

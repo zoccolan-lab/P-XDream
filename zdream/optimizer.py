@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from scipy.special import softmax
 
 from .utils.model import Codes, StimuliScore, SubjectState, Message
-from .utils.misc import default, lazydefault, SEMf
+from .utils.misc import default, lazydefault, SEM
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']
 ''' Name of distributions for random initial codes '''
@@ -219,7 +219,7 @@ class Optimizer(ABC):
             'best_score' : scores[best_gen][best_idx],
             'curr_score' : scores[-1],
             'mean_shist' : np.array([np.mean(s) for s in scores]),
-            'sem_shist'  : np.array([SEMf(s)    for s in scores]),
+            'sem_shist'  : np.array([SEM(s)    for s in scores]),
             'best_shist' : [score[idx] for score, idx in zip(scores, hist_idx)],    
         }
         

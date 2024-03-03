@@ -10,8 +10,7 @@ from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
 from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units
-from zdream.utils.plotting import plot_optimization_profile, plot_scores_by_cat
-
+from zdream.utils.plotting import plot_scores, plot_scores_by_cat
 
 import numpy as np
 import torch
@@ -19,7 +18,6 @@ from PIL import Image
 from numpy.typing import NDArray
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
-
 
 import os
 import random
@@ -75,6 +73,7 @@ class _MaximizeActivityExperiment(Experiment):
         record_target = {layer_names[i]: v for i, v in record_target_i.items()}
         probe = RecordingProbe(target = record_target) # type: ignore
 
+        # Subject with attached recording probe
         sbj_net = NetworkSubject(
             record_probe=probe,
             network_name=sbj_conf['net_name']
@@ -232,14 +231,7 @@ class _MaximizeActivityExperiment(Experiment):
 
         super()._finish()
 
-        # Close screens
-        self._logger.remove_all_screens()
-
-        # 1) Best Images
-
-        # We create the directory to store results
-        out_dir_fp = path.join(self.target_dir, self._name, self._name)
-        os.makedirs(out_dir_fp, exist_ok=True)
+        # 1. Save best stimuli (synthetic and natural)
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
@@ -248,28 +240,36 @@ class _MaximizeActivityExperiment(Experiment):
 
         # We retrieve the stored best natural image
         best_natural = self._best_img['nat']
-        # best_synthetic = self._best_img['gen']
 
         # We concatenate them
         out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
 
         # We store them
-        out_fp = path.join(self.target_dir, f'best_images.png')
+        out_fp = path.join(self.target_dir, f'best_stimuli.png')
         self._logger.info(mess=f"Saving best images to {out_fp}")
         out_image.save(out_fp)
 
-        # Gif
-        out_gif_fp = path.join(self.target_dir, f'best_image.gif')
+        # 2. Save evolving best stimuli gif
+        out_gif_fp = path.join(self.target_dir, f'best_stimuli.gif')
         self._logger.info(mess=f"Saving best image gif to {out_gif_fp}")
         to_gif(image_list=self._gif, out_fp=out_gif_fp)
 
-        # 2) Score plots
-        plot_optimization_profile(self._optimizer, save_dir = self.target_dir)
-        plot_scores_by_cat(self._optimizer, self._labels, save_dir = self.target_dir, dataset=self._dataset)
-
-        # TODO pkl_name = '_'.join([self._version, self._version])+'.pkl'
-        # TODO with open(path.join(out_dir_fp,pkl_name), 'wb') as file:
-        # TODO     pickle.dump(self, file)
+        # 3. Save plots
+        self._logger.info(mess=f"Saving scoring plots")
+        
+        plot_scores(
+            optim=self._optimizer, 
+            out_dir=self.target_dir
+        )
+        plot_scores_by_cat(
+            self._optimizer,
+            self._labels,
+            out_dir = self.target_dir, 
+            dataset=self._dataset
+        )
+        
+        self._logger.info(mess='')
+        
 
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
 
