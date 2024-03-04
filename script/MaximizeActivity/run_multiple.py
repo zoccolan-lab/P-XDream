@@ -7,14 +7,15 @@ from argparse import ArgumentParser
 import matplotlib
 from zdream.experiment import MultiExperiment
 
-from zdream.utils.experiment_types import _MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
-from zdream.utils.misc import overwrite_dict, flatten_dict
-from typing import cast
+from zdream.utils.misc import flatten_dict
 
 matplotlib.use('TKAgg')
 
-LOCAL_SETTINGS = 'local_settings.json'
+# NOTE: Script directory path refers to the current script file
+SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
+LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 def main(args):   
 
@@ -60,8 +61,6 @@ def main(args):
     # Adjust 1-length values
     n_args = list(observed_lens)[0]
     args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
-
-    print(args_conf)
 
     mrun_experiment = MultiExperiment(
         experiment=_MaximizeActivityExperiment,

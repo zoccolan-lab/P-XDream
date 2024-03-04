@@ -6,14 +6,15 @@ from os import path
 from argparse import ArgumentParser
 import matplotlib
 
-from zdream.utils.experiment_types import _MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import overwrite_dict
 
 matplotlib.use('TKAgg')
 
-
-LOCAL_SETTINGS = 'local_settings.json'
+# NOTE: Script directory path refers to the current script file
+SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
+LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 def main(args):    
 

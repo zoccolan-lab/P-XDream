@@ -1,3 +1,4 @@
+from script.MaximizeActivity.plots import plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig
 from zdream.generator import InverseAlexGenerator
 from zdream.logger import LoguruLogger
@@ -10,7 +11,6 @@ from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
 from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units
-from zdream.utils.plotting import plot_scores, plot_scores_by_cat
 
 import numpy as np
 import torch
