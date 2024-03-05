@@ -33,5 +33,6 @@
         "name": "experiment",
         "version": 0
     },
-    "num_gens": 100
+    "num_gens": 100,
+    "display_plots": false
 }

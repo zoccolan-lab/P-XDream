@@ -127,7 +127,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         # --- DATA ---
         data = {
-            "dataset": dataset
+            "dataset": dataset,
+            'display_plots': conf['display_plots']
         }
 
         # Experiment configuration
@@ -152,8 +153,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         config.data = cast(Dict[str, Any], config.data)
 
-        self._dataset = cast(MiniImageNet, config.data['dataset'])
-
+        self._dataset        = cast(MiniImageNet, config.data['dataset'])
+        self._display_plots = cast(bool, config.data['display_plots'])
 
     def _progress_info(self, i: int) -> str:
 
@@ -231,41 +232,52 @@ class _MaximizeActivityExperiment(Experiment):
 
         super()._finish()
 
-        # 1. Save best stimuli (synthetic and natural)
+        # 1. Save visual stimuli (synthetic and natural)
+
+        img_dir = path.join(self.target_dir, 'images')
+        os.makedirs(img_dir, exist_ok=True)
+        self._logger.info(mess=f"Saving images to {img_dir}")
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_code = self.optimizer.solution
-        best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
+        best_gen, _ = self.generator(codes=self.optimizer.solution, pipeline=False)
+        best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
-        best_natural = self._best_img['nat']
+        best_nat = self._best_img['nat']
 
-        # We concatenate them
-        out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
-
-        # We store them
-        out_fp = path.join(self.target_dir, f'best_stimuli.png')
-        self._logger.info(mess=f"Saving best images to {out_fp}")
-        out_image.save(out_fp)
-
-        # 2. Save evolving best stimuli gif
-        out_gif_fp = path.join(self.target_dir, f'best_stimuli.gif')
-        self._logger.info(mess=f"Saving best image gif to {out_gif_fp}")
-        to_gif(image_list=self._gif, out_fp=out_gif_fp)
-
-        # 3. Save plots
-        self._logger.info(mess=f"Saving scoring plots")
+        # Saving images
+        to_pil_image(best_gen).save(path.join(img_dir, 'best_synthetic.png'))
+        to_pil_image(best_nat).save(path.join(img_dir, 'best_natural.png'))
+        concatenate_images(img_list=[best_gen, best_nat]).save(path.join(img_dir, 'best_stimuli.png'))
+        to_gif(image_list=self._gif, out_fp=path.join(img_dir, 'best_synthetic.gif'))
+        
+        # 2. Save plots
+        plots_dir = path.join(self.target_dir, 'images')
+        os.makedirs(plots_dir, exist_ok=True)
+        self._logger.info(mess=f"Saving plots to {plots_dir}")
         
         plot_scores(
-            optim=self._optimizer, 
-            out_dir=self.target_dir
+            scores=(
+                self.optimizer.scores_history,
+                self.optimizer.scores_nat_history
+            ),
+            stats=(
+                self.optimizer.stats,
+                self.optimizer.stats_nat,
+            ),
+            out_dir=plots_dir,
+            display_plots=self._display_plots
         )
         plot_scores_by_cat(
-            self._optimizer,
-            self._labels,
-            out_dir = self.target_dir, 
-            dataset=self._dataset
+            scores=(
+                self.optimizer.scores_history,
+                self.optimizer.scores_nat_history
+            ),
+            lbls    = self._labels,
+            out_dir = plots_dir, 
+            dataset = self._dataset,
+            display_plots=self._display_plots
         )
         
         self._logger.info(mess='')

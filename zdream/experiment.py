@@ -5,7 +5,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.typing import NDArray
@@ -476,9 +476,11 @@ class Experiment(ABC):
         :return: Progress information as a string.
         :rtype: str
         '''
+
+        j = i + 1 # index is off-by-one
         
-        progress = f'{i:>{len(str(self._iteration))}}/{self._iteration}'
-        perc     = f'{i * 100 / self._iteration:>5.2f}%'
+        progress = f'{j:>{len(str(self._iteration))}}/{self._iteration}'
+        perc     = f'{j * 100 / self._iteration:>5.2f}%'
         
         return f'{self}: [{progress}] ({perc})'
     
@@ -548,9 +550,9 @@ class MultiExperiment:
     
     def __init__(
         self,
-        experiment : 'Experiment',
+        experiment    : Type['Experiment'],
         base_config   : Dict[str, Any],
-        search_config : Dict[str, list[Any]], 
+        search_config : Dict[str, List[Any]], 
     ) -> None:
         
         # Check that provided search configuration argument

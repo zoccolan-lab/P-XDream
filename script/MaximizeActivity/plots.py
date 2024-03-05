@@ -1,10 +1,9 @@
-# --- PLOTS ---
-
 from os import path
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple
 
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 from zdream.optimizer import Optimizer
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.misc import SEM
@@ -12,13 +11,15 @@ from zdream.utils.plotting import customize_axes_bounds, set_default_matplotlib_
 
 
 def plot_scores(
-    optim: Optimizer,
-    lab_col : Dict[str, Dict[str, str]] = {
+    scores: Tuple[NDArray, NDArray],
+    stats:  Tuple[Dict[str, Any], Dict[str, Any]],
+    style: Dict[str, Dict[str, str]] = {
         'gen': {'lbl': 'Synthetic', 'col': 'k'},
         'nat': {'lbl':   'Natural', 'col': 'g'}
     },
     num_bins: int  = 25, 
-    out_dir: str | None = None
+    out_dir: str | None = None,
+    display_plots: bool = False
 ):
     '''
     Plot two views of scores trend through optimization steps.
@@ -28,17 +29,24 @@ def plot_scores(
 
     2. The second plot displays the histograms of scores for both natural and synthetic images.
     
-    :param optim: Optimizer collecting stimuli scores across iterations for both synthetic and natural images.
-    :type optim: Optimizer
-    :param lab_col: Style dictionary setting labels and colors of synthetic and natural images.
-                    They default to black for synthetic for green for natural.
-    :type lab_col: Dict[str, Dict[str, str]]
+    :param scores: Scores history of synthetic and natural images.
+    :type scores: Tuple[NDArray, NDArray]
+    :param stats: Collection of statistics for synthetic and natural images through optimization steps.
+    :type stats: Tuple[Dict[str, Any], Dict[str, Any]]
+    :param style: Style dictionary setting labels and colors of synthetic and natural images.
+                    They default to black for synthetic and to green for natural.
+    :type style: Dict[str, Dict[str, str]]
     :param num_bins: Number of bins to display in the histogram, defaults to 25.
     :type num_bins: int
-    :param out_dir: Directory where to save output plots, default is None indicating not to save
-                     but to display with function call.
+    :param out_dir: Directory where to save output plots, default is None indicating not to save.
     :type out_dir: str | None
+    :param display_plots: If to display plots, default to False.
+    :type out_dir: bool
     '''
+
+    # Unpacking input
+    scores_gen, scores_nat = scores
+    stats_gen,  stats_nat  = stats
     
     # Retrieve default parameters and retrieve `alpha` parameter
     def_params = set_default_matplotlib_params(shape='rect_wide', l_side = 30)
@@ -47,24 +55,24 @@ def plot_scores(
     fig_trend, ax = plt.subplots(1, 2)
     
     # Define label and colors for both generated and natural images
-    lbl_gen = lab_col['gen']['lbl']; col_gen = lab_col['gen']['col']
-    lbl_nat = lab_col['nat']['lbl']; col_nat = lab_col['nat']['col']
+    lbl_gen = style['gen']['lbl']; col_gen = style['gen']['col']
+    lbl_nat = style['nat']['lbl']; col_nat = style['nat']['col']
 
     # We replicate the same reasoning for the two subplots by accessing 
     # the different key of the score dictionary whether referring to max or mean.
     for i, k in enumerate(['best_shist', 'mean_shist']):
         
         # Lineplot of both synthetic and natural scores
-        ax[i].plot(optim.stats    [k], label=lbl_gen, color=col_gen)
-        ax[i].plot(optim.stats_nat[k], label=lbl_nat, color=col_nat)
+        ax[i].plot(stats_gen[k], label=lbl_gen, color=col_gen)
+        ax[i].plot(stats_nat[k], label=lbl_nat, color=col_nat)
         
         # When plotting mean values, add SEM shading
         if k =='mean_shist':
-            for stats, col in zip([optim.stats, optim.stats_nat], [col_gen, col_nat]):
+            for stat, col in zip([stats_gen, stats_nat], [col_gen, col_nat]):
                 ax[i].fill_between(
-                    range(len(stats[k])),
-                    stats[k] - stats['sem_shist'],
-                    stats[k] + stats['sem_shist'], 
+                    range(len(stat[k])),
+                    stat[k] - stat['sem_shist'],
+                    stat[k] + stat['sem_shist'], 
                     color=col, alpha=def_params['grid.alpha']
                 )
                 
@@ -84,18 +92,14 @@ def plot_scores(
     
     # PLOT 2. SCORES HISTOGRAM 
     fig_hist, ax = plt.subplots(1) 
-    
-    # Stack scores stimuli
-    score_nat = np.stack(optim._scores_nat)
-    score_gen = np.stack(optim._scores)
-    
+        
     # Compute min and max values
-    data_min = min(score_nat.min(), score_gen.min())
-    data_max = max(score_nat.max(), score_gen.max())
+    data_min = min(scores_nat.min(), scores_gen.min())
+    data_max = max(scores_nat.max(), scores_gen.max())
 
     # Create histograms for both synthetic and natural with the same range and bins
     hnat = plt.hist(
-        score_nat.flatten(),
+        scores_nat.flatten(),
         bins=num_bins,
         range=(data_min, data_max),
         alpha=1, 
@@ -106,7 +110,7 @@ def plot_scores(
     )
     
     hgen = plt.hist(
-        score_gen.flatten(),
+        scores_gen.flatten(),
         bins=num_bins,
         range=(data_min, data_max),
         density=True,
@@ -118,7 +122,7 @@ def plot_scores(
     # NOTE: Since alpha influences also edge transparency, 
     #       histogram needs to be separated into two parts for edges and filling
     hgen_edg = plt.hist(
-        score_gen.flatten(), 
+        scores_gen.flatten(), 
         bins=num_bins, 
         range=(data_min, data_max), 
         label= lbl_gen,
@@ -133,7 +137,7 @@ def plot_scores(
             bin.set_facecolor('none')
     
     # Retrieve number of iterations
-    n_gens = score_gen.shape[0]
+    n_gens = scores_gen.shape[0]
     
     # Set alpha value of each column of the hgen histogram.
     # Iterate over each column, taking its upper bound and its histogram bin
@@ -141,7 +145,7 @@ def plot_scores(
         
         # Compute the probability for each generation of being
         # less than the upper bound of the bin of interest
-        is_less = np.mean(score_gen < up_bound, axis = 1)
+        is_less = np.mean(scores_gen < up_bound, axis = 1)
         
         # Weight the alpha with the average of these probabilities.
         # Weights are the indexes of the generations. The later the generation, 
@@ -161,25 +165,26 @@ def plot_scores(
     if out_dir:
         out_fp = path.join(out_dir, 'scores_histo.png')
         fig_hist.savefig(out_fp, bbox_inches="tight")
-    else:
+    if display_plots:
         plt.show()
 
 
 def plot_scores_by_cat(
-    optim: Optimizer, 
+    scores: Tuple[NDArray, NDArray], 
     lbls: List[int], 
     dataset: MiniImageNet,
     k: int = 3, 
     gens_window: int = 5,
-    out_dir: str|None = None
+    out_dir: str | None = None,
+    display_plots: bool = False
 ):
     '''
     Plot illustrating the average pm SEM scores of the top-k and bottom-k categories of natural images.
     Moreover it also shows the average pm SEM scores of synthetic images within the first and last
     iteration of a considered generation window.
     
-    :param optim: Optimizer collecting stimuli score across generations.
-    :type optim: Optimizer
+    :param scores: Scores history of synthetic and natural images.
+    :type scores: Tuple[NDArray, NDArray]
     :param lbls: List of the labels seen during optimization.
     :type lbls: List[int]
     :param dataset: Dataset of natural images allowing for id to category mapping.
@@ -190,16 +195,20 @@ def plot_scores_by_cat(
     :param gens_window: Generations window to consider scores at the beginning and end 
                         of the optimization. Default is 5.
     :type n_gens_considered: int
-    :param out_dir: Directory where to save output plots, default is None indicating not to save
-                     but to display with function call.
+    :param out_dir: Directory where to save output plots, default is None indicating not to save.
     :type out_dir: str | None
+    :param display_plots: If to display plots, default to False.
+    :type out_dir: bool
     '''
+
+    # Unpacking scores
+    scores_gen, scores_nat = scores 
     
     # Cast scores and labels as arrays.
     # NOTE: `nat_scores are`` flattened to be more easily 
     #       indexed by the nat_lbls vector
-    nat_scores = np.stack(optim._scores_nat).flatten()
-    gen_scores = np.stack(optim._scores)
+    gen_scores = scores_gen
+    nat_scores = scores_nat.flatten()
     
     # Convert class indexes to labels
     class_to_lbl = np.vectorize(lambda x: dataset.class_to_lbl(lbl=x))
@@ -292,5 +301,5 @@ def plot_scores_by_cat(
     if out_dir:
         out_fp = path.join(out_dir, 'scores_labels.png')
         fig.savefig(out_fp, bbox_inches="tight")
-    else:
+    if display_plots:
         plt.show()

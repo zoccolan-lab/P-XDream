@@ -5,7 +5,7 @@ TODO Experiment description
 from os import path
 from argparse import ArgumentParser
 import matplotlib
-from zdream.experiment import MultiExperiment
+from zdream.experiment import Experiment, MultiExperiment
 
 from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
@@ -14,7 +14,7 @@ from zdream.utils.misc import flatten_dict
 matplotlib.use('TKAgg')
 
 # NOTE: Script directory path refers to the current script file
-SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
+SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..', '..'))
 LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 def main(args):   
@@ -124,6 +124,9 @@ if __name__ == '__main__':
     
     # Iterations
     parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve')
+
+    # Output options
+    parser.add_argument('--display_plots',  type=str,  help='If to display plots')
     
     conf = vars(parser.parse_args())
 

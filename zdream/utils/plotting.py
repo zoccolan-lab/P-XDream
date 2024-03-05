@@ -1,14 +1,9 @@
 #TODO: Lorenzo, commentare e mettere in ordine ste funzioni di plotting
 
-from os import path
-import re
 import matplotlib.pyplot as plt 
 from matplotlib.axes import Axes
 from typing import List, Literal, Dict, Any
-import numpy as np
-from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import SEM, default
-from zdream.optimizer import Optimizer
+from zdream.utils.misc import default
 
 # --- DEFAULT PLOTTING PARAMETERS ----
 
