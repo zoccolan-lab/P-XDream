@@ -5,9 +5,8 @@ TODO Experiment description
 from os import path
 from argparse import ArgumentParser
 import matplotlib
-from zdream.experiment import Experiment, MultiExperiment
 
-from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import NeuronScoreMultipleExperiment, _MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import flatten_dict
 
@@ -62,7 +61,7 @@ def main(args):
     n_args = list(observed_lens)[0]
     args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
 
-    mrun_experiment = MultiExperiment(
+    mrun_experiment = NeuronScoreMultipleExperiment(
         experiment=_MaximizeActivityExperiment,
         base_config=json_conf,
         search_config=args_conf
@@ -123,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir',        type=str,   help='Path to directory to save outputs',       default = out_dir,)
     
     # Iterations
-    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve')
+    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve', default="2#3")
 
     # Output options
     parser.add_argument('--display_plots',  type=str,  help='If to display plots')

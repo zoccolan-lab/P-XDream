@@ -4,9 +4,10 @@ from typing import Any, Dict, List, Tuple
 from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
+from zdream.logger import Logger, MutedLogger
 from zdream.optimizer import Optimizer
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import SEM
+from zdream.utils.misc import SEM, default
 from zdream.utils.plotting import customize_axes_bounds, set_default_matplotlib_params
 
 
@@ -19,7 +20,8 @@ def plot_scores(
     },
     num_bins: int  = 25, 
     out_dir: str | None = None,
-    display_plots: bool = False
+    display_plots: bool = False,
+    logger: Logger | None = None
 ):
     '''
     Plot two views of scores trend through optimization steps.
@@ -42,11 +44,17 @@ def plot_scores(
     :type out_dir: str | None
     :param display_plots: If to display plots, default to False.
     :type out_dir: bool
+    :param logger: Logger to log information relative to plot saving paths.
+                   Defaults to None indicating no logging.
+    :type logger: Logger | None
     '''
 
-    # Unpacking input
+    # Preprocessing input
     scores_gen, scores_nat = scores
     stats_gen,  stats_nat  = stats
+
+    logger = default(logger, MutedLogger())
+
     
     # Retrieve default parameters and retrieve `alpha` parameter
     def_params = set_default_matplotlib_params(shape='rect_wide', l_side = 30)
@@ -86,6 +94,7 @@ def plot_scores(
     # Save or display  
     if out_dir:
         out_fp = path.join(out_dir, 'scores_trend.png')
+        logger.info(f'Saving score trend plot to {out_fp}')
         fig_trend.savefig(out_fp, bbox_inches="tight")
     else:
         plt.show()
@@ -164,6 +173,7 @@ def plot_scores(
     # Save or display  
     if out_dir:
         out_fp = path.join(out_dir, 'scores_histo.png')
+        logger.info(f'Saving score histogram plot to {out_fp}')
         fig_hist.savefig(out_fp, bbox_inches="tight")
     if display_plots:
         plt.show()
@@ -176,7 +186,8 @@ def plot_scores_by_cat(
     k: int = 3, 
     gens_window: int = 5,
     out_dir: str | None = None,
-    display_plots: bool = False
+    display_plots: bool = False,
+    logger: Logger | None = None
 ):
     '''
     Plot illustrating the average pm SEM scores of the top-k and bottom-k categories of natural images.
@@ -199,10 +210,15 @@ def plot_scores_by_cat(
     :type out_dir: str | None
     :param display_plots: If to display plots, default to False.
     :type out_dir: bool
+    :param logger: Logger to log information relative to plot saving paths.
+                   Defaults to None indicating no logging.
+    :type logger: Logger | None
     '''
 
-    # Unpacking scores
+    # Preprocessing input
     scores_gen, scores_nat = scores 
+
+    logger = default(logger, MutedLogger())
     
     # Cast scores and labels as arrays.
     # NOTE: `nat_scores are`` flattened to be more easily 
@@ -300,6 +316,7 @@ def plot_scores_by_cat(
     # Save
     if out_dir:
         out_fp = path.join(out_dir, 'scores_labels.png')
+        logger.info(f'Saving score labels plot to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
     if display_plots:
         plt.show()

@@ -98,7 +98,7 @@ class Logger:
 			# If at least one exists, use the last version plus one
 			if existing_versions:
 				versions = sorted([
-					int(version_name[0].split('-')[1]) for version_name in existing_versions
+					int(version_name.split('-')[1]) for version_name in existing_versions
 				])
 				version = versions[-1] + 1
 
