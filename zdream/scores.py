@@ -1,5 +1,5 @@
 from _collections_abc import dict_keys
-from abc import ABC
+from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable, Dict, List, Tuple, cast, Literal
 
@@ -71,6 +71,12 @@ class Scorer(ABC):
             err_msg = f'Keys of test image not in target {set(state).difference(target)}'
             raise ValueError(err_msg)
         
+    @property
+    @abstractmethod
+    def optimizing_units(self) -> int:
+        ''' How many units involved in optimization '''
+        pass
+        
     
 class MSEScorer(Scorer):
     '''
@@ -134,6 +140,11 @@ class MSEScorer(Scorer):
     
     @property
     def target(self) -> Dict[str, NDArray]: return self._target
+
+    @property
+    def optimizing_units(self) -> int:
+        ''' How many units involved in optimization '''
+        return len(self._target)
     
 class MaxActivityScorer(Scorer):
     
@@ -172,6 +183,11 @@ class MaxActivityScorer(Scorer):
         
         return scores    
     
+    @property
+    def optimizing_units(self) -> int:
+        ''' How many units involved in optimization '''
+        return sum(len(target) for target in self._trg_neurons.values())
+    
     
 class WeightedPairSimilarityScorer(Scorer):
     '''
@@ -180,7 +196,7 @@ class WeightedPairSimilarityScorer(Scorer):
     or negative. Groups are defined via a grouping function. 
     '''
 
-    # TODO: Change pairing function mechanism
+    # TODO: We are considering all recorded neurons
     def __init__(
         self,
         signature : Dict[str, float],
@@ -245,6 +261,11 @@ class WeightedPairSimilarityScorer(Scorer):
         return f'WeightedPairSimilarityScorer[metric: {self._metric}; target size: ({weights})]'
         
     def __repr__(self) -> str: return str(self)
+
+    @property
+    def optimizing_units(self) -> int:
+        ''' How many units involved in optimization '''
+        return 0
 
     def _score(
         self,

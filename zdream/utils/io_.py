@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 from typing import Any, Dict, List
 
 from PIL import Image
@@ -60,6 +61,37 @@ def save_json(data: Dict[str, Any], path: str):
 
     with open(path, 'w') as f:
         json.dump(data, f, indent=4)
+
+# --- PICKLE ---
+        
+def store_pickle(data: Dict[str, Any], path: str):
+    """
+    Store a dictionary as a pickle file.
+
+    :param data: Dictionary to be pickled.
+    :type data: Dict[str, Any]
+    :param path: File path where the pickled dictionary will be stored.
+    :type path: str
+    :return: None
+    """
+
+    with open(path, 'wb') as f:
+        pickle.dump(data, f)
+
+
+def load_pickle(path: str) -> Dict[str, Any]:
+    """
+    Load a dictionary from a pickle file.
+
+    :param path: File path from which to load the pickled dictionary.
+    :type path: str
+    :return: The loaded dictionary.
+    :rtype: Dict[str, Any]
+    """
+
+    with open(path, 'rb') as f:
+        loaded_dict = pickle.load(f)
+    return loaded_dict
 
 # --- IMAGES ---
 

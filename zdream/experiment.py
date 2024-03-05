@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from os import path
 import os
+import pickle
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from typing import Any, Callable, Dict, List, Tuple, Type
 import numpy as np
 from numpy.typing import NDArray
 
-from .utils.io_ import save_json
+from .utils.io_ import save_json, store_pickle
 
 from .logger import Logger, MutedLogger
 
@@ -540,9 +541,6 @@ class Experiment(ABC):
         self._finish()
 
 
-
-
-
 class MultiExperiment:
     '''
     
@@ -572,16 +570,90 @@ class MultiExperiment:
         
         # Convert the search configuration from 
         keys, vals = search_config.keys(), search_config.values()
-        self.search_config : list[dict[str, Any]] = [
+        self._search_config : List[Dict[str, Any]] = [
             {k : v for k, v in zip(keys, V)}
             for V in zip(*vals)
         ]
 
+        self._logger = self._set_logger()
+
+        # Data dictionary
+        self._data: Dict[str, Any] = dict()
+
+    def __len__(self) -> int:
+        return len(self._search_config)
+
+    def __str__(self) -> str:
+        return f'MultiExperiment[{self._name}]({len(self)} versions)'
+    
+    def __repr__(self) -> str: return str(self)
+
+    def _set_logger(self) -> Logger:
+
+        # Retrieve list of experiments names and the target directory
+        exp_names = [
+            conf['name'] for conf in self._search_config
+        ] if 'name' in self._search_config[0] else [self._base_config['logger']['name']]
+
+        out_dirs = [
+            conf['out_dir'] for conf in self._search_config
+        ] if 'out_dir' in self._search_config[0] else [self._base_config['logger']['out_dir']]
+
+        if len(set(exp_names)) > 1:
+            err_msg = f'Multirun expects a unique experiment name, but multiple found {set(exp_names)}'
+            raise ValueError(err_msg)
+        elif len(set(out_dirs)) > 1:
+            err_msg = f'Multirun expects a unique output directory, but multiple found {set(out_dirs)}'
+            raise ValueError(err_msg)
+        else:
+
+            self._name    = exp_names[0]
+
+            return self._logger_type(
+                conf = {
+                    'out_dir': out_dirs[0],
+                    'title'  : self._Exp.EXPERIMENT_TITLE,
+                    'name'   : self._name
+                }
+            )
+        
+    @property
+    def _logger_type(self) -> Type[Logger]:
+        return Logger
+
+    @property
+    def target_dir(self) -> str: return self._logger.target_dir
+
+    def _init(self):
+        self._logger.info(mess=f'RUNNING MULTIPLE VERSIONS ({len(self)}) OF EXPERIMENT {self._name}')
+
+    def _progress(self, exp: Experiment, config: Dict[str, Any], i: int):
+
+        j = i+1
+        self._logger.info(mess=f'EXPERIMENT {j} OF {len(self)} RUN SUCCESSFULLY.')
+
+    def _finish(self):
+
+        self._logger.info(mess=f'ALL EXPERIMENT RUN SUCCESSFULLY.')
+
+        if self._data:
+            out_fp = path.join(self.target_dir, 'data.pickle')
+            self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
+            store_pickle(data=self._data, path=out_fp)
+
     def run(self):
-        for conf in self.search_config:
+
+        self._init()
+
+        for i, conf in enumerate(self._search_config):
+
+            self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
 
             exp_config = overwrite_dict(self._base_config, conf)
             exp = self._Exp.from_config(exp_config)
             
             exp.run()
 
+            self._progress(exp=exp, config=exp_config, i=i)
+
+        self._finish()
