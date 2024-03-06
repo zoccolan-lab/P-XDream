@@ -1,8 +1,10 @@
-import json
 import os
+import json
 from typing import Any, Dict, List
 
 from PIL import Image
+
+from .model import TargetUnit
 
 # --- DIRECTORIES ---
 
@@ -85,11 +87,12 @@ def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
 
 # --- TXT ---
 
-def numbers_from_file(file_path: str) -> List[int]:
+def numbers_from_file(file_path: str) -> TargetUnit:
     ''' 
     Read a set of number from files which is expected   
     to contain a number per line.
     '''
+    # TODO: FIX THIS
     with open(file_path, 'r') as file:
         numbers = [int(line.strip()) for line in file]
-    return numbers
+    return None

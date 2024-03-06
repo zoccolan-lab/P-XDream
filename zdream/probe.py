@@ -17,9 +17,8 @@ from .utils.misc import default
 from .utils.misc import fit_bbox
 from .utils.model import InputLayer
 from .utils.model import RFBox
+from .utils.model import TargetUnit
 from .utils.model import SubjectState
-
-TargetUnit = None | NDArray | Tuple[NDArray, ...]
 
 class SilicoProbe(ABC):
     '''
@@ -82,7 +81,8 @@ class SilicoProbe(ABC):
     def clean(self) -> None:
         pass
 
-class NamingProbe(SilicoProbe):
+# TODO: Change documentation to 
+class SetterProbe(SilicoProbe):
     '''
     Simple probe whose task is to attach to a given torch Module
     a unique identifier to each of its sub-modules (layers).
@@ -90,20 +90,17 @@ class NamingProbe(SilicoProbe):
 
     def __init__(
         self,
-        attr_name : str = 'name'    
     ) -> None:
         '''
-        Construct a NamingProbe by specifying the name of the
+        Construct a SetterProbe by specifying the name of the
         attribute that the probe attaches to each sub-module of
         the target torch.nn.Module as its unique identifier.
-        
-        :param attr_name: Name of the new attribute
-        :type attr_name: string
         '''
         
         super().__init__()
         
-        self.attr_name = attr_name
+        self.name_attr = 'name'
+        self.shape_attr = 'shape'
         
         self.depth = -1
         self.occur = defaultdict(lambda : 0)
@@ -123,6 +120,9 @@ class NamingProbe(SilicoProbe):
         
         name = module._get_name().lower()
         
+        # Store current layer's output shape 
+        curr_shape = out.detach().cpu().numpy().shape
+        
         self.depth       += 1
         self.occur[name] += 1
         
@@ -134,7 +134,8 @@ class NamingProbe(SilicoProbe):
         identifier = f'{depth}_{name}_{occur}'
         
         # Attach the unique identifier to the (sub-)module
-        setattr(module, self.attr_name, identifier)
+        setattr(module, self.name_attr, identifier)
+        setattr(module, self.shape_attr, curr_shape)
 
     def clean(self) -> None:
         '''
@@ -208,10 +209,13 @@ class InfoProbe(SilicoProbe):
         if not hasattr(module, 'name'):
             raise AttributeError(f'Encounter module {module} with unregistered name.')
         
-        curr = module.name
-
-        # Store current layer's output shape 
-        self._shapes[curr] = out.detach().cpu().numpy().shape
+        if not hasattr(module, 'shape'):
+            raise AttributeError(f'Encounter module {module} with unregistered shape.')
+        
+        curr_name  = module.name
+        curr_shape = module.shape
+        
+        self._shapes[curr_name] = curr_shape
         
         # NOTE: We check whether this layer output is needed for
         #       a backward pass because it was requested by the
@@ -219,12 +223,12 @@ class InfoProbe(SilicoProbe):
         if self._b_target:
             for ref, targets in self._b_target.items():
                 try:
-                    targ_idx = targets[curr]
+                    targ_idx = targets[curr_name]
                     targ_act = out if targ_idx is None else out[(slice(None), *targ_idx)]
                     
                     # Rearrange target activation to have common shape
                     # NOTE: We expect batch dimension to have singleton shape
-                    self._output[(ref, curr)] = reduce(targ_act, 'b ... -> (...)', 'mean')
+                    self._output[(ref, curr_name)] = reduce(targ_act, 'b ... -> (...)', 'mean')
 
                 # No worries if current layer is not among the
                 # backward targets, just pass
@@ -244,13 +248,13 @@ class InfoProbe(SilicoProbe):
             s, p, k, d = map(self._sanitize, (s, p, k, d))
             
             # Update the current layer parameter for RF computation
-            self._rf_par[curr] = {
+            self._rf_par[curr_name] = {
                 'jump' : p_val['jump'] * s,
                 'size' : p_val['size'] + ((k - 1)     * d) * p_val['jump'],
                 'start': p_val['start']+ ((k - 1) / 2 - p) * p_val['start'],
             }  
-        elif isinstance(module, self.PassLike): self._rf_par[curr] = p_val.copy()
-        elif isinstance(module, self.DownLike): self._rf_par[curr] = {k : 0 for k in p_val}
+        elif isinstance(module, self.PassLike): self._rf_par[curr_name] = p_val.copy()
+        elif isinstance(module, self.DownLike): self._rf_par[curr_name] = {k : 0 for k in p_val}
         else : raise TypeError(f'Encountered layer of unknown type: {module}')
 
     def backward(
@@ -501,6 +505,7 @@ class RecordingProbe(SilicoProbe):
         
         # Rearrange data to have common shape [batch_size, num_units] and
         # be formatted using the desired numerical format (saving memory)
+        # TODO: Is this line actually necessary?
         targ_act = rearrange(targ_act.astype(self._format), 'b ... -> b (...)')
         
         # Register the network activations in probe data storage

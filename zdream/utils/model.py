@@ -69,6 +69,11 @@ Function producing a boolean mask for an input number of synthetic images in a s
 The number of True values in the mask must correspond to the number of input synthetic images.
 '''
 
+TargetUnit = None | NDArray | Tuple[NDArray, ...]
+'''
+Structure for describing the target unit to record or score from.
+'''
+
 # --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
 
 scoring_functions: Dict[str, ScoringFunction] = {

@@ -65,12 +65,12 @@ class _MaximizeActivityExperiment(Experiment):
         # --- SUBJECT ---
 
         # Create a on-the-fly network subject to extract all network layer names
-        layer_names: List[str] = NetworkSubject(network_name=sbj_conf['net_name']).layer_names
+        layer_info = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
 
+        layer_names = list(layer_info.keys())
 
         # Probe
-        record_target_i = parse_layer_target_units(input_str=sbj_conf['rec_layers'], input_dim=generator.input_dim)
-        record_target = {layer_names[i]: v for i, v in record_target_i.items()}
+        record_target = parse_layer_target_units(input_str=sbj_conf['rec_layers'], net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
 
         # Subject with attached recording probe
@@ -87,7 +87,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
 
-        score_dict_i = parse_layer_target_units(input_str=scr_conf['targets'], input_dim=generator.input_dim)
+        # scorer_info = {name : target.size if target else None for name, target in record_target.items()}
+        score_dict_i = parse_layer_target_units(input_str=scr_conf['targets'], net_info=scorer_info)
 
         for layer_i, neurons in score_dict_i.items():
 
