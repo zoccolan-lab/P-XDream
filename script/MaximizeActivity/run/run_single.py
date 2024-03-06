@@ -6,21 +6,22 @@ from os import path
 from argparse import ArgumentParser
 import matplotlib
 
-from zdream.utils.experiment_types import _MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import overwrite_dict
 
 matplotlib.use('TKAgg')
 
-
-LOCAL_SETTINGS = 'local_settings.json'
+# NOTE: Script directory path refers to the current script file
+SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..', '..'))
+LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 def main(args):    
 
     # Experiment
 
-    json_conf = read_json(args.config)
-    args_conf = {k : v for k, v in vars(args).items() if v}
+    json_conf = read_json(args['config'])
+    args_conf = {k : v for k, v in args.items() if v}
     
     full_conf = overwrite_dict(json_conf, args_conf)
     
@@ -47,7 +48,7 @@ if __name__ == '__main__':
     
     # Generator
     parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',     default = gen_weights,)
-    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet dataset',      default = mini_inet,)
+    parser.add_argument('--mini_inet',      type=str,   help='Path to mini imagenet dataset',           default = mini_inet,)
     parser.add_argument('--batch_size',     type=int,   help='Natural image dataloader batch size')
     parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
     
@@ -80,7 +81,10 @@ if __name__ == '__main__':
     
     # Iterations
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
+
+    # Output options
+    parser.add_argument('--display_plots',  type=bool,  help='If to display plots')
     
-    conf = parser.parse_args()
+    conf = vars(parser.parse_args())
     
     main(conf)

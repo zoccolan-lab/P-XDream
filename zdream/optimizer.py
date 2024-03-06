@@ -129,7 +129,7 @@ class Optimizer(ABC):
     
     
     @property
-    def solution(self) -> NDArray:
+    def solution(self) -> Codes:
         '''
         Retrieve the code that produced the highest score
         from code scores history.

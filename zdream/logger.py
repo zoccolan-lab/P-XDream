@@ -5,7 +5,7 @@ from os     import path
 from typing import Dict, Tuple
 
 from PIL    import Image
-from loguru import logger
+import loguru
 
 from zdream.utils.io_  import rmdir
 from zdream.utils.model import DisplayScreen
@@ -38,22 +38,31 @@ class Logger:
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
 
+		# Public prefix
+		self.prefix = ''
+
 	# LOGGING
 		
 	# NOTE: The logging methods uses python default logging, 
 	#	    but can easily  be overridden to log with other strategies and technologies.
 
-	def info(self,  mess: str): logging.info(mess)
+	def  info(self,  mess: str): self._info(mess=f'{self.prefix}{mess}')
+	def _info(self,  mess: str): logging.info(mess)
 
-	def warn(self,  mess: str): logging.warn(mess)
+	def  warn(self,  mess: str): self._warn(mess=f'{self.prefix}{mess}')
+	def _warn(self,  mess: str): logging.warn(mess)
 
-	def error(self, mess: str): logging.error(mess)
+	def  error(self, mess: str): self._error(mess=f'{self.prefix}{mess}')
+	def _error(self, mess: str): logging.error(mess)
 
 	# TARGET DIRECTORY
 
 	def _get_target_dir(self, conf: Dict[str, str]) -> str:
 		'''
 		Return the target directory for saving experiment results.
+
+		In the case version key is specified it logs at the level of experiment versioning.
+		If not specified it logs at the level of the specific experiment.
 
 		:param conf: Mapping for experiment directory, title, name and version.
 		:type conf: Dict[str, str]
@@ -65,20 +74,32 @@ class Logger:
 		out_dir = conf['out_dir']
 		title   = conf['title']
 		name    = conf['name']
-		version = conf['version']
-	
+
 		# Experiment directory
 		exp_dir = path.join(out_dir, title, name)
+
+		# If the version is not a key the target directory
+		# is the experiment directory
+		if not 'version' in conf:
+			return exp_dir
+
+		# If the version not a key the target directory
+		# is the version directory
+		version = conf['version']
 
 		# Compute new version if it wasn't specified
 		if not version:
 
 			# List previously existing versions
-			existing_versions = os.listdir(exp_dir) if path.exists(exp_dir) else []
+			existing_versions = [
+				file for file in os.listdir(exp_dir) if not '.' in file # TODO better matching
+			] if path.exists(exp_dir) else []
 
 			# If at least one exists, use the last version plus one
 			if existing_versions:
-				versions = sorted([int(version_name.split('-')[1]) for version_name in existing_versions])
+				versions = sorted([
+					int(version_name.split('-')[1]) for version_name in existing_versions
+				])
 				version = versions[-1] + 1
 
 			# Otherwise set the first version as the zero one
@@ -195,6 +216,8 @@ class Logger:
 class LoguruLogger(Logger):
 	""" Logger using `loguru` technology to log both on terminal and file """
 
+	_serial_number = 0
+
 	def __init__(self, conf: Dict[str, str] | None = None, on_file: bool = True) -> None:
 		'''
 		Initialize the logger with a possible specific target directory.
@@ -209,13 +232,21 @@ class LoguruLogger(Logger):
 		:type on_file: bool, optional
 		'''
 
-		super().__init__(conf)
+		super().__init__(conf=conf)
+
+		self._id = self._serial_number
+		LoguruLogger._serial_number += 1
+
+		self._logger = loguru.logger.bind(id=self._id)
 		
 		# File logging
 		if on_file and conf:
 
 			log_file = path.join(self.target_dir, 'info.log')
-			logger.add(log_file, level=0, enqueue=True) # Log to file
+			self._logger.add(
+				log_file, level=0, enqueue=True, 
+				filter=lambda x: x['extra']['id']==self._id
+			)
 
 		# Warning if on_file but no target directory.
 		elif on_file:
@@ -223,9 +254,10 @@ class LoguruLogger(Logger):
 			self.warn('The `on_file` flag was activated but no target directory was specified')
 	
 	# Overriding logging methods with `loguru` specific ones
-	def info(self, mess: str): logger.info(mess)
-	def warn(self, mess: str): logger.warning(mess)
-	def err (self, mess: str): logger.error(mess)
+	def _info(self, mess: str): self._logger.info(mess)
+	def _warn(self, mess: str): self._logger.warning(mess)
+	def _err (self, mess: str): self._logger.error(mess)
+
 
 class MutedLogger(Logger):
 	''' Trivial logger with for non-logging '''
@@ -236,6 +268,6 @@ class MutedLogger(Logger):
 		super().__init__(conf=None)
 	
 	# Override for no logging
-	def info(self, mess: str): pass
-	def warn(self, mess: str): pass
-	def err (self, mess: str): pass
+	def _info(self, mess: str): pass
+	def _warn(self, mess: str): pass
+	def _err (self, mess: str): pass

@@ -1,6 +1,7 @@
-from zdream.experiment import Experiment, ExperimentConfig
+from script.MaximizeActivity.plots import plot_scores, plot_scores_by_cat
+from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
 from zdream.generator import InverseAlexGenerator
-from zdream.logger import LoguruLogger
+from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer
 from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
@@ -10,7 +11,6 @@ from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
 from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units
-from zdream.utils.plotting import plot_scores, plot_scores_by_cat
 
 import numpy as np
 import torch
@@ -22,12 +22,12 @@ from torchvision.transforms.functional import to_pil_image
 import os
 import random
 from os import path
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Tuple, Type, cast
 
 
 class _MaximizeActivityExperiment(Experiment):
 
-    _EXPERIMENT_NAME = "MaximizeActivity"
+    EXPERIMENT_TITLE = "MaximizeActivity"
 
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> '_MaximizeActivityExperiment':
@@ -116,7 +116,7 @@ class _MaximizeActivityExperiment(Experiment):
 
         #  --- LOGGER --- 
 
-        log_conf['title'] = _MaximizeActivityExperiment._EXPERIMENT_NAME
+        log_conf['title'] = _MaximizeActivityExperiment.EXPERIMENT_TITLE
         logger = LoguruLogger(
             conf=log_conf
         )
@@ -128,7 +128,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         # --- DATA ---
         data = {
-            "dataset": dataset
+            "dataset": dataset,
+            'display_plots': conf['display_plots']
         }
 
         # Experiment configuration
@@ -153,8 +154,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         config.data = cast(Dict[str, Any], config.data)
 
-        self._dataset = cast(MiniImageNet, config.data['dataset'])
-
+        self._dataset        = cast(MiniImageNet, config.data['dataset'])
+        self._display_plots = cast(bool, config.data['display_plots'])
 
     def _progress_info(self, i: int) -> str:
 
@@ -232,42 +233,68 @@ class _MaximizeActivityExperiment(Experiment):
 
         super()._finish()
 
-        # 1. Save best stimuli (synthetic and natural)
+        # 1. Save visual stimuli (synthetic and natural)
+
+        img_dir = path.join(self.target_dir, 'images')
+        os.makedirs(img_dir, exist_ok=True)
+        self._logger.info(mess=f"Saving images to {img_dir}")
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_code = self.optimizer.solution
-        best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
+        best_gen, _ = self.generator(codes=self.optimizer.solution, pipeline=False)
+        best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
-        best_natural = self._best_img['nat']
+        best_nat = self._best_img['nat']
 
-        # We concatenate them
-        out_image = concatenate_images(img_list=[best_synthetic[0], best_natural])
-
-        # We store them
-        out_fp = path.join(self.target_dir, f'best_stimuli.png')
-        self._logger.info(mess=f"Saving best images to {out_fp}")
-        out_image.save(out_fp)
-
-        # 2. Save evolving best stimuli gif
-        out_gif_fp = path.join(self.target_dir, f'best_stimuli.gif')
-        self._logger.info(mess=f"Saving best image gif to {out_gif_fp}")
-        to_gif(image_list=self._gif, out_fp=out_gif_fp)
-
-        # 3. Save plots
-        self._logger.info(mess=f"Saving scoring plots")
+        # Saving images
+        for img, label in [
+            (to_pil_image(best_gen), 'best synthetic'),
+            (to_pil_image(best_nat), 'best natural'),
+            (concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'),
+        ]:
+            out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
+            self._logger.info(f'> Saving {label} image to {out_fp}')
+            img.save(out_fp)
         
+        out_fp = path.join(img_dir, 'evolving_best.gif')
+        self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
+        to_gif(image_list=self._gif, out_fp=out_fp)
+
+        self._logger.info(mess='')
+        
+        # 2. Save plots
+
+        plots_dir = path.join(self.target_dir, 'images')
+        os.makedirs(plots_dir, exist_ok=True)
+        self._logger.info(mess=f"Saving plots to {plots_dir}")
+        
+        self._logger.prefix='> '
         plot_scores(
-            optim=self._optimizer, 
-            out_dir=self.target_dir
+            scores=(
+                self.optimizer.scores_history,
+                self.optimizer.scores_nat_history
+            ),
+            stats=(
+                self.optimizer.stats,
+                self.optimizer.stats_nat,
+            ),
+            out_dir=plots_dir,
+            display_plots=self._display_plots,
+            logger=self._logger
         )
         plot_scores_by_cat(
-            self._optimizer,
-            self._labels,
-            out_dir = self.target_dir, 
-            dataset=self._dataset
+            scores=(
+                self.optimizer.scores_history,
+                self.optimizer.scores_nat_history
+            ),
+            lbls    = self._labels,
+            out_dir = plots_dir, 
+            dataset = self._dataset,
+            display_plots=self._display_plots,
+            logger=self._logger
         )
+        self._logger.prefix=''
         
         self._logger.info(mess='')
         
@@ -296,3 +323,21 @@ class _MaximizeActivityExperiment(Experiment):
                 self._best_img[imtype] = self._stimuli[torch.tensor(mask)][argmax]
 
         return super()._stm_score_to_codes((sub_score, msg))
+    
+class NeuronScoreMultipleExperiment(MultiExperiment):
+    
+    def _init(self):
+        super()._init()
+        self._data['desc']    = 'Scores at varying number of scoring neurons'
+        self._data['score']   = list()
+        self._data['neurons'] = list()
+
+    @property
+    def _logger_type(self) -> Type[Logger]:
+        return LoguruLogger
+
+    def _progress(self, exp: Experiment, config: Dict[str, Any], i: int):
+        super()._progress(exp, config, i)
+
+        self._data['score']  .append(exp.optimizer.score)
+        self._data['neurons'].append(exp.scorer.optimizing_units)
