@@ -1,7 +1,8 @@
 import random
 from typing import Dict, List, Tuple
 
-from zdream.utils.io_ import numbers_from_file
+from .model import TargetUnit
+from .io_ import numbers_from_file
 
 import numpy as np
 
@@ -18,126 +19,126 @@ def parse_boolean_string(boolean_str: str) -> List[bool]:
     return[char_to_bool(ch=ch) for ch in boolean_str]
 
 
-def parse_layer_target_units(input_str: str, input_dim: Tuple[int, ...]) -> Dict[int, Tuple[int, ...]]:
+def parse_layer_target_units(input_str: str, net_info: dict[str, Tuple[int, ...]]) -> Dict[str, TargetUnit]:
     '''
     Converts a input string indicating the units associated to each layer
     to a dictionary mapping layer number to units indices.
 
     The format to specify the structure is requires separating dictionaries with comma:
-        layer1: [units1], layer2: [units2], ..., layerN: [unitsN]
+        layer1=units1, layer2=units2, ..., layerN=unitsN
 
     Where units specification can be:
-        - individual unit specification; requires neurons index to be separated by a space:
-            [A B ... C]
-        - units from file; requires to specify a path to a .txt file containing one neuron number per line:
-            [file.txt]
-        - range specification; requires to specify start and end neurons in a range separated by an underscore:
-            [A_B]
-        - random set of neurons; requires the number of random units followed by an r:
-            [Ar]
         - all neurons; requires no specification:
             []
+        - individual unit specification; requires neurons index to be separated by a space:
+            [(A1 A2 A3) (B1 B2 B3) ...] <-- each neuron is identified by a tuple of numbers
+            [A B C D ...]               <-- each neuron is identified by a single number
+        - units from file; requires to specify a path to a .txt file containing one neuron per line
+            (where each neuron is expected to be a tuple of ints separated by space or a single number):
+            [file.txt]
+        - A set of neurons in a given range:
+            [A:B:step C:D:step E]
+        - random set of N neurons:
+            Nr[]
+        - random set of N neuron, in a given range:
+            Nr[A:B C:D E]
     '''
-
-    # Total input units across dimensions
-    tot_in_units = np.prod(input_dim)
-
-    def neuron_to_input_shape(unit: int) -> Tuple[int, ...]:
-        '''
-        The function converts flat input number to the input dimensionality
-        '''
-
-        # Check unit incompatible with input dimension
-        if unit > tot_in_units: raise ValueError(f'Invalid unit: {unit}')
-
-        # Convert to tuple version
-        out_unit = []
-
-        for dim in input_dim:
-            out_unit.append(unit % dim)
-            unit = unit // dim
-
-        return tuple(out_unit)
+    
+    # Split targets separated by a comma
+    try:
+        targets = {int(k.strip()) : v for tmp in input_str.split(',') for k, v in tmp.split('=')}
+    except Exception as e:
+            raise SyntaxError(f'Invalid format in {input_str}. Detected: {e}.\nPlease follow parsing in documentation')
 
     # Output dictionary
-    target_dict = dict()
+    target_dict : dict[str, TargetUnit] = dict()
 
-    # Split targets separated by a comma
-    targets = input_str.split(',')
+    # targets = input_str.split(',')
+    layer_names = list(net_info.keys())
 
-    for target in targets:
-
-        # Layer units split
-        try:
-            layer, units = target.split(':')
-        except ValueError as e:
-            raise SyntaxError(f'Invalid format in {target}. Expected a single `:`.')
-
-        # Layer and units parsing
-        layer = int(layer.strip())        # Layer cast to int
-        units = units.strip("[] ") # Units without square brackets
-
-        # 1. Range
-        if '_' in units:
-            try:
-                low, up = [int(v) for v in units.split('_')]
-                neurons = list(range(low, up))
-            except ValueError:
-                raise SyntaxError(f'Invalid format in {units}. Expected a single `_`.')
-
-        # 2. File
-        elif units.endswith('.txt'):
+    for layer_idx, units in targets.items():
+        
+        # Units parsing
+        units = units.strip()
+        lname = layer_names[layer_idx]
+        shape = net_info[lname]
+        
+        is_random = not units.startswith('[') 
+        
+        # Non random branch
+        if   not is_random and units=='[]': neurons = None
+        elif not is_random and units.endswith('.txt'):
+            # TODO: Check this function for new syntax
             neurons = numbers_from_file(file_path=units)
-
-            neurons_err = [u for u in neurons if u > tot_in_units]
-            if len(neurons_err):
-                raise ValueError(f'Trying to record {neurons_err} units, but there\'s a total of {tot_in_units}.')
-
-
-        # 3. Random
-        elif units.count('r') == 1:
-
+        elif not is_random and ':' in units:
             try:
-                n_rand = int(units.strip('r'))
-            except ValueError:
-                raise SyntaxError(f'Invalid format in {units}. Expected the number of random units followed by an `t`.')
-
-            if n_rand > tot_in_units:
-                raise ValueError(f'Trying to generate {n_rand} random units from  a total of {tot_in_units}.')
-
-            neurons = random.sample(range(tot_in_units), n_rand)
-
-        # 4. All neurons
-        elif units.replace(' ', '') == '':
-
-            neurons = None
-
-        # 5. Specific neurons
-        elif all(ch.isdigit() for ch in units.replace(' ', '')):
-
-            neurons = [int(unit) for unit in units.split()]# if unit.strip()]
-
-            neurons_err = [u for u in neurons if u > tot_in_units]
-            if len(neurons_err):
-                raise ValueError(f'Trying to record {neurons_err} units, but there\'s a total of {tot_in_units}.')
-
+                neurons = tuple(np.arange(*[int(v) if v else None for v in tmp.split(':')], dtype=int)
+                    for tmp in units.split(' ')
+                )
+            except Exception as e:
+                raise SyntaxError(f'Error while parsing range format. Provided command was {units}. Exception was: {e}')
+        elif not is_random:
+            try:
+                neurons = tuple(np.array([[int(v) for v in code.strip('()').split(' ')]
+                        for code in units.split(' ')
+                    ]).T
+                )
+            except Exception as e:
+                raise SyntaxError(f'Error while parsing individual neuron format. Provided command was {units}. Exception was: {e}')
+        elif is_random and ':' in units:
+            try:
+                size, codes = units.split('r')
+                
+                neurons = tuple(
+                    np.random.randint(*[
+                            [int(tmp.split(':')[axis]) for tmp in codes.strip('[]').split(' ')]
+                            for axis in (0, 1)
+                        ],
+                        size=(int(size), len(shape)),
+                    ).T
+                )
+                
+            except Exception as e:
+                raise SyntaxError(f'Error while parsing random range format. Provided command was {units}. Exception was: {e}')
+        elif is_random:
+            try:
+                size, _ = units.split('r')
+                
+                neurons = tuple(
+                        np.random.randint(
+                            low=0,
+                            high=shape,
+                            size=(int(size), len(shape)),
+                        ).T
+                    )
+            except Exception as e:
+                raise SyntaxError(f'Error while parsing full random format. Provided command was {units}. Exception was: {e}')
+            
         else:
             error_msg = '''
             Invalid input string;  valid formats are:
-                layer1: [units1], layer2: [units2], ..., layerN: [unitsN]
+                layer1=[units1], layer2=[units2], ..., layerN: [unitsN]
             with units specified either as:
-                - single units:    [A B ... C]
-                - units from file: [neurons.txt]
-                - range units:     [A_B]
-                - random units:    [Ar]
-                - all units:       []
+                - all neurons; requires no specification:
+                    []
+                - individual unit specification; requires neurons index to be separated by a space:
+                    [(A1 A2 A3) (B1 B2 B3) ...] <-- each neuron is identified by a tuple of numbers
+                    [A B C D ...]               <-- each neuron is identified by a single number
+                - units from file; requires to specify a path to a .txt file containing one neuron per line
+                    (where each neuron is expected to be a tuple of ints separated by space or a single number):
+                    [file.txt]
+                - A set of neurons in a given range:
+                    [A:B:step C:D:step E]
+                - random set of N neurons:
+                    Nr[]
+                - random set of N neuron, in a given range:
+                    Nr[A:B C:D E]
             '''
             raise SyntaxError(error_msg)
+        
+        if neurons and len([u for u in neurons if u > shape]):
+            raise ValueError(f'Units out of bound for layer {lname} with shape {shape}. Provided command was: {units}')
 
-        # Convert inputs to input dimension
-        # if neurons:
-        #     neurons = [neuron_to_input_shape(n) for n in neurons] TODO What to do for structured neurons
-
-        target_dict[layer] = neurons
+        target_dict[lname] = neurons
 
     return target_dict

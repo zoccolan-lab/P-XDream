@@ -21,7 +21,10 @@ class InfoProbeTest(unittest.TestCase):
         self.num_unit = 2
 
         self.rng = np.random.default_rng(self.rand_seed)
-        self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
+        self.msg = Message(
+            mask=np.ones(self.num_imgs, dtype=bool),
+            label=[],    
+        )
 
     def test_shape_recovery(self):
 

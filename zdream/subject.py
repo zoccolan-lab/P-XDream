@@ -13,7 +13,7 @@ from torchvision.models import get_model_weights
 from .utils.model import Message
 from .utils.model import Stimuli
 from .utils.model import SubjectState
-from .probe import NamingProbe
+from .probe import SetterProbe
 from .probe import RecordingProbe
 from .probe import SilicoProbe
 from .utils.model import InputLayer
@@ -129,15 +129,15 @@ class NetworkSubject(InSilicoSubject, nn.Module):
 
         # Attach NamingProbe to the network to properly assign name
         # to each layer so to get it ready for recording
-        name_probe = NamingProbe()
-        self.register_forward(name_probe)
+        setter_probe = SetterProbe()
+        self.register_forward(setter_probe)
 
         # Expose the network to a fake input to trigger the hooks
         mock_inp = torch.zeros(inp_shape, device=self.device)
         with torch.no_grad():
             _ = self._network(mock_inp)
 
-        self.remove(name_probe)
+        self.remove(setter_probe)
 
         # If provided, attach the recording probe to the network
         if record_probe: self.register(record_probe)
@@ -305,3 +305,27 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         :rtype: List[str]
         '''
         return [layer.name for layer in unpack(self._network)]
+    
+    
+    @property
+    def layer_shapes(self) -> List[tuple[int, ...]]:
+        '''
+        Return layers shapes in the network architecture.
+        
+        :return: List of layers shapes.
+        :rtype: List[tuple[int, ...]]
+        '''
+        return [layer.shape for layer in unpack(self._network)]
+    
+    @property
+    def layer_info(self) -> dict[str, tuple[int, ...]]:
+        '''
+        Return layers shapes in the network architecture.
+        
+        :return: Dictionary containing layers name and shapes.
+        :rtype: dict[str, tuple[int, ...]]
+        '''
+        names = self.layer_names
+        shapes = self.layer_shapes
+        
+        return {k : v for k, v in zip(names, shapes)}
