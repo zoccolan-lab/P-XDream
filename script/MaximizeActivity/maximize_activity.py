@@ -264,7 +264,7 @@ class _MaximizeActivityExperiment(Experiment):
         
         # 2. Save plots
 
-        plots_dir = path.join(self.target_dir, 'images')
+        plots_dir = path.join(self.target_dir, 'plots')
         os.makedirs(plots_dir, exist_ok=True)
         self._logger.info(mess=f"Saving plots to {plots_dir}")
         
@@ -338,5 +338,5 @@ class NeuronScoreMultipleExperiment(MultiExperiment):
     def _progress(self, exp: Experiment, config: Dict[str, Any], i: int):
         super()._progress(exp, config, i)
 
-        self._data['score']  .append(exp.optimizer.score)
+        self._data['score']  .append(exp.optimizer.stats['best_score'])
         self._data['neurons'].append(exp.scorer.optimizing_units)
