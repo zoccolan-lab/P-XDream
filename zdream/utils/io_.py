@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 import json
 import os
@@ -5,6 +6,7 @@ import pickle
 from typing import Any, Dict, List
 
 from PIL import Image
+import numpy as np
 
 from .model import TargetUnit
 
@@ -120,12 +122,31 @@ def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
 
 # --- TXT ---
 
-def numbers_from_file(file_path: str) -> TargetUnit:
+def neurons_from_file(file_path: str) -> TargetUnit:
     ''' 
     Read a set of number from files which is expected   
     to contain a number per line.
     '''
-    # TODO: FIX THIS
+
+    # Initialize a dictionary to store data for each column
+    columns = defaultdict(list)
+
+    # Read the file line by line
     with open(file_path, 'r') as file:
-        numbers = [int(line.strip()) for line in file]
-    return None
+        for line in file:
+            # Split the line into individual values
+            values = line.split()
+            
+            # Iterate through each value and store them in corresponding columns
+            for i, value in enumerate(values):
+                columns[i].append(int(value))
+
+    # Convert lists to numpy arrays
+    arrays = tuple([np.array(v) for v in columns.values()])
+
+    # Check same length
+    if len(set([a.size for a in arrays])) > 1:
+        raise ValueError(f"Error while parsing file {file_path}. Found different number of columns. ")
+
+    # Return a dictionary of arrays
+    return arrays

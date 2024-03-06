@@ -28,6 +28,27 @@ def main(args):
     experiment = _MaximizeActivityExperiment.from_config(full_conf)
     experiment.run()
 
+target_units_help = '''
+The format to specify the structure is requires separating dictionaries with comma:
+        layer1=units1, layer2=units2, ..., layerN=unitsN
+
+    Where units specification can be:
+        - all neurons; requires no specification:
+            []
+        - individual unit specification; requires neurons index to be separated by a space:
+            [(A1 A2 A3) (B1 B2 B3) ...] <-- each neuron is identified by a tuple of numbers
+            [A B C D ...]               <-- each neuron is identified by a single number
+        - units from file; requires to specify a path to a .txt file containing one neuron per line
+            (where each neuron is expected to be a tuple of ints separated by space or a single number):
+            [file.txt]
+        - A set of neurons in a given range:
+            [A:B:step C:D:step E]
+        - random set of N neurons:
+            Nr[]
+        - random set of N neuron, in a given range:
+            Nr[A:B C:D E]
+'''
+
 
 if __name__ == '__main__':
     
@@ -58,10 +79,10 @@ if __name__ == '__main__':
 
     # Subject
     parser.add_argument('--net_name',       type=str,   help='SubjectNetwork name')
-    parser.add_argument('--rec_layers',     type=tuple, help='Recording layers')
+    parser.add_argument('--rec_layers',     type=str,   help='Recording layers')
 
     # Scorer
-    parser.add_argument('--targets',        type=str,   help='Target scoring layers and neurons')
+    parser.add_argument('--targets',        type=str,   help=target_units_help)
     parser.add_argument('--aggregation',    type=str,   help='Name of scoring aggregation function between layers')
     parser.add_argument('--scr_rseed',      type=str,   help='Random seed for neurons selection')
     

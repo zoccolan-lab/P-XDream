@@ -10,7 +10,7 @@ from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
-from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units
+from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units, parse_scoring_units
 
 import numpy as np
 import torch
@@ -65,9 +65,7 @@ class _MaximizeActivityExperiment(Experiment):
         # --- SUBJECT ---
 
         # Create a on-the-fly network subject to extract all network layer names
-        layer_info = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
-
-        layer_names = list(layer_info.keys())
+        layer_info: Dict[str, Tuple[int, ...]] = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
 
         # Probe
         record_target = parse_layer_target_units(input_str=sbj_conf['rec_layers'], net_info=layer_info)
@@ -87,14 +85,11 @@ class _MaximizeActivityExperiment(Experiment):
 
         random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
 
-        # scorer_info = {name : target.size if target else None for name, target in record_target.items()}
-        score_dict_i = parse_layer_target_units(input_str=scr_conf['targets'], net_info=scorer_info)
-
-        for layer_i, neurons in score_dict_i.items():
-
-            # Add layer and neurons to scoring
-            score_dict[layer_names[layer_i]] = neurons
-
+        score_dict = parse_scoring_units(
+            input_str=scr_conf['targets'], 
+            net_info=layer_info,
+            rec_neurons=record_target
+        )
 
         scorer = MaxActivityScorer(
             trg_neurons=score_dict,
