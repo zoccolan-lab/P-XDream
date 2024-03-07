@@ -58,6 +58,8 @@ def plot_scores(
 
     logger = default(logger, MutedLogger())
 
+    # Plot nat
+    use_nat = len(scores_nat) != 0 or stats_nat
     
     # Retrieve default parameters and retrieve `alpha` parameter
     def_params = set_default_matplotlib_params(shape='rect_wide', l_side = 30)
@@ -67,7 +69,8 @@ def plot_scores(
     
     # Define label and colors for both generated and natural images
     lbl_gen = style['gen']['lbl']; col_gen = style['gen']['col']
-    lbl_nat = style['nat']['lbl']; col_nat = style['nat']['col']
+    if use_nat:
+        lbl_nat = style['nat']['lbl']; col_nat = style['nat']['col']
 
     # We replicate the same reasoning for the two subplots by accessing 
     # the different key of the score dictionary whether referring to max or mean.
@@ -75,11 +78,15 @@ def plot_scores(
         
         # Lineplot of both synthetic and natural scores
         ax[i].plot(stats_gen[k], label=lbl_gen, color=col_gen)
-        ax[i].plot(stats_nat[k], label=lbl_nat, color=col_nat)
+        if use_nat:
+            ax[i].plot(stats_nat[k], label=lbl_nat, color=col_nat)
         
         # When plotting mean values, add SEM shading
         if k =='mean_shist':
-            for stat, col in zip([stats_gen, stats_nat], [col_gen, col_nat]):
+            for stat, col in zip(
+                [stats_gen, stats_nat] if use_nat else [stats_gen], 
+                [  col_gen,   col_nat] if use_nat else [  col_gen]
+            ):
                 ax[i].fill_between(
                     range(len(stat[k])),
                     stat[k] - stat['sem_shist'],
@@ -106,20 +113,21 @@ def plot_scores(
     fig_hist, ax = plt.subplots(1) 
         
     # Compute min and max values
-    data_min = min(scores_nat.min(), scores_gen.min())
-    data_max = max(scores_nat.max(), scores_gen.max())
+    data_min = min(scores_nat.min(), scores_gen.min()) if use_nat else scores_gen.min()
+    data_max = max(scores_nat.max(), scores_gen.max()) if use_nat else scores_gen.max()
 
     # Create histograms for both synthetic and natural with the same range and bins
-    hnat = plt.hist(
-        scores_nat.flatten(),
-        bins=num_bins,
-        range=(data_min, data_max),
-        alpha=1, 
-        label=lbl_nat,
-        density=True,
-        edgecolor=col_nat, 
-        linewidth=3
-    )
+    if use_nat:
+        hnat = plt.hist(
+            scores_nat.flatten(),
+            bins=num_bins,
+            range=(data_min, data_max),
+            alpha=1, 
+            label=lbl_nat,
+            density=True,
+            edgecolor=col_nat, 
+            linewidth=3
+        )
     
     hgen = plt.hist(
         scores_gen.flatten(),
@@ -144,7 +152,7 @@ def plot_scores(
     )
     
     # Set transparent columns for natural images and edges of synthetic ones
-    for bins in [hnat, hgen_edg]:
+    for bins in [hnat, hgen_edg] if use_nat else [hgen_edg]:
         for bin in bins[-1]: # type: ignore
             bin.set_facecolor('none')
     

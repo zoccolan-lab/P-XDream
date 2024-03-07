@@ -284,37 +284,35 @@ class _MaximizeActivityExperiment(Experiment):
         plots_dir = path.join(self.target_dir, 'plots')
         os.makedirs(plots_dir, exist_ok=True)
         self._logger.info(mess=f"Saving plots to {plots_dir}")
+        
+        self._logger.prefix='> '
+        plot_scores(
+            scores=(
+                self.optimizer.scores_history,
+                self.optimizer.scores_nat_history if self._use_natural else np.array([])
+            ),
+            stats=(
+                self.optimizer.stats,
+                self.optimizer.stats_nat if self._use_natural else dict(),
+            ),
+            out_dir=plots_dir,
+            display_plots=self._display_plots,
+            logger=self._logger
+        )
 
         if self._use_natural:
-        
-            self._logger.prefix='> '
-            plot_scores(
+            plot_scores_by_cat(
                 scores=(
                     self.optimizer.scores_history,
                     self.optimizer.scores_nat_history
                 ),
-                stats=(
-                    self.optimizer.stats,
-                    self.optimizer.stats_nat,
-                ),
-                out_dir=plots_dir,
+                lbls    = self._labels,
+                out_dir = plots_dir, 
+                dataset = self._dataset,
                 display_plots=self._display_plots,
                 logger=self._logger
             )
-
-            if self._use_natural:
-                plot_scores_by_cat(
-                    scores=(
-                        self.optimizer.scores_history,
-                        self.optimizer.scores_nat_history
-                    ),
-                    lbls    = self._labels,
-                    out_dir = plots_dir, 
-                    dataset = self._dataset,
-                    display_plots=self._display_plots,
-                    logger=self._logger
-                )
-            self._logger.prefix=''
+        self._logger.prefix=''
         
         self._logger.info(mess='')
         
@@ -353,7 +351,7 @@ class NeuronScoreMultipleExperiment(MultiExperiment):
         self._data['score']     = list()
         self._data['neurons']   = list()
         self._data['layer']     = list()
-        self._data['iteration'] = list()
+        self._data['num_gens']  = list()
 
     @property
     def _logger_type(self) -> Type[Logger]:
