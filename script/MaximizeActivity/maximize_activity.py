@@ -29,6 +29,9 @@ class _MaximizeActivityExperiment(Experiment):
 
     EXPERIMENT_TITLE = "MaximizeActivity"
 
+    @property
+    def scorer(self) -> MaxActivityScorer: return cast(MaxActivityScorer, self._scorer) 
+
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> '_MaximizeActivityExperiment':
         '''
@@ -149,7 +152,13 @@ class _MaximizeActivityExperiment(Experiment):
 
         config.data = cast(Dict[str, Any], config.data)
 
-        self._dataset        = cast(MiniImageNet, config.data['dataset'])
+        # TODO variable use_natural: bool
+
+        mock_mask = self._mask_generator(1)
+        self._use_natural = mock_mask is not None and mock_mask.count(False) > 0
+
+        if self._use_natural:
+            self._dataset   = cast(MiniImageNet, config.data['dataset'])
         self._display_plots = cast(bool, config.data['display_plots'])
 
     def _progress_info(self, i: int) -> str:
@@ -157,7 +166,8 @@ class _MaximizeActivityExperiment(Experiment):
         # We add the progress information about the best
         # and the average score per each iteration
         stat_gen = self.optimizer.stats
-        stat_nat = self.optimizer.stats_nat
+        if self._use_natural
+            stat_nat = self.optimizer.stats_nat
 
         best_gen = cast(NDArray, stat_gen['best_score']).mean()
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
@@ -323,16 +333,20 @@ class NeuronScoreMultipleExperiment(MultiExperiment):
     
     def _init(self):
         super()._init()
-        self._data['desc']    = 'Scores at varying number of scoring neurons'
-        self._data['score']   = list()
-        self._data['neurons'] = list()
+        self._data['desc']      = 'Scores at varying number of scoring neurons'
+        self._data['score']     = list()
+        self._data['neurons']   = list()
+        self._data['layer']     = list()
+        self._data['iteration'] = list()
 
     @property
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
 
-    def _progress(self, exp: Experiment, config: Dict[str, Any], i: int):
+    def _progress(self, exp: _MaximizeActivityExperiment, config: Dict[str, Any], i: int):
         super()._progress(exp, config, i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
         self._data['neurons'].append(exp.scorer.optimizing_units)
+        self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
+        self._data['num_gens'].append(exp._iteration) # TODO make public property

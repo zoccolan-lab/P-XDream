@@ -392,10 +392,6 @@ class GeneticOptimizer(Optimizer):
         # fitness = softmax(rest_s / temperature)
         fitness = softmax(scores / temperature)
         
-        # TODO This is for @Seba debugging
-        if np.count_nonzero(np.isnan(fitness)) > 0:
-            print("NONE FITNESS!")
-        
         # The rest of the population is obtained by generating
         # children using breeding and mutation.
         

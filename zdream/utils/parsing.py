@@ -50,7 +50,6 @@ def parse_layer_target_units(
     '''
     
     # Split targets separated by a comma
-    print("Here")
     try:
         targets = {int(k.strip()) : v for k, v in [target.split('=') for target in input_str.split(',')]}
     except Exception as e:
@@ -188,7 +187,6 @@ def parse_scoring_units(
     if 'r' in input_str:
 
         # Extract layer and units
-        print("Here2")
         try:
             targets = {int(k.strip()) : v for k, v in [target.split('=') for target in input_str.split(',')]}
         except Exception as e:
@@ -234,8 +232,6 @@ def parse_scoring_units(
         k: ['_'.join([str(j) for j in tpl])for tpl in np.array(v).T]
         for k, v in score_target.items()
     }
-
-    print("Here")
 
     # Out
     try:

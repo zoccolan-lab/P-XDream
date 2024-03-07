@@ -221,8 +221,8 @@ def plot_scores_by_cat(
     logger = default(logger, MutedLogger())
     
     # Cast scores and labels as arrays.
-    # NOTE: `nat_scores are`` flattened to be more easily 
-    #       indexed by the nat_lbls vector
+    # NOTE: `nat_scores` are flattened to be more easily 
+    #        indexed by the `nat_lbls` vector
     gen_scores = scores_gen
     nat_scores = scores_nat.flatten()
     
@@ -320,3 +320,5 @@ def plot_scores_by_cat(
         fig.savefig(out_fp, bbox_inches="tight")
     if display_plots:
         plt.show()
+
+#
