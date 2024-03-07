@@ -105,7 +105,6 @@ if __name__ == '__main__':
     # Scorer
     parser.add_argument('--targets',        type=str,   help='Target scoring layers and neurons')
     parser.add_argument('--aggregation',    type=str, help='Name of scoring aggregation function between layers')
-    parser.add_argument('--scr_rseed',      type=str, help='Random seed for neurons selection')
     
     # Optimizer
     parser.add_argument('--pop_sz',         type=str,   help='Starting number of the population')
@@ -114,18 +113,16 @@ if __name__ == '__main__':
     parser.add_argument('--mutation_size',  type=str,   help='Mutation size for the optimizer')
     parser.add_argument('--num_parents',    type=str,   help='Number of parents for the optimizer')
     parser.add_argument('--temperature',    type=str,   help='Temperature for the optimizer')
-    parser.add_argument('--random_state',   type=str , help='Random state for the optimizer')
     
     # Logger
     parser.add_argument('--name',           type=str,   help='Experiment name')
     parser.add_argument('--version',        type=str,   help='Experiment version')
     parser.add_argument('--out_dir',        type=str,   help='Path to directory to save outputs',       default = out_dir,)
     
-    # Iterations
-    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve', default="2#3")
-
-    # Output options
-    parser.add_argument('--display_plots',  type=str,  help='If to display plots')
+    # Globals
+    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve')
+    parser.add_argument('--display_plots',  type=str,   help='If to display plots')
+    parser.add_argument('--random_seed',    type=int  , help='Random state for the experiment')
     
     conf = vars(parser.parse_args())
 

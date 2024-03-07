@@ -145,7 +145,7 @@ def main(args):
 
     optim = GeneticOptimizer(
         states_shape=generator.input_dim,
-        random_state=args.optimizer_seed,
+        random_seed=args.optimizer_seed,
         random_distr='normal',
         mutation_rate=args.mutation_rate,
         mutation_size=args.mutation_size,

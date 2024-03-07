@@ -79,5 +79,5 @@ class RandomImageDataset(Dataset):
 
         return {
             'imgs' : rand_img,
-            'lbls' : torch.tensor(['Random']),
+            'lbls' : torch.tensor([0]),
         }

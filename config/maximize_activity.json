@@ -16,17 +16,15 @@
     },
     "scorer": {
         "targets": "21=[0:20]",
-        "aggregation": "mean",
-        "scr_rseed": 31415
+        "aggregation": "mean"
     },
     "optimizer": {
         "pop_sz": 20,
-        "optim_rseed": 123,
         "mutation_rate": 0.3,
         "mutation_size": 0.3,
         "num_parents": 3,
         "temperature": 1.0,
-        "random_state": "normal"
+        "random_distr": "normal"
     },
     "logger": {
         "out_dir": "",
@@ -34,5 +32,6 @@
         "version": 0
     },
     "num_gens": 100,
-    "display_plots": false
+    "display_plots": false,
+    "random_seed": 123
 }

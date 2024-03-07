@@ -20,7 +20,6 @@ from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
 import os
-import random
 from os import path
 from typing import Any, Dict, List, Tuple, Type, cast
 
@@ -86,8 +85,6 @@ class _MaximizeActivityExperiment(Experiment):
         # Target neurons
         score_dict = {}
 
-        random.seed(scr_conf['scr_rseed']) # TODO Move to numpy random
-
         score_dict = parse_scoring_units(
             input_str=scr_conf['targets'], 
             net_info=layer_info,
@@ -103,8 +100,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         optim = GeneticOptimizer(
             states_shape   = generator.input_dim,
-            random_state   = opt_conf['optim_rseed'],
-            random_distr   = opt_conf['random_state'],
+            random_seed    =     conf['random_seed'],
+            random_distr   = opt_conf['random_distr'],
             mutation_rate  = opt_conf['mutation_rate'],
             mutation_size  = opt_conf['mutation_size'],
             population_size= opt_conf['pop_sz'],

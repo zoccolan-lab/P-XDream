@@ -36,7 +36,7 @@ def beale_function(state : Codes) -> Codes:
 class GeneticOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.states_shape = (2,)
-        self.random_state = 31415
+        self.random_seed = 31415
         self.random_distr: RandomDistribution = 'normal'
 
         self.mutation_size = 0.3
@@ -55,7 +55,7 @@ class GeneticOptimizerTest(unittest.TestCase):
     def test_improvement_2_parents(self):
         optim = GeneticOptimizer(
             states_shape=self.states_shape,
-            random_state=self.random_state,
+            random_seed=self.random_seed,
             random_distr=self.random_distr,
             mutation_rate=self.mutation_rate,
             mutation_size=self.mutation_size,

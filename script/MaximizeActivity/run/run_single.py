@@ -84,7 +84,6 @@ if __name__ == '__main__':
     # Scorer
     parser.add_argument('--targets',        type=str,   help=target_units_help)
     parser.add_argument('--aggregation',    type=str,   help='Name of scoring aggregation function between layers')
-    parser.add_argument('--scr_rseed',      type=str,   help='Random seed for neurons selection')
     
     # Optimizer
     parser.add_argument('--pop_sz',         type=int,   help='Starting number of the population')
@@ -93,7 +92,6 @@ if __name__ == '__main__':
     parser.add_argument('--mutation_size',  type=float, help='Mutation size for the optimizer')
     parser.add_argument('--num_parents',    type=int,   help='Number of parents for the optimizer')
     parser.add_argument('--temperature',    type=float, help='Temperature for the optimizer')
-    parser.add_argument('--random_state',   type=bool , help='Random state for the optimizer')
     
     # Logger
     parser.add_argument('--name',           type=str,   help='Experiment name')
@@ -102,9 +100,8 @@ if __name__ == '__main__':
     
     # Iterations
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
-
-    # Output options
     parser.add_argument('--display_plots',  type=bool,  help='If to display plots')
+    parser.add_argument('--random_seed',    type=int  , help='Random state for the experiment')
     
     conf = vars(parser.parse_args())
     

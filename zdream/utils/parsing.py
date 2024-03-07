@@ -1,12 +1,10 @@
 from itertools import product, starmap
-import random
 from typing import Dict, List, Tuple
 
 from .model import TargetUnit
 from .io_ import neurons_from_file
 
 import numpy as np
-from numpy.typing import NDArray
 
 
 def parse_boolean_string(boolean_str: str) -> List[bool]:

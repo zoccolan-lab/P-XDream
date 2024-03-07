@@ -22,7 +22,7 @@ class Optimizer(ABC):
         self,
         states_space : None | Dict[int | str, Tuple[float | None, float | None]] = None,
         states_shape : None | int | Tuple[int, ...] = None,
-        random_state : None | int = None,
+        random_seed : None | int = None,
         random_distr : RandomDistribution = 'normal',
     ) -> None:
         '''
@@ -36,8 +36,8 @@ class Optimizer(ABC):
                              each entry is a direction and corresponding values are 
                              the min-max acceptable values along that direction, defaults to None.
         :type states_shape: None | int | Tuple[int, ...], optional
-        :param random_state: Random state for pseudo-random numbers generation.
-        :type random_state: None | int, optional
+        :param random_seed: Random state for pseudo-random numbers generation.
+        :type random_seed: None | int, optional
         :param random_distr: Nature of the random distribution for initial
                              random codes generation, defaults to `normal`.
         :type random_distr: RandomDistribution
@@ -72,7 +72,7 @@ class Optimizer(ABC):
         # NOTE: We also initialize the internal random number generator 
         #       for reproducibility, if not given it isn't set.
         self._distr = random_distr
-        self._rng   = np.random.default_rng(random_state)
+        self._rng   = np.random.default_rng(random_seed)
 
     @property
     def codes_history(self)      -> NDArray: return np.stack(self._codes)
@@ -268,7 +268,7 @@ class GeneticOptimizer(Optimizer):
         self,
         states_space : None | Dict[int | str, Tuple[float | None, float | None]] = None,
         states_shape : None | int | Tuple[int, ...] = None,
-        random_state : None | int = None,
+        random_seed  : None | int = None,
         random_distr : RandomDistribution = 'normal',
         mutation_size : float = 0.1,
         mutation_rate : float = 0.3,
@@ -284,8 +284,8 @@ class GeneticOptimizer(Optimizer):
         :param states_shape: Tuple defining the shape of the optimization 
                              space (assumed free of constraints).
         :type states_shape: None | int | Tuple[int, ...], optional
-        :param random_state: Seed for random number generation
-        :type random_state: None | int, optional.
+        :param random_seed: Seed for random number generation
+        :type random_seed: None | int, optional.
         :param random_distr: Nature of the random distribution for initial
                              random codes generation, defaults to `normal`.
         :type random_distr: RandomDistribution
@@ -308,7 +308,7 @@ class GeneticOptimizer(Optimizer):
         super().__init__(
             states_space=states_space,
             states_shape=states_shape,
-            random_state=random_state, 
+            random_seed=random_seed, 
             random_distr=random_distr,
         )
         

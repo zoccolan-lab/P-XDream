@@ -1,6 +1,5 @@
-import random
 import tkinter as tk
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing      import Callable, Dict, List, Tuple
 from functools   import partial
 
@@ -120,7 +119,7 @@ def mask_generator_from_template(
 		
 		for _ in range(n):
 			if shuffle:
-				random.shuffle(template)
+				np.random.shuffle(template)
 			bool_l.extend(template)
 			
 		return bool_l
@@ -153,9 +152,9 @@ class Message:
           applied to arrays.
     '''
     
-    label   : List[int]
+    label   : List[int] = field(default_factory=lambda: [])
     '''
-    List of labels associated to the set of stimuli.
+    List of labels associated to the set of stimuli. Defaults to empty list.
     
     NOTE: Labels are only associated to natural images so they are
           they only refers to 'False' entries in the mask.
