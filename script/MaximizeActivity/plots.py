@@ -1,5 +1,7 @@
 from os import path
 from typing import Any, Dict, List, Tuple
+from collections import defaultdict
+import seaborn as sns
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -9,6 +11,7 @@ from zdream.optimizer import Optimizer
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.misc import SEM, default
 from zdream.utils.plotting import customize_axes_bounds, set_default_matplotlib_params
+
 
 
 def plot_scores(
@@ -321,4 +324,103 @@ def plot_scores_by_cat(
     if display_plots:
         plt.show()
 
-#
+
+def plot_optimizing_units(
+    multiexp_data: Dict[str, Any],
+    out_dir: str | None = None,
+    display_plots: bool = False,
+    logger: Logger | None = None
+):
+    '''
+    Plot the final score trend across different population size of optimizing neurons
+    for different layers
+    
+    :param multiexp_data: Results from the multiexperiment run as a mapping to equal-length lists 
+                          containing information relative to number of optimization neurons, scores,
+                          layers and optimization steps.
+    :param out_dir: Directory where to save output plots, default is None indicating not to save.
+    :type out_dir: str | None
+    :param display_plots: If to display plots, default to False.
+    :type out_dir: bool
+    :param logger: Logger to log information relative to plot saving paths.
+                   Defaults to None indicating no logging.
+    :type logger: Logger | None
+    '''
+    
+    # Auxiliar functions
+    def find_indices(lst, value): return [i for i, item in enumerate(lst) if item == value]
+
+    def extract_layer(el):
+        ''' Auxiliar function to extract layer names from a list element'''
+        if len(el) > 1:
+            raise ValueError(f'Expected to record from a single layer, multiple where found: {el}')
+        return el[0]
+
+    # Default logger
+    logger = default(logger, MutedLogger())
+
+    # Check same gen
+    all_gen = set(multiexp_data['num_gens'])
+    if len(all_gen) > 1:
+        err_msg = f'Experiments were requires to have the same number of iterations, but multiple found {all_gen}'
+        raise ValueError(err_msg)
+    gen = list(all_gen)[0]
+    
+    # Cast data to raw type lists
+    data = {
+        'scores'  : list(np.concatenate(multiexp_data['score'])),
+        'neurons' : multiexp_data['neurons'],
+        'layers'  : [extract_layer(el) for el in multiexp_data['layer']]
+    }
+
+    # Organize data in a mapping {layer: {neurons: [score1, score2, ...]}}
+    unique_layers = set(data['layers'])
+    combined_data = defaultdict(dict)
+    for layer in unique_layers:
+        ii = find_indices(data['layers'], layer)
+        neurons = [data['neurons'][i] for i in ii]
+        scores_  = [data['scores' ][i] for i in ii]
+        unique_neurons = set(neurons)
+        for neuron in unique_neurons:
+            jj = find_indices(neurons, neuron)
+            scores = [scores_[j] for j in jj]
+            combined_data[layer][neuron] = np.array(scores)
+
+    # Plot
+    fig, ax = plt.subplots(1) 
+
+    # Define custom color palette with as many colors as layers
+    custom_palette = sns.color_palette("husl", len(combined_data))
+
+    for idx, (label, ys) in enumerate(combined_data.items()):
+
+        # Compute mean and standard deviation for each x-value for both lines
+        xs = list(ys.keys())
+        y_means = [np.mean(y) for y in ys.values()]
+        y_stdevs = [np.std(y) for y in ys.values()]
+
+        # Use custom color from the palette
+        color = custom_palette[idx]
+
+        # Plot line
+        ax.plot(xs, y_means, marker='o', linestyle='-', label=label, color=color)
+
+        # Plot error bars for standard deviation for both lines
+        ax.errorbar(xs, y_means, yerr=y_stdevs, fmt='none', linestyle='none', capsize=5, color=color)
+
+    # Set labels, title and legend
+    ax.set_xlabel('Neurons')
+    ax.set_ylabel('Label')
+    ax.set_title(f'Final score varying optimization neurons in {gen} epochs. ')
+    ax.legend()
+
+    # Set x-axis ticks to integer values and only where the points are
+    ax.set_xticks(xs)
+
+    # Save or display  
+    if out_dir:
+        out_fp = path.join(out_dir, 'neurons_optimization.png')
+        logger.info(f'Saving score histogram plot to {out_fp}')
+        fig.savefig(out_fp, bbox_inches="tight")
+    if display_plots:
+        plt.show()

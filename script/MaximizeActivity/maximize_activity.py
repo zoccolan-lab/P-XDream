@@ -1,4 +1,4 @@
-from script.MaximizeActivity.plots import plot_scores, plot_scores_by_cat
+from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
 from zdream.generator import InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
@@ -152,8 +152,8 @@ class _MaximizeActivityExperiment(Experiment):
 
         config.data = cast(Dict[str, Any], config.data)
 
-        # TODO variable use_natural: bool
-
+        # Create a mock mask for one synthetic image 
+        # to see if natural images are involved in the experiment
         mock_mask = self._mask_generator(1)
         self._use_natural = mock_mask is not None and mock_mask.count(False) > 0
 
@@ -166,18 +166,24 @@ class _MaximizeActivityExperiment(Experiment):
         # We add the progress information about the best
         # and the average score per each iteration
         stat_gen = self.optimizer.stats
-        if self._use_natural
+
+        if self._use_natural:
             stat_nat = self.optimizer.stats_nat
 
         best_gen = cast(NDArray, stat_gen['best_score']).mean()
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
-        best_nat = cast(NDArray, stat_nat['best_score']).mean()
+        if self._use_natural:
+            best_nat = cast(NDArray, stat_nat['best_score']).mean()
 
         best_gen_str = f'{" " if best_gen < 1 else ""}{best_gen:.1f}' # Pad for decimals
         curr_gen_str = f'{curr_gen:.1f}'
-        best_nat_str = f'{best_nat:.1f}'
+        if self._use_natural:
+            best_nat_str = f'{best_nat:.1f}'
 
-        desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str} | best nat: {best_nat_str}'
+        if self._use_natural:
+            desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str} | best nat: {best_nat_str}'
+        else:
+            desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str}'
 
         progress_super = super()._progress_info(i=i)
 
@@ -188,24 +194,24 @@ class _MaximizeActivityExperiment(Experiment):
         super()._init()
 
         # Data structure to save best score and best image
-        self._best_scr = {'gen': 0, 'nat': 0}
-        self._best_img = {
-            k: torch.zeros(self.generator.output_dim, device = device)
-            for k in ['gen', 'nat']
-        }
+        if self._use_natural:
+            self._best_nat_scr = 0
+            self._best_nat_img = torch.zeros(self.generator.output_dim, device = device)
 
         # Set screen
         self._screen_syn = "Best synthetic image"
         self._logger.add_screen(screen_name=self._screen_syn, display_size=(400,400))
 
-        self._screen_nat = "Best natural image"
-        self._logger.add_screen(screen_name=self._screen_nat, display_size=(400,400))
+        if self._use_natural:
+            self._screen_nat = "Best natural image"
+            self._logger.add_screen(screen_name=self._screen_nat, display_size=(400,400))
 
         # Set gif
         self._gif: List[Image.Image] = []
 
-        # Last seen labels
-        self._labels: List[int] = []
+        if self._use_natural:
+            # Last seen labels
+            self._labels: List[int] = []
 
 
     def _progress(self, i: int):
@@ -217,17 +223,19 @@ class _MaximizeActivityExperiment(Experiment):
         best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
         best_synthetic_img = to_pil_image(best_synthetic[0])
 
-        best_natural = self._best_img['nat']
+        if self._use_natural:
+            best_natural = self._best_nat_img
 
         self._logger.update_screen(
             screen_name=self._screen_syn,
             image=best_synthetic_img
         )
 
-        self._logger.update_screen(
-            screen_name=self._screen_nat,
-            image=to_pil_image(best_natural)
-        )
+        if self._use_natural:
+            self._logger.update_screen(
+                screen_name=self._screen_nat,
+                image=to_pil_image(best_natural)
+            )
 
         if not self._gif or self._gif[-1] != best_synthetic_img:
             self._gif.append(
@@ -250,13 +258,16 @@ class _MaximizeActivityExperiment(Experiment):
         best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
-        best_nat = self._best_img['nat']
+        if self._use_natural:
+            best_nat = self._best_nat_img
 
         # Saving images
         for img, label in [
             (to_pil_image(best_gen), 'best synthetic'),
             (to_pil_image(best_nat), 'best natural'),
             (concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'),
+        ] if self._use_natural else [
+            (to_pil_image(best_gen), 'best synthetic')
         ]:
             out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
             self._logger.info(f'> Saving {label} image to {out_fp}')
@@ -273,33 +284,37 @@ class _MaximizeActivityExperiment(Experiment):
         plots_dir = path.join(self.target_dir, 'plots')
         os.makedirs(plots_dir, exist_ok=True)
         self._logger.info(mess=f"Saving plots to {plots_dir}")
+
+        if self._use_natural:
         
-        self._logger.prefix='> '
-        plot_scores(
-            scores=(
-                self.optimizer.scores_history,
-                self.optimizer.scores_nat_history
-            ),
-            stats=(
-                self.optimizer.stats,
-                self.optimizer.stats_nat,
-            ),
-            out_dir=plots_dir,
-            display_plots=self._display_plots,
-            logger=self._logger
-        )
-        plot_scores_by_cat(
-            scores=(
-                self.optimizer.scores_history,
-                self.optimizer.scores_nat_history
-            ),
-            lbls    = self._labels,
-            out_dir = plots_dir, 
-            dataset = self._dataset,
-            display_plots=self._display_plots,
-            logger=self._logger
-        )
-        self._logger.prefix=''
+            self._logger.prefix='> '
+            plot_scores(
+                scores=(
+                    self.optimizer.scores_history,
+                    self.optimizer.scores_nat_history
+                ),
+                stats=(
+                    self.optimizer.stats,
+                    self.optimizer.stats_nat,
+                ),
+                out_dir=plots_dir,
+                display_plots=self._display_plots,
+                logger=self._logger
+            )
+
+            if self._use_natural:
+                plot_scores_by_cat(
+                    scores=(
+                        self.optimizer.scores_history,
+                        self.optimizer.scores_nat_history
+                    ),
+                    lbls    = self._labels,
+                    out_dir = plots_dir, 
+                    dataset = self._dataset,
+                    display_plots=self._display_plots,
+                    logger=self._logger
+                )
+            self._logger.prefix=''
         
         self._logger.info(mess='')
         
@@ -308,24 +323,25 @@ class _MaximizeActivityExperiment(Experiment):
 
         # We save the last set of stimuli
         self._stimuli, msg = data
-        self._labels.extend(msg.label)
+        if self._use_natural:
+            self._labels.extend(msg.label)
 
         return super()._stimuli_to_sbj_state(data)
 
     def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
 
-        sub_score, msg =data
+        sub_score, msg = data
 
         # We inspect if the new set of stimuli (both synthetic and natural)
         # achieved an higher score than previous ones.
         # In the case we both store the new highest value and the associated stimuli
-        for imtype, mask in zip(['gen', 'nat'], [msg.mask, ~msg.mask]):
+        if self._use_natural:
 
-            max_, argmax = tuple(f_func(sub_score[mask]) for f_func in [np.amax, np.argmax])
+            max_, argmax = tuple(f_func(sub_score[~msg.mask]) for f_func in [np.amax, np.argmax])
 
-            if max_ > self._best_scr[imtype]:
-                self._best_scr[imtype] = max_
-                self._best_img[imtype] = self._stimuli[torch.tensor(mask)][argmax]
+            if max_ > self._best_nat_scr:
+                self._best_nat_scr = max_
+                self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
 
         return super()._stm_score_to_codes((sub_score, msg))
     
@@ -350,3 +366,12 @@ class NeuronScoreMultipleExperiment(MultiExperiment):
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
+
+    def _finish(self):
+
+        plot_optimizing_units(
+            multiexp_data=self._data,
+            out_dir=self.target_dir,
+            logger=self._logger
+        )
+        super()._finish()
