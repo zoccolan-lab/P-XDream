@@ -10,7 +10,7 @@ from zdream.logger import Logger, MutedLogger
 from zdream.optimizer import Optimizer
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.misc import SEM, default
-from zdream.utils.plotting import customize_axes_bounds, set_default_matplotlib_params
+from zdream.utils.plotting import customize_axes_bounds, set_default_matplotlib_params, subplot_same_lims
 
 
 
@@ -306,7 +306,7 @@ def plot_scores_by_cat(
     # Labels
     ax[0].set_xlabel('Average activation')
     ax[0].legend()
-    customize_axes_bounds(ax[0])
+    
     
     # Replicate the same reasoning sorting by the best score
     sorted_lblA_bymax = sorted(lbl_acts.items(), key=lambda x: x[1][2]) # We sort for the 2 index, i.e. the max
@@ -322,6 +322,13 @@ def plot_scores_by_cat(
     # Plot
     ax[1].barh(top_labels, [val[2] for val in top_values], label='Top 3',    color='green')
     ax[1].barh(bot_labels, [val[2] for val in bot_values], label='Bottom 3', color='red')
+
+    # Labels
+    ax[1].set_xlabel('Average activation')
+    ax[1].legend()
+
+    subplot_same_lims(ax, sel_axs = 'x')
+    customize_axes_bounds(ax[0])
     customize_axes_bounds(ax[1])
     
     # Save

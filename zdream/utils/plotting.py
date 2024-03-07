@@ -3,11 +3,15 @@
 import matplotlib.pyplot as plt 
 from matplotlib.axes import Axes
 from typing import List, Literal, Dict, Any
+
+import numpy as np
+from numpy.typing import NDArray
 from zdream.utils.misc import default
 
 # --- DEFAULT PLOTTING PARAMETERS ----
 
 _Shapes = Literal['square', 'rect_tall', 'rect_wide']
+_ax_selection = Literal['x', 'y', 'xy']
 
 def _get_appropriate_fontsz(xlabels: List[str], figure_width: float | int | None = None) -> float:
     '''
@@ -36,6 +40,15 @@ def _get_appropriate_fontsz(xlabels: List[str], figure_width: float | int | None
     return fontsz
 
 
+def subplot_same_lims(axes, sel_axs = 'xy'):
+    lims = np.array([[ax.get_xlim(), ax.get_ylim()] for ax in axes.flatten()])
+    xlim = [np.min(lims[:,0,:]), np.max(lims[:,0,:])] 
+    ylim = [np.min(lims[:,1,:]), np.max(lims[:,1,:])]
+    for ax in axes.flatten():
+        ax.set_xlim(xlim) if 'x' in sel_axs else None
+        ax.set_ylim(ylim) if 'y' in sel_axs else None   
+        
+        
 def set_default_matplotlib_params(
     l_side  : float     = 15,
     shape   : _Shapes   = 'square', 
@@ -149,7 +162,14 @@ def customize_axes_bounds(ax: Axes):
         if low_b.replace('−', '').replace('.', '').isdigit():
             low_b = float(low_b.replace('−','-'))
             up_b  = float( up_b.replace('−','-'))
-        
+            
+            # Remove ticks outside bounds
+            ticks = tick_positions_y if side == 'left' else tick_positions_x
+            ticks = [float(tick.get_text().replace('−','-')) for tick in ticks 
+                     if low_b <= float(tick.get_text().replace('−','-')) <= up_b]
+            
+            ax.set_yticks(ticks) if side == 'left' else ax.set_xticks(ticks)
+            
         # Case 2: Categorical - Set first and last thicks bounds as index
         else:
             ticks = tick_positions_y if side == 'left' else tick_positions_x
@@ -157,4 +177,9 @@ def customize_axes_bounds(ax: Axes):
             up_b  = len(ticks)-1
         
         ax.spines[side].set_bounds(low_b, up_b)
+        
+            
+        
+        
+        
 
