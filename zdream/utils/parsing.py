@@ -45,9 +45,16 @@ def parse_layer_target_units(
             Nr[]
         - random set of N neuron, in a given range:
             Nr[A:B C:D E]
+            
+    :param input_str: the string parsed for the experiment
+    :type input_str: str
+    :param net_info: a dictionary whose keys are all the layernames 
+                    of the sbj net (e.g. Alexnet)
+    :type net_info: Dict[str, Tuple[int, ...]]
     '''
     
     # Split targets separated by a comma
+    # targets is a dictionary {int (i.e. layer ID): str (i.e. the units of interest)}
     try:
         targets = {int(k.strip()) : v for k, v in [target.split('=') for target in input_str.split(',')]}
     except Exception as e:
@@ -57,6 +64,7 @@ def parse_layer_target_units(
     target_dict : Dict[str, TargetUnit] = dict()
 
     # targets = input_str.split(',')
+    # layer_names contains the names of all the layers of the net
     layer_names = list(net_info.keys())
 
     for layer_idx, units in targets.items():
@@ -69,18 +77,24 @@ def parse_layer_target_units(
         is_random = not units.startswith('[') 
         
         # Non random branch
-        if   not is_random and units=='[]': neurons = None
-        elif not is_random and units.endswith('.txt]'):
+        if   not is_random and units=='[]': neurons = None #CASE 1: ALL NEURONS
+        elif not is_random and units.endswith('.txt]'):    #CASE 2: PARSING FROM .TXT
             # TODO: Check this function for new syntax
             neurons = neurons_from_file(file_path=units.strip('[]'))
-        elif not is_random and ':' in units:
+        elif not is_random and ':' in units: #CASE 3: RANGE OF NEURONS
             try:
-
+                
+                #bounds will be a list of lists, each of them containing
+                #two elements (i.e. the bounds of the interval)
                 bounds = [
                     [int(v) if v else None for v in tmp.split(':')]
                     for tmp in units.strip('[]').split(' ')
                 ]
 
+                #starmap applies to each couple of bounds the function range
+                #product will compute all the combinations between multiple 
+                #sets of bounds (e.g. [[3:8 6:19]]). This is for convolutional 
+                #layers that ask for multiple coordinates
                 neurons = tuple(
                     np.array(
                         list(product(*list(starmap(range, bounds))))
@@ -89,26 +103,33 @@ def parse_layer_target_units(
 
             except Exception as e:
                 raise SyntaxError(f'Error while parsing range format. Provided command was {units}. Exception was: {e}')
-        elif not is_random:
+        elif not is_random: #CASE 4: SINGLE UNITS PARSING
             try:
 
                 if '(' not in units:
+                    #e.g. [1 5 23] -> [(1)(5)(23)]
                     units_ = units.replace('[', '[(').replace(']', ')]').replace(' ', ') (')
                 else:
                     units_ = units
 
+                # neurons will be an array whose entries are the coordinates of each unit
+                # (e.g. [3,5,6] for a convolutional layer)
                 neurons = tuple(np.array([
                         ([int(v) for v in code.strip('()').split(' ')])
-                        for code in units_.strip('[]').split(') (')
+                        for code in units_.strip('[]').split(') (') #iterate on every tuple
                     ]).T
                 )
 
             except Exception as e:
                 raise SyntaxError(f'Error while parsing individual neuron format. Provided command was {units}. Exception was: {e}')
-        elif is_random and ':' in units:
+        elif is_random and ':' in units: #CASE 5: RANDOM UNITS FROM INTERVALS
             try:
+                #separate the nr of units (size) from the ranges of interest (codes)
                 size, codes = units.split('r')
                 
+                # neurons will contain a set of N (N=size) units randomly 
+                # selected from the intervals of interest. len(shape) is indicated
+                # to get the output of the appropriate size (in case of conv layers) (correct?)
                 neurons = tuple(
                     np.random.randint(*[
                             [int(tmp.split(':')[axis]) for tmp in codes.strip('[]').split(' ')]
@@ -120,8 +141,9 @@ def parse_layer_target_units(
                 
             except Exception as e:
                 raise SyntaxError(f'Error while parsing random range format. Provided command was {units}. Exception was: {e}')
-        elif is_random:
+        elif is_random: #CASE 6: UNBOUND RANDOM UNITS
             try:
+                #same as case 5, but you ignore the codes (i.e. intervals)
                 size, _ = units.split('r')
                 
                 neurons = tuple(
@@ -163,6 +185,8 @@ def parse_layer_target_units(
             raise ValueError(f'Units with different shape for layer {lname} with shape {shape}. Provided command was: {units}')
 
         target_dict[lname] = neurons
+        #NOTE: IN EVERY CASE NEURONS IS A TUPLE OF ARRAYS; WHERE EACH OF THEM REFERS
+        #TO A COORDINATE OF THE NEURONS (this is to address also conv layers)
 
     return target_dict
 
@@ -175,6 +199,15 @@ def parse_scoring_units(
     Converts a input string indicating the scoring units associated to each layer
     to a dictionary mapping layer name to a one-dimensional array of activations indexes
     referred to the corresponding recording targets.
+    
+    :param input_str: the string parsed for the experiment
+    :type input_str: str
+    :param net_info: a dictionary whose keys are all the layernames 
+                    of the sbj net (e.g. Alexnet)
+    :type net_info: Dict[str, Tuple[int, ...]]
+    :param rec_neurons: dictionary containing the neurons recorded
+    :type rec_neurons: Dict[str, TargetUnit]
+    
     '''
 
     # In the case of both random units with range raise an error
@@ -185,6 +218,7 @@ def parse_scoring_units(
     if 'r' in input_str:
 
         # Extract layer and units
+        # targets is a dictionary {int (i.e. layer ID): str (i.e. the units of interest)}
         try:
             targets = {int(k.strip()) : v for k, v in [target.split('=') for target in input_str.split(',')]}
         except Exception as e:
@@ -206,7 +240,9 @@ def parse_scoring_units(
 
             if rnd_units > rec_units:
                 raise ValueError(f'Trying to score {rnd_units} random units, but {rec_units} were registers')
-
+            
+            #target_dict[layer_name] will contain the indexes of the recording units 
+            # to score from in the layer layer_name
             target_dict[layer_name] = list(np.random.randint(0, high=rec_units, size=rnd_units, dtype=int))
 
         return target_dict
@@ -215,17 +251,19 @@ def parse_scoring_units(
     score_target = parse_layer_target_units(input_str=input_str, net_info=net_info)
 
     # In the case of None explicitly map all its neurons
+    #you are mapping for each recorded layer the index of that neuron within that layer 
     rec_neurons = {
         k: v if v else tuple(np.indices(net_info[k][1:])[i].ravel() for i in range(len(net_info[k][1:])))
         for k, v in rec_neurons.items()
     }
 
-    # We create a mapping
+    # We create a mapping 
+    # for each layer, the coordinates of a specific neuron are mapped to his indexes
     rec_to_i = {
         k: {'_'.join([str(j) for j in tpl]): i for i, tpl in enumerate(np.array(v).T)}
         for k, v in rec_neurons.items()
     }
-
+    #here you store for each layer the coords you want to score
     scoring = {
         k: ['_'.join([str(j) for j in tpl])for tpl in np.array(v).T]
         for k, v in score_target.items()
@@ -233,6 +271,7 @@ def parse_scoring_units(
 
     # Out
     try:
+        #map the scoring coordinates  onto their indices in rec_to_i
         return {
             k: [rec_to_i[k][i] for i in v]
             for k, v in scoring.items()

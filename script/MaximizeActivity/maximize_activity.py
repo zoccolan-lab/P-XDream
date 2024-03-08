@@ -375,12 +375,13 @@ class NeuronScoreMultiExperiment(MultiExperiment):
     @property
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
-    
-    def _progress(self, exp: _MaximizeActivityExperiment, i: int):
-        
-        super()._progress(exp, i)
 
-        self._data['score']  .append(exp.optimizer.stats['best_score'][0])
+    def _progress(self, exp: _MaximizeActivityExperiment, config: Dict[str, Any], i: int):
+        super()._progress(exp, config, i)
+
+        self._data['score']  .append(exp.optimizer.stats['best_score'])
+        avg_rec = {k: np.mean(v[-1]) for k,v in exp.subject.states_history.items()}
+        self._data['avg_rec']  .append(avg_rec)
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
