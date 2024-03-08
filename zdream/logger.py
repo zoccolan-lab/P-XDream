@@ -1,13 +1,15 @@
+import gc
 import os
 import tkinter as tk
 import logging
 from os     import path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 from PIL    import Image
 import loguru
 
-from zdream.utils.io_  import rmdir
+from zdream.utils.io_   import rmdir
+from zdream.utils.misc  import default
 from zdream.utils.model import DisplayScreen
 
 class Logger:
@@ -30,10 +32,6 @@ class Logger:
 
 		# Set target directory if specified
 		self._target_dir: str = self._get_target_dir(conf=conf) if conf else ''
-
-		# Create the mandatory Tinker, which we hide.
-		self._main_screen = tk.Tk()
-		self._main_screen.withdraw()
 		
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
@@ -149,7 +147,7 @@ class Logger:
 
 	# SCREEN
 
-	def add_screen(self, screen_name: str, display_size: Tuple[int, int] = (400, 400)):
+	def add_screen(self, screen_name: str, screen: DisplayScreen):
 		'''
 		Add a new screen with name and size. It raises a key error if that screen name already exists.
 		
@@ -164,7 +162,7 @@ class Logger:
 			err_msg = f'There already exists a screen with name {screen_name}'
 			raise KeyError(err_msg)
 		
-		self._screens[screen_name] = DisplayScreen(title=screen_name, display_size=display_size)
+		self._screens[screen_name] = screen
 
 	def update_screen(self, screen_name: str, image: Image.Image):
 		'''
@@ -175,6 +173,8 @@ class Logger:
 		:param image: Image to update screen frame.
 		:type image: Image.Image
 		'''
+  
+		print(f'Update from {screen_name}')
 
 		try:
 			self._screens[screen_name].update(image=image)
@@ -211,6 +211,16 @@ class Logger:
 
 		for screen_name in screen_names:
 			self.remove_screen(screen_name=screen_name)
+		# gc.collect()
+  
+	@property
+	def screens(self) -> List[str]:
+		return list(self._screens.keys())
+
+
+	# def __del__(self):
+	# 	print("Here")
+	# 	self.remove_all_screens()
 
 
 class LoguruLogger(Logger):
@@ -237,16 +247,17 @@ class LoguruLogger(Logger):
 		self._id = self._serial_number
 		LoguruLogger._serial_number += 1
 
-		self._logger = loguru.logger.bind(id=self._id)
+		# self._logger = loguru.logger.bind(id=self._id)
+		self._logger = loguru.logger
 		
 		# File logging
 		if on_file and conf:
 
 			log_file = path.join(self.target_dir, 'info.log')
-			self._logger.add(
-				log_file, level=0, enqueue=True, 
-				filter=lambda x: x['extra']['id']==self._id
-			)
+			#self._logger.add(
+			#	log_file, level=0, enqueue=True, 
+			#	filter=lambda x: x['extra']['id']==self._id
+			#)
 
 		# Warning if on_file but no target directory.
 		elif on_file:
@@ -262,12 +273,13 @@ class LoguruLogger(Logger):
 class MutedLogger(Logger):
 	''' Trivial logger with for non-logging '''
 
-	def __init__(self) -> None:
+	#def __init__(self) -> None:
+	def __init__(self, conf = None) -> None:
 		''' Use None configuration for non specifying a target directory '''
 
 		super().__init__(conf=None)
 	
 	# Override for no logging
-	def _info(self, mess: str): pass
+	def _info(self, mess: str): print(mess)
 	def _warn(self, mess: str): pass
 	def _err (self, mess: str): pass

@@ -100,7 +100,7 @@ def plot_scores(
         ax[i].set_title(k.split('_')[0].capitalize())
         ax[i].legend()
         customize_axes_bounds(ax[i])
-    
+
     # Save or display  
     if out_dir:
         out_fp = path.join(out_dir, 'scores_trend.png')
@@ -395,17 +395,21 @@ def plot_optimizing_units(
         ii = find_indices(data['layers'], layer)
         neurons = [data['neurons'][i] for i in ii]
         scores_  = [data['scores' ][i] for i in ii]
-        unique_neurons = set(neurons)
+        unique_neurons = sorted(set(neurons))
         for neuron in unique_neurons:
             jj = find_indices(neurons, neuron)
             scores = [scores_[j] for j in jj]
             combined_data[layer][neuron] = np.array(scores)
+            
+    
 
     # Plot
     fig, ax = plt.subplots(1) 
-
+    ax.set_xscale('log')
     # Define custom color palette with as many colors as layers
     custom_palette = sns.color_palette("husl", len(combined_data))
+    
+    
 
     for idx, (label, ys) in enumerate(combined_data.items()):
 

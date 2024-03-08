@@ -142,7 +142,7 @@ class Message:
     through the data-passing of common object they all can manipulate.
     '''
     
-    mask    : NDArray[np.bool_]
+    mask    : NDArray[np.bool_] = field(default_factory=lambda: np.array([]))
     '''
     Boolean mask associated to a set of stimuli indicating if they are
     synthetic of natural images.

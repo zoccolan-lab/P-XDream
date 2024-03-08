@@ -1,15 +1,16 @@
+from copy import deepcopy
 from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
-from zdream.generator import InverseAlexGenerator
-from zdream.logger import Logger, LoguruLogger
+from zdream.generator import InverseAlexGenerator, MockGenerator
+from zdream.logger import Logger, LoguruLogger, MutedLogger
 from zdream.optimizer import GeneticOptimizer
 from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
-from zdream.subject import NetworkSubject
+from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
-from zdream.utils.model import Codes, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
+from zdream.utils.model import Codes, DisplayScreen, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
 from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units, parse_scoring_units
 
 import numpy as np
@@ -20,6 +21,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
 import os
+import tkinter as tk
 from os import path
 from typing import Any, Dict, List, Tuple, Type, cast
 
@@ -50,17 +52,24 @@ class _MaximizeActivityExperiment(Experiment):
         opt_conf = conf['optimizer']
         log_conf = conf['logger']
 
+        # --- MASK GENERATOR ---
+
+        template = parse_boolean_string(boolean_str=msk_conf['template'])
+        mask_generator = mask_generator_from_template(template=template, shuffle=msk_conf['shuffle'])
+        
         # --- GENERATOR ---
 
         # Dataloader
-        dataset    = MiniImageNet(root=gen_conf['mini_inet'])
-        dataloader = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
+        use_nat = template.count(False) > 0
+        if use_nat:
+            dataset    = MiniImageNet(root=gen_conf['mini_inet'])
+            dataloader = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
 
         # Instance
         generator = InverseAlexGenerator(
             root           = gen_conf['weights'],
             variant        = gen_conf['variant'],
-            nat_img_loader = dataloader
+            nat_img_loader = dataloader if use_nat else None
         ).to(device)
 
 
@@ -78,13 +87,12 @@ class _MaximizeActivityExperiment(Experiment):
             record_probe=probe,
             network_name=sbj_conf['net_name']
         )
+        
         sbj_net._network.eval() # TODO cannot access private attribute, make public method to call the eval
 
         # --- SCORER ---
 
         # Target neurons
-        score_dict = {}
-
         score_dict = parse_scoring_units(
             input_str=scr_conf['targets'], 
             net_info=layer_info,
@@ -112,19 +120,22 @@ class _MaximizeActivityExperiment(Experiment):
         #  --- LOGGER --- 
 
         log_conf['title'] = _MaximizeActivityExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(
-            conf=log_conf
-        )
-
-        # --- MASK GENERATOR ---
-
-        template = parse_boolean_string(boolean_str=msk_conf['template'])
-        mask_generator = mask_generator_from_template(template=template, shuffle=msk_conf['shuffle'])
+        logger = LoguruLogger(conf=log_conf)
+        
+        if conf['render']:
+        
+            print('display_screens' in conf)
+            for name, screen in conf.get('display_screens', [
+                ('nat', DisplayScreen(title='Best Natural Image', display_size=(400, 400))),
+                ('gen', DisplayScreen(title='Best Synthetic Image', display_size=(400, 400)))
+            ]):
+                logger.add_screen(screen_name=name, screen=screen)
 
         # --- DATA ---
         data = {
-            "dataset": dataset,
-            'display_plots': conf['display_plots']
+            "dataset": dataset if use_nat else None,
+            'display_plots': conf['display_plots'],
+            'render': conf['render']
         }
 
         # Experiment configuration
@@ -152,11 +163,13 @@ class _MaximizeActivityExperiment(Experiment):
         # Create a mock mask for one synthetic image 
         # to see if natural images are involved in the experiment
         mock_mask = self._mask_generator(1)
+    
         self._use_natural = mock_mask is not None and mock_mask.count(False) > 0
 
         if self._use_natural:
             self._dataset   = cast(MiniImageNet, config.data['dataset'])
         self._display_plots = cast(bool, config.data['display_plots'])
+        self._render        = cast(bool, config.data['render'])
 
     def _progress_info(self, i: int) -> str:
 
@@ -195,14 +208,11 @@ class _MaximizeActivityExperiment(Experiment):
             self._best_nat_scr = 0
             self._best_nat_img = torch.zeros(self.generator.output_dim, device = device)
 
-        # Set screen
-        self._screen_syn = "Best synthetic image"
-        self._logger.add_screen(screen_name=self._screen_syn, display_size=(400,400))
-
-        if self._use_natural:
-            self._screen_nat = "Best natural image"
-            self._logger.add_screen(screen_name=self._screen_nat, display_size=(400,400))
-
+        if self._render:
+            # Set screen
+            self._screen_syn = "gen"
+            self._screen_nat = "nat"
+        
         # Set gif
         self._gif: List[Image.Image] = []
 
@@ -222,22 +232,26 @@ class _MaximizeActivityExperiment(Experiment):
 
         if self._use_natural:
             best_natural = self._best_nat_img
-
-        self._logger.update_screen(
-            screen_name=self._screen_syn,
-            image=best_synthetic_img
-        )
-
-        if self._use_natural:
-            self._logger.update_screen(
-                screen_name=self._screen_nat,
-                image=to_pil_image(best_natural)
-            )
-
+            
         if not self._gif or self._gif[-1] != best_synthetic_img:
             self._gif.append(
                 best_synthetic_img
             )
+            
+        if self._render:
+
+            self._logger.update_screen(
+                screen_name=self._screen_syn,
+                image=best_synthetic_img
+            )
+
+            if self._use_natural:
+                self._logger.update_screen(
+                    screen_name=self._screen_nat,
+                    image=to_pil_image(best_natural)
+                )
+
+        
 
     def _finish(self):
 
@@ -272,7 +286,7 @@ class _MaximizeActivityExperiment(Experiment):
         
         out_fp = path.join(img_dir, 'evolving_best.gif')
         self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
-        to_gif(image_list=self._gif, out_fp=out_fp)
+        #to_gif(image_list=self._gif, out_fp=out_fp)
 
         self._logger.info(mess='')
         
@@ -340,10 +354,18 @@ class _MaximizeActivityExperiment(Experiment):
 
         return super()._stm_score_to_codes((sub_score, msg))
     
-class NeuronScoreMultipleExperiment(MultiExperiment):
+class NeuronScoreMultiExperiment(MultiExperiment):
+    
+    @property
+    def display_screens(self) -> List[Tuple[str, DisplayScreen]]:
+        return [
+            ('gen', DisplayScreen(title='Best Synthetic Image', display_size=(400, 400))),
+            ('nat', DisplayScreen(title='Best Natural Image', display_size=(400, 400)))
+        ]
     
     def _init(self):
         super()._init()
+        
         self._data['desc']      = 'Scores at varying number of scoring neurons'
         self._data['score']     = list()
         self._data['neurons']   = list()
@@ -353,11 +375,12 @@ class NeuronScoreMultipleExperiment(MultiExperiment):
     @property
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
+    
+    def _progress(self, exp: _MaximizeActivityExperiment, i: int):
+        
+        super()._progress(exp, i)
 
-    def _progress(self, exp: _MaximizeActivityExperiment, config: Dict[str, Any], i: int):
-        super()._progress(exp, config, i)
-
-        self._data['score']  .append(exp.optimizer.stats['best_score'])
+        self._data['score']  .append(exp.optimizer.stats['best_score'][0])
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
@@ -370,3 +393,4 @@ class NeuronScoreMultipleExperiment(MultiExperiment):
             logger=self._logger
         )
         super()._finish()
+

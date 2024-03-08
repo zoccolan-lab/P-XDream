@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from os import path
 import os
-import pickle
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,11 +15,12 @@ from .utils.io_ import save_json, store_pickle
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
-from .utils.model import Codes, Mask, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState
+from .utils.model import Codes, DisplayScreen, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
 from .scores import Scorer
 from .subject import InSilicoSubject
 from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
+
 
 @dataclass
 class ExperimentState:
@@ -138,10 +138,11 @@ class ExperimentState:
             np.save(labels_fp, self.labels)
 
         # States
+        """ 
         if self.states is not None:
             states_fp = path.join(out_dir, 'states.npz')
             logger.info(f"> Saving states history to {states_fp}")
-            np.savez(states_fp, **self.states)
+            np.savez(states_fp, **self.states) """
 
         # Codes
         if self.codes is not None:
@@ -221,7 +222,9 @@ class Experiment(ABC):
     def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
         
         experiment = cls._from_config(conf=conf)
-
+        
+        conf.pop('display_screens', None)
+        
         experiment._set_param_configuration(param_config=conf)
 
         return experiment
@@ -539,7 +542,7 @@ class Experiment(ABC):
         self._elapsed_time = end_time - start_time
         
         self._finish()
-
+        
 
 class MultiExperiment:
     '''
@@ -623,11 +626,15 @@ class MultiExperiment:
 
     @property
     def target_dir(self) -> str: return self._logger.target_dir
+    
+    @property
+    def display_screens(self) -> List[Tuple[str, DisplayScreen]]: return []
 
     def _init(self):
         self._logger.info(mess=f'RUNNING MULTIPLE VERSIONS ({len(self)}) OF EXPERIMENT {self._name}')
+        self._display_screens = self.display_screens
 
-    def _progress(self, exp: Experiment, config: Dict[str, Any], i: int):
+    def _progress(self, exp: Experiment, i: int):
 
         j = i+1
         self._logger.info(mess=f'EXPERIMENT {j} OF {len(self)} RUN SUCCESSFULLY.')
@@ -644,16 +651,22 @@ class MultiExperiment:
     def run(self):
 
         self._init()
-
+        
+    
         for i, conf in enumerate(self._search_config):
-
+            
             self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
 
             exp_config = overwrite_dict(self._base_config, conf)
+            
+            if exp_config['render']:
+                exp_config['display_screens'] = self._display_screens
+            
             exp = self._Exp.from_config(exp_config)
             
             exp.run()
-
-            self._progress(exp=exp, config=exp_config, i=i)
+            
+            self._progress(exp=exp, i=i)
+            
 
         self._finish()

@@ -5,6 +5,7 @@ TODO Experiment description
 from os import path
 from argparse import ArgumentParser
 import matplotlib
+import tkinter as tk
 
 from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
@@ -16,14 +17,19 @@ matplotlib.use('TKAgg')
 SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..', '..'))
 LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
-def main(args):    
-
+def main(args): 
+    
     # Experiment
 
     json_conf = read_json(args['config'])
     args_conf = {k : v for k, v in args.items() if v}
     
-    full_conf = overwrite_dict(json_conf, args_conf)
+    full_conf = overwrite_dict(json_conf, args_conf) 
+    
+    # Tinker
+    if full_conf['render']:
+        main_screen = tk.Tk()
+        main_screen.withdraw()
     
     experiment = _MaximizeActivityExperiment.from_config(full_conf)
     experiment.run()
@@ -101,7 +107,8 @@ if __name__ == '__main__':
     # Iterations
     parser.add_argument('--num_gens',       type=int,   help='Number of total generations to evolve')
     parser.add_argument('--display_plots',  type=bool,  help='If to display plots')
-    parser.add_argument('--random_seed',    type=int  , help='Random state for the experiment')
+    parser.add_argument('--random_seed',    type=int,   help='Random state for the experiment')
+    parser.add_argument('--render',         type=bool,  help='If to render stimuli')
     
     conf = vars(parser.parse_args())
     
