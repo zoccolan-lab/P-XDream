@@ -93,8 +93,8 @@ class _MaximizeActivityExperiment(Experiment):
         # --- SCORER ---
 
         # Target neurons
-
-        score_dict, not_score_dict  = parse_scoring_units(
+        #TODO: use rec_only dictionary to index exp.subject.states_history
+        score_dict, rec_only  = parse_scoring_units(
             input_str=scr_conf['targets'], 
             net_info=layer_info,
             rec_neurons=record_target
@@ -136,7 +136,8 @@ class _MaximizeActivityExperiment(Experiment):
         data = {
             "dataset": dataset if use_nat else None,
             'display_plots': conf['display_plots'],
-            'render': conf['render']
+            'render': conf['render'],
+            'rec_only': rec_only if rec_only else None
         }
 
         # Experiment configuration
@@ -171,6 +172,7 @@ class _MaximizeActivityExperiment(Experiment):
             self._dataset   = cast(MiniImageNet, config.data['dataset'])
         self._display_plots = cast(bool, config.data['display_plots'])
         self._render        = cast(bool, config.data['render'])
+        self._rec_only      = cast(dict[str, List[int]] | None, config.data['rec_only'])
 
     def _progress_info(self, i: int) -> str:
 
@@ -381,7 +383,9 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         super()._progress(exp, config, i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
-        avg_rec = {k: np.mean(v[-1]) for k,v in exp.subject.states_history.items()}
+        avg_rec = {k: np.mean(v[-1, exp._rec_only[k]]) if exp._rec_only else None 
+                   for k,v in exp.subject.states_history.items()}
+        print(avg_rec)
         self._data['avg_rec']  .append(avg_rec)
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
