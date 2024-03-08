@@ -402,7 +402,8 @@ def plot_optimizing_units(
             combined_data[layer][neuron] = np.array(scores)
 
     # Plot
-    fig, ax = plt.subplots(1) 
+    fig, ax = plt.subplots(1)
+    set_default_matplotlib_params(shape='rect_wide')
 
     # Define custom color palette with as many colors as layers
     custom_palette = sns.color_palette("husl", len(combined_data))
@@ -412,16 +413,16 @@ def plot_optimizing_units(
         # Compute mean and standard deviation for each x-value for both lines
         xs = list(ys.keys())
         y_means = [np.mean(y) for y in ys.values()]
-        y_stdevs = [np.std(y) for y in ys.values()]
+        y_sem = [SEM(y) for y in ys.values()]
 
         # Use custom color from the palette
         color = custom_palette[idx]
 
         # Plot line
-        ax.plot(xs, y_means, marker='o', linestyle='-', label=label, color=color)
+        ax.plot(xs, y_means, label=label, color=color)
 
         # Plot error bars for standard deviation for both lines
-        ax.errorbar(xs, y_means, yerr=y_stdevs, fmt='none', linestyle='none', capsize=5, color=color)
+        ax.errorbar(xs, y_means, yerr=y_sem, color=color)
 
     # Set labels, title and legend
     ax.set_xlabel('Neurons')
@@ -431,6 +432,7 @@ def plot_optimizing_units(
 
     # Set x-axis ticks to integer values and only where the points are
     ax.set_xticks(xs)
+    customize_axes_bounds(ax)
 
     # Save or display  
     if out_dir:
