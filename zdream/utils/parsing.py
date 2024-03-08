@@ -185,6 +185,8 @@ def parse_layer_target_units(
             raise ValueError(f'Units with different shape for layer {lname} with shape {shape}. Provided command was: {units}')
 
         target_dict[lname] = neurons
+        #NOTE: IN EVERY CASE NEURONS IS A TUPLE OF ARRAYS; WHERE EACH OF THEM REFERS
+        #TO A COORDINATE OF THE NEURONS (this is to address also conv layers)
 
     return target_dict
 
@@ -197,6 +199,15 @@ def parse_scoring_units(
     Converts a input string indicating the scoring units associated to each layer
     to a dictionary mapping layer name to a one-dimensional array of activations indexes
     referred to the corresponding recording targets.
+    
+    :param input_str: the string parsed for the experiment
+    :type input_str: str
+    :param net_info: a dictionary whose keys are all the layernames 
+                    of the sbj net (e.g. Alexnet)
+    :type net_info: Dict[str, Tuple[int, ...]]
+    :param rec_neurons: dictionary containing the neurons recorded
+    :type rec_neurons: Dict[str, TargetUnit]
+    
     '''
 
     # In the case of both random units with range raise an error
@@ -207,6 +218,7 @@ def parse_scoring_units(
     if 'r' in input_str:
 
         # Extract layer and units
+        # targets is a dictionary {int (i.e. layer ID): str (i.e. the units of interest)}
         try:
             targets = {int(k.strip()) : v for k, v in [target.split('=') for target in input_str.split(',')]}
         except Exception as e:
@@ -228,7 +240,9 @@ def parse_scoring_units(
 
             if rnd_units > rec_units:
                 raise ValueError(f'Trying to score {rnd_units} random units, but {rec_units} were registers')
-
+            
+            #target_dict[layer_name] will contain the indexes of the recording units 
+            # to score from in the layer layer_name
             target_dict[layer_name] = list(np.random.randint(0, high=rec_units, size=rnd_units, dtype=int))
 
         return target_dict
@@ -237,17 +251,19 @@ def parse_scoring_units(
     score_target = parse_layer_target_units(input_str=input_str, net_info=net_info)
 
     # In the case of None explicitly map all its neurons
+    #you are mapping for each recorded layer the index of that neuron within that layer 
     rec_neurons = {
         k: v if v else tuple(np.indices(net_info[k][1:])[i].ravel() for i in range(len(net_info[k][1:])))
         for k, v in rec_neurons.items()
     }
 
-    # We create a mapping
+    # We create a mapping 
+    # for each layer, the coordinates of a specific neuron are mapped to his indexes
     rec_to_i = {
         k: {'_'.join([str(j) for j in tpl]): i for i, tpl in enumerate(np.array(v).T)}
         for k, v in rec_neurons.items()
     }
-
+    #here you store for each layer the coords you want to score
     scoring = {
         k: ['_'.join([str(j) for j in tpl])for tpl in np.array(v).T]
         for k, v in score_target.items()
@@ -255,6 +271,7 @@ def parse_scoring_units(
 
     # Out
     try:
+        #map the scoring coordinates  onto their indices in rec_to_i
         return {
             k: [rec_to_i[k][i] for i in v]
             for k, v in scoring.items()
