@@ -93,7 +93,8 @@ class _MaximizeActivityExperiment(Experiment):
         # --- SCORER ---
 
         # Target neurons
-        score_dict = parse_scoring_units(
+
+        score_dict, not_score_dict  = parse_scoring_units(
             input_str=scr_conf['targets'], 
             net_info=layer_info,
             rec_neurons=record_target
