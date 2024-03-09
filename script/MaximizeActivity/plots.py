@@ -1,9 +1,11 @@
 from os import path
 from typing import Any, Dict, List, Tuple
 from collections import defaultdict
+from matplotlib.axes import Axes
+from pandas import DataFrame
 import seaborn as sns
 
-from matplotlib import pyplot as plt
+from matplotlib import cm, pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 from zdream.logger import Logger, MutedLogger
@@ -346,6 +348,7 @@ def plot_optimizing_units(
     display_plots: bool = False,
     logger: Logger | None = None
 ):
+    #OBSOLETE: multiexp_lineplot is a generalized version of plot_optimizing_units
     '''
     Plot the final score trend across different population size of optimizing neurons
     for different layers
@@ -445,3 +448,54 @@ def plot_optimizing_units(
         fig.savefig(out_fp, bbox_inches="tight")
     if display_plots:
         plt.show()
+        
+        
+def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None, 
+                      gr_vars: str|list[str] = ['layers', 'neurons'], 
+                      y_var: str = 'scores', 
+                      metrics: str|list[str] = ['mean', 'sem']):
+    
+    """Plot the final trend of a specific metric 
+    across different population size of different layers.
+
+    :param out_df: Results from the multiexperiment run 
+    :type out_df: DataFrame
+    :param ax: axis if you want to do multiexp_lineplot in a subplot, defaults to None
+    :type ax: Axes | None, optional
+    :param gr_vars: grouping variables, defaults to ['layers', 'neurons']
+    :type gr_vars: str | list[str], optional
+    :param y_var: variable you want to plot, defaults to 'scores'
+    :type y_var: str, optional
+    :param metrics: metrics you are interested to plot, defaults to ['mean', 'sem']
+    :type metrics: str | list[str], optional
+    """
+    
+    set_default_matplotlib_params(shape='rect_wide')
+    # Define custom color palette with as many colors as layers
+    layers = out_df['layers'].unique()
+    #get len(layers) equally spaced colors from your colormap of interest
+    custom_palette = cm.get_cmap('jet')
+    colors = custom_palette(np.linspace(0, 1, len(layers)))
+
+    # Group by the variables in gr_vars (default :'layers' and 'neurons')
+    grouped = out_df.groupby(gr_vars)
+    # Calculate metrics of interest (default: mean and sem) for all groupings
+    result = grouped.agg(metrics)
+    #if an axis is not defined create a new one
+    if not(ax):
+        fig, ax = plt.subplots(1)
+    #for each layer, plot the lineplot of interest
+    for i,l in enumerate(layers): 
+        layer = result.loc[l]
+        if 'mean' in metrics and 'sem' in metrics:     
+            ax.errorbar(layer.index.get_level_values('neurons'), layer[(y_var, 'mean')],
+                yerr=layer[(y_var, 'sem')], label=l, color = colors[i])
+            #TODO: think to other metrics to plot
+            
+    ax.set_xlabel('Neurons')
+    ax.set_ylabel(y_var.capitalize())
+    ax.legend()
+    customize_axes_bounds(ax)
+    
+    # Show plot
+    plt.show()
