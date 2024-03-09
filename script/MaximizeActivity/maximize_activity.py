@@ -373,20 +373,21 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         self._data['score']     = list()
         self._data['neurons']   = list()
         self._data['layer']     = list()
+        self._data['deltaA_rec']   = list()
         self._data['num_gens']  = list()
 
     @property
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
 
-    def _progress(self, exp: _MaximizeActivityExperiment, config: Dict[str, Any], i: int):
-        super()._progress(exp, config, i)
+    def _progress(self, exp: _MaximizeActivityExperiment, i: int):
+        super()._progress(exp, i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
-        avg_rec = {k: np.mean(v[-1, exp._rec_only[k]]) if exp._rec_only else None 
-                   for k,v in exp.subject.states_history.items()}
-        print(avg_rec)
-        self._data['avg_rec']  .append(avg_rec)
+        deltaA_rec = {k: (np.mean(v[-1,:, exp._rec_only[k]]) - np.mean(v[0,:, exp._rec_only[k]]))
+                  if exp._rec_only else None 
+                  for k,v in exp.subject.states_history.items()}
+        self._data['deltaA_rec']  .append(deltaA_rec)
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
