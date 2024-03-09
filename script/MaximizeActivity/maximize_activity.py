@@ -1,4 +1,6 @@
 from copy import deepcopy
+
+import pandas as pd
 from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
 from zdream.generator import InverseAlexGenerator, MockGenerator
@@ -357,6 +359,7 @@ class _MaximizeActivityExperiment(Experiment):
 
         return super()._stm_score_to_codes((sub_score, msg))
     
+    
 class NeuronScoreMultiExperiment(MultiExperiment):
     
     @property
@@ -391,13 +394,54 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
+    
+        
+    def _get_multiexp_df(self):
+        """get a dataframe with the multiexperiment results
+
+        :param multiexp_data: data attribute of NeuronScoreMultiExperiment
+        :type multiexp_data: dict[str,Any]
+        """
+        
+        multiexp_data = self._data
+        def extract_layer(el):
+            ''' Auxiliar function to extract layer names from a list element'''
+            if len(el) > 1:
+                raise ValueError(f'Expected to record from a single layer, multiple where found: {el}')
+            return el[0]
+        
+        #extract data from multiexp_data as numpy arrays
+        data = {
+            'scores'  : np.concatenate(multiexp_data['score']),
+            'neurons' : np.stack(multiexp_data['neurons'], dtype=np.int32),
+            'layers'  : np.stack([extract_layer(el) for el in multiexp_data['layer']]),
+            'num_gens': np.stack(multiexp_data['num_gens'], dtype=np.int32)
+        }
+        
+        #extract recording-related data 
+        unique_keys = list(set().union(*[d.keys() for d in multiexp_data['avg_rec']]))
+        rec_delta_dict = {'rec_'+key: np.full(len(multiexp_data['avg_rec']), 
+                        np.nan, dtype=np.float32) for key in unique_keys}
+
+        for i, d in enumerate(multiexp_data['avg_rec']):
+            for uk in unique_keys:
+                if uk in d.keys():
+                    rec_delta_dict['rec_'+uk][i] = d[uk]
+        #unify all data into a single dictionary
+        data.update(rec_delta_dict)
+        
+        self.out_df = pd.DataFrame(data)
 
     def _finish(self):
-
+        self._get_multiexp_df()
+        
         plot_optimizing_units(
             multiexp_data=self._data,
             out_dir=self.target_dir,
             logger=self._logger
         )
         super()._finish()
+
+
+
 
