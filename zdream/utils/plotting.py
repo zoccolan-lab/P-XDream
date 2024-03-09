@@ -40,10 +40,23 @@ def _get_appropriate_fontsz(xlabels: List[str], figure_width: float | int | None
     return fontsz
 
 
-def subplot_same_lims(axes, sel_axs = 'xy'):
+def subplot_same_lims(axes: NDArray, sel_axs:_ax_selection = 'xy'):
+    """set xlim, ylim or both to be the same in all subplots
+
+    :param axes: array of Axes objects (one per subplot)
+    :type axes: NDArray
+    :param sel_axs: axes you want to set same bounds, defaults to 'xy'
+    :type sel_axs: _ax_selection, optional
+    """
+    #lims is a array containing the lims for x and y axes of all subplots
     lims = np.array([[ax.get_xlim(), ax.get_ylim()] for ax in axes.flatten()])
+    #get the extremes for x and y axis respectively among subplots
     xlim = [np.min(lims[:,0,:]), np.max(lims[:,0,:])] 
     ylim = [np.min(lims[:,1,:]), np.max(lims[:,1,:])]
+    #for every Axis obj (i.e. for every subplot) set the extremes among all subplots
+    #depending on the sel_axs indicated (either x, y or both (xy))
+    #NOTE: we could also improve this function by allowing the user to change the
+    #limits just for a subgroup of subplots
     for ax in axes.flatten():
         ax.set_xlim(xlim) if 'x' in sel_axs else None
         ax.set_ylim(ylim) if 'y' in sel_axs else None   
