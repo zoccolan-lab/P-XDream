@@ -373,11 +373,15 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         super()._init()
         
         self._data['desc']      = 'Scores at varying number of scoring neurons'
-        self._data['score']     = list()
-        self._data['neurons']   = list()
-        self._data['layer']     = list()
-        self._data['deltaA_rec']   = list()
-        self._data['num_gens']  = list()
+        self._data['score']         = list()
+        self._data['neurons']       = list()
+        self._data['layer']         = list()
+        self._data['deltaA_rec']    = list()
+        self._data['Copt_rec']      = list()
+        self._data['Copt_rec_var']  = list()
+        self._data['Crec_rec']      = list()
+        self._data['Crec_rec_var']  = list()
+        self._data['num_gens']      = list()
 
     @property
     def _logger_type(self) -> Type[Logger]:
@@ -387,10 +391,32 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         super()._progress(exp, i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
-        deltaA_rec = {k: (np.mean(v[-1,:, exp._rec_only[k]]) - np.mean(v[0,:, exp._rec_only[k]]))
-                  if exp._rec_only else None 
-                  for k,v in exp.subject.states_history.items()}
+        
+        deltaA_rec={}; Copt_rec={}; Copt_rec_var={}
+        Crec_rec={}; Crec_rec_var={}
+        #iterate over recorded layers to get statistics about non optimized sites
+        for k,v in exp.subject.states_history.items():
+            if exp._rec_only: #if there are recording only neurons
+                #get the average difference in activation between the last and the first optim iteration
+                deltaA_rec[k] = np.mean(v[-1,:, exp._rec_only[k]]) - np.mean(v[0,:, exp._rec_only[k]])
+                #compute the correlation between each avg recorded unit and the mean of the optimized
+                # sites. Store both mean corr and its variance
+                avg_rec = np.mean(v[:,:, exp._rec_only[k]],axis=1).T
+                corr_vec = np.corrcoef(exp.optimizer.stats['mean_shist'], avg_rec)[0, 1:]
+                Copt_rec[k] = np.mean(corr_vec)
+                Copt_rec_var[k] = np.std(corr_vec)
+                #compute the correlation between avg recorded units. Store both mean corr and its variance
+                Crec_rec_mat = np.corrcoef(avg_rec)
+                up_tria_idxs = np.triu_indices(Crec_rec_mat.shape[0], k=1)
+                Crec_rec[k]  = np.mean(Crec_rec_mat[up_tria_idxs])
+                Crec_rec_var[k] = np.std(Crec_rec_mat[up_tria_idxs])
+
         self._data['deltaA_rec']  .append(deltaA_rec)
+        self._data['Copt_rec']  .append(Copt_rec)
+        self._data['Copt_rec_var']  .append(Copt_rec_var)
+        self._data['Crec_rec']  .append(Copt_rec)
+        self._data['Crec_rec_var']  .append(Copt_rec_var)
+        
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
@@ -417,18 +443,27 @@ class NeuronScoreMultiExperiment(MultiExperiment):
             'layers'  : np.stack([extract_layer(el) for el in multiexp_data['layer']]),
             'num_gens': np.stack(multiexp_data['num_gens'], dtype=np.int32)
         }
+
         
         #extract recording-related data 
-        unique_keys = list(set().union(*[d.keys() for d in multiexp_data['avg_rec']]))
-        rec_delta_dict = {'rec_'+key: np.full(len(multiexp_data['avg_rec']), 
-                        np.nan, dtype=np.float32) for key in unique_keys}
-
-        for i, d in enumerate(multiexp_data['avg_rec']):
-            for uk in unique_keys:
-                if uk in d.keys():
-                    rec_delta_dict['rec_'+uk][i] = d[uk]
-        #unify all data into a single dictionary
-        data.update(rec_delta_dict)
+        #unique_keys are the unique sessions present in the dicts of multiexp_data rec-related data
+        unique_keys = list(set().union(*[d.keys() for d in multiexp_data['deltaA_rec']]))
+        for K in multiexp_data.keys():
+            if '_rec' in K: #only for recording-related keys...
+                prefix = 'Δrec_' if K=='deltaA_rec' else K
+                #initialize the dict that will contain recording-related data 
+                #as a np array full of nans
+                rec_dict = {prefix+key: np.full(len(multiexp_data[K]), 
+                                np.nan, dtype=np.float32) for key in unique_keys}
+                #for each experiment, only if a recording of the layer of interest 
+                # is present add it to the rec_dict
+                for i, d in enumerate(multiexp_data[K]):
+                    for uk in unique_keys:
+                        if uk in d.keys():
+                            rec_dict[prefix+uk][i] = d[uk]
+                            
+                #unify all data into a single dictionary
+                data.update(rec_dict)
         
         self.out_df = pd.DataFrame(data)
 
