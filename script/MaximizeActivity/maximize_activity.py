@@ -140,9 +140,6 @@ class MaximizeActivityExperiment(Experiment):
             # and we create screens instance
             else:
 
-                print("Fregato!")
-                exit(1)
-
                 # Add screen for synthetic images
                 logger.add_screen(
                     screen=DisplayScreen(title=cls._GEN_IMG_SCREEN, display_size=(400, 400))
