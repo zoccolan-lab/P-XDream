@@ -1,4 +1,6 @@
-import tkinter
+from copy import deepcopy
+
+import pandas as pd
 from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
 from zdream.generator import InverseAlexGenerator
@@ -372,6 +374,7 @@ class MaximizeActivityExperiment(Experiment):
 
         return super()._stm_score_to_codes((sub_score, msg))
     
+    
 class NeuronScoreMultiExperiment(MultiExperiment):
     
     def _get_display_screens(self) -> List[DisplayScreen]:
@@ -393,33 +396,110 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         super()._init()
         
         self._data['desc']      = 'Scores at varying number of scoring neurons'
-        self._data['score']     = list()
-        self._data['neurons']   = list()
-        self._data['layer']     = list()
-        self._data['num_gens']  = list()
+        self._data['score']         = list()
+        self._data['neurons']       = list()
+        self._data['layer']         = list()
+        self._data['deltaA_rec']    = list()
+        self._data['Copt_rec']      = list()
+        self._data['Copt_rec_var']  = list()
+        self._data['Crec_rec']      = list()
+        self._data['Crec_rec_var']  = list()
+        self._data['num_gens']      = list()
 
     @property
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
 
-    def _progress(self, exp: MaximizeActivityExperiment, i: int):
-        super()._progress(exp=exp, i=i)
+    def _progress(self, exp: _MaximizeActivityExperiment, i: int):
+        super()._progress(exp, i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
-        # avg_rec = {k: np.mean(v[-1, exp._rec_only[k]]) if exp._rec_only else None 
-        #            for k,v in exp.subject.states_history.items()}
-        # print(avg_rec)
-        # self._data['avg_rec']  .append(avg_rec)
+        
+        deltaA_rec={}; Copt_rec={}; Copt_rec_var={}
+        Crec_rec={}; Crec_rec_var={}
+        #iterate over recorded layers to get statistics about non optimized sites
+        for k,v in exp.subject.states_history.items():
+            if exp._rec_only: #if there are recording only neurons
+                #get the average difference in activation between the last and the first optim iteration
+                deltaA_rec[k] = np.mean(v[-1,:, exp._rec_only[k]]) - np.mean(v[0,:, exp._rec_only[k]])
+                #compute the correlation between each avg recorded unit and the mean of the optimized
+                # sites. Store both mean corr and its variance
+                avg_rec = np.mean(v[:,:, exp._rec_only[k]],axis=1).T
+                corr_vec = np.corrcoef(exp.optimizer.stats['mean_shist'], avg_rec)[0, 1:]
+                Copt_rec[k] = np.mean(corr_vec)
+                Copt_rec_var[k] = np.std(corr_vec)
+                #compute the correlation between avg recorded units. Store both mean corr and its variance
+                Crec_rec_mat = np.corrcoef(avg_rec)
+                up_tria_idxs = np.triu_indices(Crec_rec_mat.shape[0], k=1)
+                Crec_rec[k]  = np.mean(Crec_rec_mat[up_tria_idxs])
+                Crec_rec_var[k] = np.std(Crec_rec_mat[up_tria_idxs])
+
+        self._data['deltaA_rec']  .append(deltaA_rec)
+        self._data['Copt_rec']  .append(Copt_rec)
+        self._data['Copt_rec_var']  .append(Copt_rec_var)
+        self._data['Crec_rec']  .append(Copt_rec)
+        self._data['Crec_rec_var']  .append(Copt_rec_var)
+        
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property
+    
+        
+    def _get_multiexp_df(self):
+        """get a dataframe with the multiexperiment results
+
+        :param multiexp_data: data attribute of NeuronScoreMultiExperiment
+        :type multiexp_data: dict[str,Any]
+        """
+        
+        multiexp_data = self._data
+        def extract_layer(el):
+            ''' Auxiliar function to extract layer names from a list element'''
+            if len(el) > 1:
+                raise ValueError(f'Expected to record from a single layer, multiple where found: {el}')
+            return el[0]
+        
+        #extract data from multiexp_data as numpy arrays
+        data = {
+            'scores'  : np.concatenate(multiexp_data['score']),
+            'neurons' : np.stack(multiexp_data['neurons'], dtype=np.int32),
+            'layers'  : np.stack([extract_layer(el) for el in multiexp_data['layer']]),
+            'num_gens': np.stack(multiexp_data['num_gens'], dtype=np.int32)
+        }
+
+        
+        #extract recording-related data 
+        #unique_keys are the unique sessions present in the dicts of multiexp_data rec-related data
+        unique_keys = list(set().union(*[d.keys() for d in multiexp_data['deltaA_rec']]))
+        for K in multiexp_data.keys():
+            if '_rec' in K: #only for recording-related keys...
+                prefix = 'Δrec_' if K=='deltaA_rec' else K
+                #initialize the dict that will contain recording-related data 
+                #as a np array full of nans
+                rec_dict = {prefix+key: np.full(len(multiexp_data[K]), 
+                                np.nan, dtype=np.float32) for key in unique_keys}
+                #for each experiment, only if a recording of the layer of interest 
+                # is present add it to the rec_dict
+                for i, d in enumerate(multiexp_data[K]):
+                    for uk in unique_keys:
+                        if uk in d.keys():
+                            rec_dict[prefix+uk][i] = d[uk]
+                            
+                #unify all data into a single dictionary
+                data.update(rec_dict)
+        
+        self.out_df = pd.DataFrame(data)
 
     def _finish(self):
-
+        self._get_multiexp_df()
+        
         plot_optimizing_units(
             multiexp_data=self._data,
             out_dir=self.target_dir,
             logger=self._logger
         )
         super()._finish()
+
+
+
 
