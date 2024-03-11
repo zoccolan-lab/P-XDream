@@ -14,26 +14,29 @@ from PIL          import Image, ImageTk
 
 Mask = List[bool]   
 ''' 
-Boolean mask associated to a set of stimuli, to indicating if they refer 
+Boolean mask associated to a set of stimuli, indicating if they refer 
 to synthetic of natural images (True for synthetic, False for natural).
 '''     
 
-Codes = NDArray[np.float64] #| Tensor
+Codes = NDArray[np.float64]
 '''
 Set of codes representing the images in a latent space.
-The first dimension of the tensor is the batch size.
+The representation is a 2-dimensional array, with the
+first dimension the batch size (the number of codes)
+and the second dimension the code length.
 '''
 
 Stimuli = Tensor
 '''
 Set of visual stimuli.
-The first dimension of the tensor is the batch size.
+The representation is a 4-dimensional tensor,
+the first dimension is the batch size.
 '''
 
 SubjectState = Dict[str, NDArray]
 '''
 Set of subject responses to a visual stimuli.
-The subject state can have multiple layers, whose name 
+The subject state can refer to multiple layers, whose name 
 is mapped to its specific activations in the form of a batched array.
 '''
 
@@ -64,8 +67,8 @@ a single StimuliScore.
 
 MaskGenerator = Callable[[int], Mask]
 '''
-Function producing a boolean mask for an input number of synthetic images in a stimuli set.
-The number of True values in the mask must correspond to the number of input synthetic images.
+Function producing a boolean mask given the number of synthetic images in a stimuli set.
+The number of True values in generated mask must correspond to the number of input synthetic images.
 '''
 
 TargetUnit = None | NDArray | Tuple[NDArray, ...]
@@ -94,26 +97,20 @@ def mask_generator_from_template(
 	'''
 	Function to produce a mask generator from a given template 
 	with shuffling option. The template is expected to contain a 
-	single True and an arbitrary number of False.
+	single True value and an arbitrary number of False.
 	
 	:param template: Boolean template with one single True value,
-					defaults to [True].
+					 defaults to [True].
 	:type template: List[bool]
 	:param shuffle: If to shuffle the template, defaults to False.
 	:type shuffle: bool
 	:return: Function for generating mask for template for an arbitrary number of 
-			synthetic images in a a set of stimuli.
+		     synthetic images in a set of stimuli.
 	:rtype: MaskGenerator
 	'''
-      
-	def repeat_pattern(
-		n : int,
-		template: List[bool], 
-		shuffle: bool
-	) -> List[bool]:
-		'''
-		Generate a list by repeating an input pattern with shuffling option.
-		'''
+    
+	def repeat_pattern(n : int, template: List[bool], shuffle: bool	) -> List[bool]:
+		''' Generate a list by concatenating an input pattern with shuffling option. '''
 		
 		bool_l = []
 		
@@ -124,9 +121,11 @@ def mask_generator_from_template(
 			
 		return bool_l
 	
+	# Check the presence of one single True value
 	n_true = template.count(True)
 	if n_true != 1:
-		raise ValueError(f'Expected template to contain 1 True value, but {n_true} were found.')
+		err_msg = f'Expected template to contain 1 True value, but {n_true} were found.'
+		raise ValueError(err_msg)
 	
 	return partial(repeat_pattern, template=template, shuffle=shuffle)
 
@@ -145,7 +144,8 @@ class Message:
     mask    : NDArray[np.bool_] = field(default_factory=lambda: np.array([]))
     '''
     Boolean mask associated to a set of stimuli indicating if they are
-    synthetic of natural images.
+    synthetic of natural images. Defaults to empty array indicating absence 
+	of natural images.
     
     NOTE: The mask has not `Mask` as it's not a list but an array.
           This is made to facilitate filtering operations that are primarily
@@ -178,10 +178,27 @@ class InputLayer(nn.Module):
 
 class DisplayScreen:
 	''' Screen to display and update images'''
+
+	@staticmethod
+	def set_main_screen() -> tk.Tk:
+		'''
+		Create the main screen for displaying images.
+		The main must be created in order to render images in TopLevel additional screens.
+
+		NOTE: The object returned by the function should be saved in a variable
+		      that mustn't become out of scope; in the case it may be removed by 
+			  the garbage collector and invalidate screen rendering process.
+		'''
+
+		main_screen = tk.Tk()
+		# main_screen.mainloop()
+		main_screen.withdraw()  # hide the main screen
+
+		return main_screen
     
 	def __init__(self, title: str = "Image Display", display_size: Tuple[int, int] = (400, 400)):	
 		'''
-        Initialize a display window with name and size.
+        Initialize a display window with title and size.
 
         :param title: Screen title, defaults to "Image Display"
 		:type title: str, optional
@@ -190,7 +207,7 @@ class DisplayScreen:
 		'''
 		
 		# Input parameters
-		self._title  = title
+		self._title        = title
 		self._display_size = display_size
 		
 		# Screen controller
@@ -204,9 +221,13 @@ class DisplayScreen:
 		self._image_frame.pack()
 		self._image_label.pack()
 
+	def __str__ (self) -> str: return self._title
+	def __repr__(self) -> str: return str(self)
+
+
 	def update(self, image: Image.Image):
 		'''
-		Display the new image to the screen
+		Display a new image to the screen
 
 		:param image: New image to be displayed.
 		:type image: Image.Image
@@ -227,10 +248,10 @@ class DisplayScreen:
 
 	def close(self):
 		'''
-		Method to be invoked to close the screen.
+		Method to close the screen.
             
 		NOTE: After this, the object becomes useless as the garbage
-              collector takes controler with no more reference.
+              collector takes controller with no more reference.
               The object becomes useless and a new one needs to be instantiated.
 		'''
 		self._controller.after(100, self._controller.destroy) 

@@ -5,6 +5,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import tkinter
 from typing import Any, Dict, List, Tuple, Type
 
 import numpy as np
@@ -25,23 +26,40 @@ from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
 @dataclass
 class ExperimentState:
     '''
-    TODO
+    Dataclass collecting the main data structure describing the 
+    state of an experiment across generation and allows to dump
+    states to disk.
+
+    The class can be instantiated either by providing an `Experiment` object
+    or by a folder path containing dumped states.
     '''
 
-    mask:         NDArray[np.bool_]               | None  # [generations x (n_gen + n_nat)]
-    labels:       NDArray[np.int32]               | None  # [generations x n_nat]
-    states:       Dict[str, NDArray[np.float64]]  | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
-    codes:        NDArray[np.float64]             | None  # [generations x n_gen x code_len] 
-    scores:       NDArray[np.float64]             | None  # [generations x n_gen]
-    scores_nat:   NDArray[np.float64]             | None  # [generations x n_nat]
+    # NOTE: We don't use the defined type aliases `Codes`, `SubjectState`, ...
+    #       as they refer to a single step in the optimization process, while
+    #       the underlying datastructures consider an additional first dimension
+    #       in the Arrays relative to the generations.
+
+    mask:       NDArray[np.bool_]               | None  # [generations x (n_gen + n_nat)]
+    labels:     NDArray[np.int32]               | None  # [generations x n_nat]
+    codes:      NDArray[np.float64]             | None  # [generations x n_gen x code_len] 
+    scores:     NDArray[np.float64]             | None  # [generations x n_gen]
+    scores_nat: NDArray[np.float64]             | None  # [generations x n_nat]
+    states:     Dict[str, NDArray[np.float64]]  | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
 
     @classmethod
     def from_experiment(cls, experiment: Experiment):
+        '''
+        Load an experiment state from the `history` fields of 
+        an `Experiment` instance.
+
+        :param experiment: `Experiment` object instance instance.
+        :type experiment: Experiment
+        '''
 
         return ExperimentState(
             mask       = experiment.generator.masks_history,
             labels     = experiment.generator.labels_history,
-            states     = experiment.subject.states_history,
+            states     = experiment.subject  .states_history,
             codes      = experiment.optimizer.codes_history,
             scores     = experiment.optimizer.scores_history,
             scores_nat = experiment.optimizer.scores_nat_history,
@@ -49,119 +67,110 @@ class ExperimentState:
 
     @classmethod
     def from_path(cls, in_dir: str, logger: Logger | None = None):
+        '''
+        Load an experiment state from a folder where the experiment
+        was dumped. If raises a warning if not all states are present.
 
+        :param in_dir: Directory where states are dumped.
+        :type in_dir: str
+        :param logger: Logger to log i/o information. If not specified
+                       a `MutedLogger` is used. 
+        :type logger: Logger | None, optional
+        '''
+
+        # Logger default
         logger = default(logger, MutedLogger())
+
+        # File to load an their extension
+        to_load = [
+            ('mask',       'npy'),
+            ('labels',     'npy'),
+            ('codes',      'npy'),
+            ('scores',     'npy'),
+            ('scores_nat', 'npy'),
+            ('states',     'npz')
+        ]
+        loaded = dict()
 
         logger.info(f'Loading experiment from {in_dir}')
 
-        # Masks
-        mask_fp = path.join(in_dir, 'mask.npy')
-        if path.exists(mask_fp):
-            logger.info(f"> Loading mask history from {mask_fp}")
-            mask = np.load(mask_fp)
-        else:
-            logger.warn(f"> Unable to fetch {mask_fp}")
-            mask = None
+        for name, ext in to_load:
 
-        # Labels
-        labels_fp = path.join(in_dir, 'labels.npy')
-        if path.exists(labels_fp):
-            logger.info(f"> Loading labels history from {labels_fp}")
-            labels = np.load(labels_fp)
-        else:
-            logger.warn(f"> Unable to fetch {labels_fp}")
-            labels = None
+            # File path
+            fp = path.join(in_dir, f'{name}.{ext}')
 
-        # States
-        states_fp = path.join(in_dir, 'states.npz')
-        if path.exists(states_fp):
-            logger.info(f"> Loading states history from {states_fp}")
-            states = dict(np.load(states_fp))
-        else:
-            logger.warn(f"> Unable to fetch {states_fp}")
-            states = None
+            # Loading function depending on file extension
+            match ext:
+                case 'npy': load_fun = np.load
+                case 'npz': load_fun = lambda x: dict(np.load(x))
 
-        # Codes
-        codes_fp = path.join(in_dir, 'codes.npy')
-        if path.exists(codes_fp):
-            logger.info(f"> Loading codes history from {codes_fp}")
-            codes = np.load(codes_fp)
-        else:
-            logger.warn(f"> Unable to fetch {codes_fp}")
-            codes = None
+            # Loading state
+            if path.exists(fp):
+                logger.info(f"> Loading {name} history from {fp}")
+                loaded[name] = load_fun(fp)
 
-        # Scores
-        scores_fp = path.join(in_dir, 'scores.npy')
-        if path.exists(scores_fp):
-            logger.info(f"> Loading scores history from {scores_fp}")
-            scores = np.load(scores_fp)
-        else:
-            logger.warn(f"> Unable to fetch {scores_fp}")
-            scores = None
-
-        # Scores Natural
-        scores_nat_fp = path.join(in_dir, 'scores_nat.npy')
-        if path.exists(scores_nat_fp):
-            logger.info(f"> Loading scores of natural images history from {scores_nat_fp}")
-            scores_nat = np.load(scores_nat_fp)
-        else:
-            logger.warn(f"> Unable to fetch {scores_nat_fp}")
-            scores_nat = None
+            # Warning as the state is not present
+            else:
+                logger.warn(f"> Unable to fetch {fp}")
+                loaded[name] = None
 
         return cls(
-            mask       = mask,
-            labels     = labels,
-            states     = states,
-            codes      = codes,
-            scores     = scores,
-            scores_nat = scores_nat,
+            mask       = loaded['mask'],
+            labels     = loaded['labels'],
+            states     = loaded['states'],
+            codes      = loaded['codes'],
+            scores     = loaded['scores'],
+            scores_nat = loaded['scores_nat'],
         )
 
 
-    def dump(self, out_dir: str, logger: Logger | None = None):
+    def dump(self, out_dir: str, logger: Logger | None = None, dump_states = False):
+        '''
+        Dump experiment state to an output directory where it creates a proper `state` subfolder.
+        Dumping the subject state is optional as typically memory demanding.
 
+        :param out_dir: Directory where to dump states.
+        :type out_dir: str
+        :param logger: Logger to log i/o information. If not specified
+                       a `MutedLogger` is used. 
+        :type logger: Logger | None, optional
+        :param dump_states: If to store subject states, defaults to False.
+        :type dump_states: bool, optional
+        '''
+        
+        # Logger default
         logger = default(logger, MutedLogger())
+
+        # File to load an their extension
+        to_load = [
+            ('mask',       'npy'),
+            ('labels',     'npy'),
+            ('codes',      'npy'),
+            ('scores',     'npy'),
+            ('scores_nat', 'npy'),
+        ]
+
+        # Optional states dumping
+        if dump_states: to_load.append(('states', 'npz'))
 
         logger.info(f'Dumping experiment to {out_dir}')
         os.makedirs(out_dir, exist_ok=True)
 
-        # Masks
-        if self.mask is not None:
-            mask_fp = path.join(out_dir, 'mask.npy')
-            logger.info(f"> Saving mask history to {mask_fp}")
-            np.save(mask_fp, self.mask)
+        for name, ext in to_load:
 
-        # Labels
-        if self.labels is not None:
-            labels_fp = path.join(out_dir, 'labels.npy')
-            logger.info(f"> Saving labels history to {labels_fp}")
-            np.save(labels_fp, self.labels)
+            # File path
+            fp = path.join(out_dir, f'{name}.{ext}')
 
-        # States
-        """ 
-        if self.states is not None:
-            states_fp = path.join(out_dir, 'states.npz')
-            logger.info(f"> Saving states history to {states_fp}")
-            np.savez(states_fp, **self.states) """
+            # Saving function depending on file extension
+            match ext:
+                case 'npy': save_fun = np.save
+                case 'npz': save_fun = np.savez
 
-        # Codes
-        if self.codes is not None:
-            codes_fp = path.join(out_dir, 'codes.npy')
-            logger.info(f"> Saving codes history to {codes_fp}")
-            np.save(codes_fp, self.codes)
-
-        # Scores
-        if self.scores is not None:
-            scores_fp = path.join(out_dir, 'scores.npy')
-            logger.info(f"> Saving scores history to {scores_fp}")
-            np.save(scores_fp, self.scores)
-
-        # Scores Natural
-        if self.scores_nat is not None:
-            scores_nat_fp = path.join(out_dir, 'scores_nat.npy')
-            logger.info(f"> Saving scores of natural images history to {scores_nat_fp}")
-            np.save(scores_nat_fp, self.scores_nat)
-            
+            # Saving state
+            logger.info(f"> Saving {name} history from {fp}")
+            state = self.__getattribute__(name)
+            save_fun(fp, state)
+        
         logger.info(f'')
 
 
@@ -223,7 +232,7 @@ class Experiment(ABC):
         
         experiment = cls._from_config(conf=conf)
         
-        conf.pop('display_screens', None)
+        del conf['display_screens']
         
         experiment._set_param_configuration(param_config=conf)
 
@@ -457,8 +466,9 @@ class Experiment(ABC):
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
         
+        # NOTE: Avoid in the case of a multiple experiment since they are shared
         # Close screens
-        self._logger.remove_all_screens()
+        # self._logger.remove_all_screens()
 
         # Dump
         state = ExperimentState.from_experiment(self)
@@ -483,7 +493,7 @@ class Experiment(ABC):
 
         j = i + 1 # index is off-by-one
         
-        progress = f'{j:>{len(str(self._iteration))}}/{self._iteration}'
+        progress = f'{j:>{len(str(self._iteration))+1}}/{self._iteration}'
         perc     = f'{j * 100 / self._iteration:>5.2f}%'
         
         return f'{self}: [{progress}] ({perc})'
@@ -526,9 +536,6 @@ class Experiment(ABC):
         `init()`, `run()` and `finish()` methods. 
         It computes the total elapsed time of the experiment that can
         be accessed in the `finish()` method.
-        
-        NOTE: It is the only public one and so the only one supposed
-              to be used from the caller.
         '''
         
         self._init()
@@ -546,42 +553,56 @@ class Experiment(ABC):
 
 class MultiExperiment:
     '''
-    
+    Class for running multiple versions of the same experiment
+    varying the set of hyperparameters through a configuration file.
     '''
     
     def __init__(
         self,
-        experiment    : Type['Experiment'],
-        base_config   : Dict[str, Any],
-        search_config : Dict[str, List[Any]], 
+        experiment      : Type['Experiment'],
+        experiment_conf : Dict[str, List[Any]], 
+        default_conf  : Dict[str, Any],
     ) -> None:
+        '''
+        Create a list of experiments configurations by combining
+        the provided experiment configuration with default ones.
+
+        :param experiment: Experiment class for conducing multi-experiment run.
+        :type experiment: Type['Experiment']
+        :param experiment_conf: Configuration for the multi-experiment specifying a list
+                                of values for a set of hyperparameters. All lists are
+                                expected to have the same length.        
+        :param default_conf: Default configuration file for all hyperparameters not 
+                               explicitly provided in the experiment configuration.
+        :type default_conf: Dict[str, Any]
+        '''
         
         # Check that provided search configuration argument
         # share the same length as length defines the number
-        # of experiments to run
-        err_msg = \
-        '''
-        Provided search configuration files have conflicting number
-        of experiments runs (length of dictionary entries). Please
-        provide coherent number of experiment runs.
-        '''
-        values = list(search_config.values())
-        assert all([len(v) == len(values[0]) for v in values]), err_msg
+        # of experiments to run.
+        lens = [len(v) for v in experiment_conf.values()]
+        if len(set(lens)) > 1:
+            err_msg = f'Provided search configuration files have conflicting '\
+                      f'number of experiments runs: {lens}. Please provide '\
+                      f'coherent number of experiment runs.'
+            raise ValueError(err_msg)
         
         self._Exp = experiment
-        self._base_config = base_config
         
-        # Convert the search configuration from 
-        keys, vals = search_config.keys(), search_config.values()
+        # Convert the search configuration and combine with default values 
+        keys, vals = experiment_conf.keys(), experiment_conf.values()
+
         self._search_config : List[Dict[str, Any]] = [
-            {k : v for k, v in zip(keys, V)}
+            overwrite_dict(
+                default_conf, 
+                {k : v for k, v in zip(keys, V)}
+            )
             for V in zip(*vals)
         ]
 
+        # Set the logger with experiment names check
         self._logger = self._set_logger()
 
-        # Data dictionary
-        self._data: Dict[str, Any] = dict()
 
     def __len__(self) -> int:
         return len(self._search_config)
@@ -592,81 +613,163 @@ class MultiExperiment:
     def __repr__(self) -> str: return str(self)
 
     def _set_logger(self) -> Logger:
+        '''
+        Set a multi-experiment level logger and checks name consistency between experiments
+        '''
 
-        # Retrieve list of experiments names and the target directory
-        exp_names = [
-            conf['name'] for conf in self._search_config
-        ] if 'name' in self._search_config[0] else [self._base_config['logger']['name']]
-
-        out_dirs = [
-            conf['out_dir'] for conf in self._search_config
-        ] if 'out_dir' in self._search_config[0] else [self._base_config['logger']['out_dir']]
-
+        # Check single experiment name
+        exp_names = [conf['logger']['name'] for conf in self._search_config]
         if len(set(exp_names)) > 1:
             err_msg = f'Multirun expects a unique experiment name, but multiple found {set(exp_names)}'
             raise ValueError(err_msg)
-        elif len(set(out_dirs)) > 1:
+
+        # Check multiple output directories
+        out_dirs = [conf['logger']['out_dir'] for conf in self._search_config]
+        if len(set(out_dirs)) > 1:
             err_msg = f'Multirun expects a unique output directory, but multiple found {set(out_dirs)}'
             raise ValueError(err_msg)
-        else:
 
-            self._name    = exp_names[0]
+        # Set multi-experiment name
+        self._name    = exp_names[0]
 
-            return self._logger_type(
-                conf = {
-                    'out_dir': out_dirs[0],
-                    'title'  : self._Exp.EXPERIMENT_TITLE,
-                    'name'   : self._name
-                }
-            )
+        return self._logger_type(
+            conf = {
+                'out_dir': out_dirs[0],
+                'title'  : self._Exp.EXPERIMENT_TITLE,
+                'name'   : self._name
+            }
+        )
         
     @property
     def _logger_type(self) -> Type[Logger]:
+        '''
+        Returns multi-experiment level logger type. 
+        NOTE: Subclasses that want to change the logger type only need
+              to override this property.
+        '''
         return Logger
+
 
     @property
     def target_dir(self) -> str: return self._logger.target_dir
     
-    @property
-    def display_screens(self) -> List[Tuple[str, DisplayScreen]]: return []
+
+    def _get_display_screens(self) -> List[DisplayScreen]:
+        '''
+        Returns the list of screens used in the experiment.
+        
+        NOTE: This is made to make all experiments share and reuse the same
+        screen and prevent screen instantiation overhead and memory leaks.
+
+        NOTE: The method is not a property because it's pre-executed to simulate
+              attribute behavior even if not explicitly called and we want to avoid
+              the creation of the `DisplayScreen` with no usage. 
+        '''
+
+        # In the default version we have no screen
+        return []
 
     def _init(self):
+        '''
+        The method is called before running all the experiments.
+        The default version logs the number of experiments to run, set the shared screens
+        across involved experiments and initialize an empty dictionary where to store multi-run results.
+        It is supposed to contain all preliminary operations such as initialization.
+        '''
+
+        # Initial logging
         self._logger.info(mess=f'RUNNING MULTIPLE VERSIONS ({len(self)}) OF EXPERIMENT {self._name}')
-        self._display_screens = self.display_screens
+        
+
+        # NOTE: Handling screen turns fundamental in handling
+        #       overhead and memory during multi-experiment run.
+        #       For this reason in the case at least one experiment 
+        #       has the `render` option enabled we instantiate shared
+        #       screens among all this experiment that are attached
+        #       to the configuration dictionary.
+
+        # Add screens if at least one experiment has `render` flag on
+        if any(conf['render'] for conf in self._search_config):
+
+            self._main_screen = DisplayScreen.set_main_screen() # keep reference
+            self._screens     = self._get_display_screens()
+
+            # Add screens to configuration to experiments with `render` flag on
+            for conf in self._search_config:
+                if conf['render']:
+                    conf['display_screens'] = self._screens
+
+        # Data dictionary
+        # NOTE: This is a general purpose data-structure where to save
+        #       experiment results. It will be stored as a .pickle file.
+        self._data: Dict[str, Any] = dict()
 
     def _progress(self, exp: Experiment, i: int):
+        '''
+        Method called after running a single experiment.
+        In the default version it only logs the progress.
+
+        :param exp: Instance of the run experiment.
+        :type exp: Experiment
+        :param i: _Iteration of the multi-run.
+        :type i: int
+        '''
 
         j = i+1
         self._logger.info(mess=f'EXPERIMENT {j} OF {len(self)} RUN SUCCESSFULLY.')
 
     def _finish(self):
+        '''
+        Method called after all experiments are run.
+        It stores the results contained in the `data` dictionary if not empty.
+        '''
 
-        self._logger.info(mess=f'ALL EXPERIMENT RUN SUCCESSFULLY.')
+        str_time = stringfy_time(sec=self._elapsed_time)
+        self._logger.info(mess=f'ALL EXPERIMENT RUN SUCCESSFULLY. ELAPSED TIME: {str_time} s.')
 
+
+        for screen in self._screens:
+            screen.close()
+
+        # Save multi-run experiment as a .pickle file
         if self._data:
             out_fp = path.join(self.target_dir, 'data.pickle')
             self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
             store_pickle(data=self._data, path=out_fp)
 
-    def run(self):
+    def _run(self):
+        '''
+        Run the actual multi-run by executing all experiments in 
+        the provided configurations.
+        '''
 
-        self._init()
-        
-    
         for i, conf in enumerate(self._search_config):
             
             self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
-
-            exp_config = overwrite_dict(self._base_config, conf)
             
-            if exp_config['render']:
-                exp_config['display_screens'] = self._display_screens
-            
-            exp = self._Exp.from_config(exp_config)
+            exp = self._Exp.from_config(conf=conf)
             
             exp.run()
             
             self._progress(exp=exp, i=i)
-            
 
+    def run(self):
+        '''
+        The method implements the multi-experiment logic by combining
+        `init()`, `run()` and `finish()` methods. 
+        It computes the total elapsed time of the experiment that can
+        be accessed in the `finish()` method.
+        '''
+        
+        self._init()
+        
+        start_time = time.time()
+        
+        self._run()
+        
+        end_time = time.time()
+        
+        self._elapsed_time = end_time - start_time
+        
         self._finish()
+    

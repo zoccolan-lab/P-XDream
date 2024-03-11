@@ -7,9 +7,10 @@ from argparse import ArgumentParser
 import matplotlib
 import tkinter as tk
 
-from script.MaximizeActivity.maximize_activity import _MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import MaximizeActivityExperiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import overwrite_dict
+from zdream.utils.model import DisplayScreen
 
 matplotlib.use('TKAgg')
 
@@ -26,13 +27,14 @@ def main(args):
     
     full_conf = overwrite_dict(json_conf, args_conf) 
     
-    # Tinker
+    # Hold main display screen reference
     if full_conf['render']:
-        main_screen = tk.Tk()
-        main_screen.withdraw()
+        main_screen = DisplayScreen.set_main_screen()
     
-    experiment = _MaximizeActivityExperiment.from_config(full_conf)
+    experiment = MaximizeActivityExperiment.from_config(full_conf)
     experiment.run()
+
+    experiment._logger.remove_all_screens()
 
 target_units_help = '''
 The format to specify the structure is requires separating dictionaries with comma:

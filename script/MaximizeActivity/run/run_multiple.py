@@ -8,7 +8,7 @@ import matplotlib
 import tkinter as tk
 
 
-from script.MaximizeActivity.maximize_activity import NeuronScoreMultiExperiment, _MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import NeuronScoreMultiExperiment, MaximizeActivityExperiment
 from zdream.experiment import MultiExperiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import flatten_dict
@@ -64,15 +64,10 @@ def main(args):
     n_args = list(observed_lens)[0]
     args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
     
-    if any(render for render in args_conf['render']) if 'render' in args_conf else json_conf['render']:
-        print("Here")
-        main_screen = tk.Tk()
-        main_screen.withdraw() 
-
     mrun_experiment = NeuronScoreMultiExperiment(
-        experiment=_MaximizeActivityExperiment,
-        base_config=json_conf,
-        search_config=args_conf
+        experiment=MaximizeActivityExperiment,
+        default_conf=json_conf,
+        experiment_conf=args_conf
     )
 
     mrun_experiment.run()
@@ -98,8 +93,8 @@ if __name__ == '__main__':
     
     # Generator
     parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',    default = gen_weights,)
-    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet\ dataset',     default = mini_inet,)
-    parser.add_argument('--batch_size',     type=str,   help='Natural image dataloader batch size')
+    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet dataset',     default = mini_inet,)
+    parser.add_argument('--batch_size',     type=str,   help='Natural image dataloader batch size', default="3#4")
     parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
     
     # Mask generator
@@ -128,7 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir',        type=str,   help='Path to directory to save outputs',       default = out_dir,)
     
     # Globals
-    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve')
+    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve', default="2")
     parser.add_argument('--display_plots',  type=str,   help='If to display plots')
     parser.add_argument('--random_seed',    type=str,   help='Random state for the experiment')
     parser.add_argument('--render',         type=str,   help='If to render stimuli')

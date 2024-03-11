@@ -34,5 +34,5 @@
     "num_gens": 100,
     "display_plots": false,
     "random_seed": 123,
-    "render": false
+    "render": true
 }

@@ -1,12 +1,12 @@
-from copy import deepcopy
+import tkinter
 from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
-from zdream.generator import InverseAlexGenerator, MockGenerator
+from zdream.generator import InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger, MutedLogger
 from zdream.optimizer import GeneticOptimizer
 from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
-from zdream.subject import InSilicoSubject, NetworkSubject
+from zdream.subject import NetworkSubject
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
@@ -21,20 +21,22 @@ from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
 import os
-import tkinter as tk
 from os import path
 from typing import Any, Dict, List, Tuple, Type, cast
 
 
-class _MaximizeActivityExperiment(Experiment):
+class MaximizeActivityExperiment(Experiment):
 
     EXPERIMENT_TITLE = "MaximizeActivity"
+
+    _NAT_IMG_SCREEN = 'Best Natural Image'
+    _GEN_IMG_SCREEN = 'Best Synthetic Image'
 
     @property
     def scorer(self) -> MaxActivityScorer: return cast(MaxActivityScorer, self._scorer) 
 
     @classmethod
-    def _from_config(cls, conf : Dict[str, Any]) -> '_MaximizeActivityExperiment':
+    def _from_config(cls, conf : Dict[str, Any]) -> 'MaximizeActivityExperiment':
         '''
         Static constructor for a _MaximizeActivityExperiment class from configuration file.
 
@@ -120,17 +122,35 @@ class _MaximizeActivityExperiment(Experiment):
 
         #  --- LOGGER --- 
 
-        log_conf['title'] = _MaximizeActivityExperiment.EXPERIMENT_TITLE
+        log_conf['title'] = MaximizeActivityExperiment.EXPERIMENT_TITLE
         logger = LoguruLogger(conf=log_conf)
         
+        # In the case render option is enabled we add display screens
         if conf['render']:
-        
-            print('display_screens' in conf)
-            for name, screen in conf.get('display_screens', [
-                ('nat', DisplayScreen(title='Best Natural Image', display_size=(400, 400))),
-                ('gen', DisplayScreen(title='Best Synthetic Image', display_size=(400, 400)))
-            ]):
-                logger.add_screen(screen_name=name, screen=screen)
+
+            # In the case of multi-experiment run, the shared screens
+            # are set in `display_screens` entry
+            if 'display_screens' in conf:
+                for screen in conf['display_screens']:
+                    logger.add_screen(screen=screen)
+
+            # If the key is not set it is the case of a single experiment
+            # and we create screens instance
+            else:
+
+                print("Fregato!")
+                exit(1)
+
+                # Add screen for synthetic images
+                logger.add_screen(
+                    screen=DisplayScreen(title=cls._GEN_IMG_SCREEN, display_size=(400, 400))
+                )
+
+                # Add screen fro natural images if used
+                if use_nat:
+                    logger.add_screen(
+                        screen=DisplayScreen(title=cls._NAT_IMG_SCREEN, display_size=(400, 400))
+                    )
 
         # --- DATA ---
         data = {
@@ -210,11 +230,6 @@ class _MaximizeActivityExperiment(Experiment):
         if self._use_natural:
             self._best_nat_scr = 0
             self._best_nat_img = torch.zeros(self.generator.output_dim, device = device)
-
-        if self._render:
-            # Set screen
-            self._screen_syn = "gen"
-            self._screen_nat = "nat"
         
         # Set gif
         self._gif: List[Image.Image] = []
@@ -244,13 +259,13 @@ class _MaximizeActivityExperiment(Experiment):
         if self._render:
 
             self._logger.update_screen(
-                screen_name=self._screen_syn,
+                screen_name=self._GEN_IMG_SCREEN,
                 image=best_synthetic_img
             )
 
             if self._use_natural:
                 self._logger.update_screen(
-                    screen_name=self._screen_nat,
+                    screen_name=self._NAT_IMG_SCREEN,
                     image=to_pil_image(best_natural)
                 )
 
@@ -289,7 +304,7 @@ class _MaximizeActivityExperiment(Experiment):
         
         out_fp = path.join(img_dir, 'evolving_best.gif')
         self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
-        #to_gif(image_list=self._gif, out_fp=out_fp)
+        to_gif(image_list=self._gif, out_fp=out_fp)
 
         self._logger.info(mess='')
         
@@ -359,13 +374,21 @@ class _MaximizeActivityExperiment(Experiment):
     
 class NeuronScoreMultiExperiment(MultiExperiment):
     
-    @property
-    def display_screens(self) -> List[Tuple[str, DisplayScreen]]:
-        return [
-            ('gen', DisplayScreen(title='Best Synthetic Image', display_size=(400, 400))),
-            ('nat', DisplayScreen(title='Best Natural Image', display_size=(400, 400)))
+    def _get_display_screens(self) -> List[DisplayScreen]:
+
+        # Screen for synthetic images
+        screens = [
+            DisplayScreen(title=MaximizeActivityExperiment._GEN_IMG_SCREEN, display_size=(400, 400))
         ]
-    
+
+        # Add screen for natural images if at least one will use it
+        if any(parse_boolean_string(conf['mask_generator']['template']).count(False) > 0 for conf in self._search_config):
+            screens.append(
+                DisplayScreen(title=MaximizeActivityExperiment._NAT_IMG_SCREEN, display_size=(400, 400))
+            )
+
+        return screens
+        
     def _init(self):
         super()._init()
         
@@ -379,14 +402,14 @@ class NeuronScoreMultiExperiment(MultiExperiment):
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
 
-    def _progress(self, exp: _MaximizeActivityExperiment, config: Dict[str, Any], i: int):
-        super()._progress(exp, config, i)
+    def _progress(self, exp: MaximizeActivityExperiment, i: int):
+        super()._progress(exp=exp, i=i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
-        avg_rec = {k: np.mean(v[-1, exp._rec_only[k]]) if exp._rec_only else None 
-                   for k,v in exp.subject.states_history.items()}
-        print(avg_rec)
-        self._data['avg_rec']  .append(avg_rec)
+        # avg_rec = {k: np.mean(v[-1, exp._rec_only[k]]) if exp._rec_only else None 
+        #            for k,v in exp.subject.states_history.items()}
+        # print(avg_rec)
+        # self._data['avg_rec']  .append(avg_rec)
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['num_gens'].append(exp._iteration) # TODO make public property

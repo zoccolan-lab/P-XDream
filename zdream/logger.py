@@ -1,16 +1,13 @@
-import gc
 import os
-import tkinter as tk
 import logging
 from os     import path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from PIL    import Image
 import loguru
 
-from zdream.utils.io_   import rmdir
-from zdream.utils.misc  import default
-from zdream.utils.model import DisplayScreen
+from .utils.io_   import rmdir
+from .utils.model import DisplayScreen
 
 class Logger:
 	'''
@@ -36,38 +33,46 @@ class Logger:
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
 
-		# Public prefix
+		# Public prefix to dynamically prepend a string 
+		# to logging information
 		self.prefix = ''
 
 	# LOGGING
-		
-	# NOTE: The logging methods uses python default logging, 
-	#	    but can easily  be overridden to log with other strategies and technologies.
-
+	
+	# NOTE: The public logging methods append the prefix to the message which is passed to
+	#       its private method version for the actual logging.
+	#	    Subclasses that intend to log with other strategies and technologies should
+	#       override the private methods.
+	
 	def  info(self,  mess: str): self._info(mess=f'{self.prefix}{mess}')
 	def _info(self,  mess: str): logging.info(mess)
-
+	
 	def  warn(self,  mess: str): self._warn(mess=f'{self.prefix}{mess}')
 	def _warn(self,  mess: str): logging.warn(mess)
-
+	
 	def  error(self, mess: str): self._error(mess=f'{self.prefix}{mess}')
 	def _error(self, mess: str): logging.error(mess)
 
 	# TARGET DIRECTORY
-
+	
 	def _get_target_dir(self, conf: Dict[str, str]) -> str:
 		'''
-		Return the target directory for saving experiment results.
-
-		In the case version key is specified it logs at the level of experiment versioning.
-		If not specified it logs at the level of the specific experiment.
-
+		Return the target directory for saving experiment results, building
+		a directory hierarchy across the specified keys:
+		- `out_dir`, the result output directory.
+		- `title`,   the experiment title.
+		- `name`,    the experiment name.
+		- `version`, the experiment version, optional.
+		
+		In the case `version` key is specified it logs at the level of experiment versioning,
+		otherwise it logs at the level of the specific experiment name.
+		
 		:param conf: Mapping for experiment directory, title, name and version.
 		:type conf: Dict[str, str]
 		:return: Target directory.
 		:rtype: str
 		'''
-
+		
 		# Extract parameters
 		out_dir = conf['out_dir']
 		title   = conf['title']
@@ -76,13 +81,12 @@ class Logger:
 		# Experiment directory
 		exp_dir = path.join(out_dir, title, name)
 
-		# If the version is not a key the target directory
-		# is the experiment directory
+		# If the version is not a specified
+		# the target directory is the experiment directory
 		if not 'version' in conf:
 			return exp_dir
 
-		# If the version not a key the target directory
-		# is the version directory
+		# If the version key is specified we compute it's version
 		version = conf['version']
 
 		# Compute new version if it wasn't specified
@@ -142,43 +146,40 @@ class Logger:
 
 		if self._target_dir:
 			return self._target_dir
+
 		raise ValueError('Target directory was not provided during logger initialization. '\
 				         'Use the parameter `config` during initialization to set one.')
 
 	# SCREEN
 
-	def add_screen(self, screen_name: str, screen: DisplayScreen):
+	def add_screen(self, screen: DisplayScreen):
 		'''
 		Add a new screen with name and size. It raises a key error if that screen name already exists.
 		
 		:param screen_name: Name identifier for the new screen name.
 		:type screen_name: str.
-		:param display_size: New screen display size in pixels, defaults to (400, 400).
-		:type display_size: Tuple[int, int]
+		:param screen: Screen to be added to the logger.
+		:type display_size: DisplayScreen
 		'''
 
-		if screen_name in self._screens:
-
-			err_msg = f'There already exists a screen with name {screen_name}'
+		if str(screen) in self._screens:
+			err_msg = f'There already exists a screen with name {screen}.'
 			raise KeyError(err_msg)
 		
-		self._screens[screen_name] = screen
+		self._screens[str(screen)] = screen
 
 	def update_screen(self, screen_name: str, image: Image.Image):
 		'''
-		Update a display screen with a new image. It raises a key error if that screen name doesn't exist.
+		Update a display screen with a new image. It raises a key error if the screen name doesn't exist.
 		
 		:param screen_name: Name identifier for the new screen name.
 		:type screen_name: str.
 		:param image: Image to update screen frame.
 		:type image: Image.Image
 		'''
-  
-		print(f'Update from {screen_name}')
 
 		try:
 			self._screens[screen_name].update(image=image)
-
 		except KeyError:
 			raise KeyError(f'Screen {screen_name} not present in screens {self._screens.keys()}.')
 
@@ -196,7 +197,7 @@ class Logger:
 			self._screens[screen_name].close()
 
 		except KeyError:
-			raise KeyError( f'Trying to remove screen {screen_name}, but not present in screens {self._screens.keys()}.')
+			raise KeyError(f'Trying to remove screen {screen_name}, but not present in screens {self._screens.keys()}.')
 
 		# Remove from the dictionary
 		self._screens.pop(screen_name, None)
@@ -211,22 +212,25 @@ class Logger:
 
 		for screen_name in screen_names:
 			self.remove_screen(screen_name=screen_name)
-		# gc.collect()
-  
+
+
 	@property
 	def screens(self) -> List[str]:
+		''' Return the name of screens '''
+
 		return list(self._screens.keys())
 
-
-	# def __del__(self):
-	# 	print("Here")
-	# 	self.remove_all_screens()
 
 
 class LoguruLogger(Logger):
 	""" Logger using `loguru` technology to log both on terminal and file """
 
-	_serial_number = 0
+	# NOTE: Loguru technology doesn't provide multiple-logger instances.
+	#       For this reason we have a factory-id unique to any instance of
+	#       the logger which is bind to the logger object.
+	#       This allows to specify a filtering lambda to each file by 
+	#       checking the logger-id.
+	_factory_id = 0
 
 	def __init__(self, conf: Dict[str, str] | None = None, on_file: bool = True) -> None:
 		'''
@@ -235,33 +239,31 @@ class LoguruLogger(Logger):
 		it also logs to file.
 
 		:param conf: Mapping for experiment directory, title, name and version.
-		                 If not specified the target directory is not set and the object
-						 only serves for logging and display purposes.
+		             If not specified the target directory is not set and the object
+					 only serves for logging and display purposes.
 		:type conf: Dict[str, str] | None
-		:param on_file: If to log on file, defaults to True
+		:param on_file: If to log on file, defaults to True.
 		:type on_file: bool, optional
 		'''
 
 		super().__init__(conf=conf)
 
-		self._id = self._serial_number
-		LoguruLogger._serial_number += 1
+		# Assign the unique ID
+		self._id = self._factory_id
+		LoguruLogger._factory_id += 1
 
-		# self._logger = loguru.logger.bind(id=self._id)
-		self._logger = loguru.logger
+		self._logger = loguru.logger.bind(id=self._id)
 		
 		# File logging
 		if on_file and conf:
 
 			log_file = path.join(self.target_dir, 'info.log')
-			#self._logger.add(
-			#	log_file, level=0, enqueue=True, 
-			#	filter=lambda x: x['extra']['id']==self._id
-			#)
-
-		# Warning if on_file but no target directory.
+			self._logger.add(
+				log_file, level=0, enqueue=True, 
+				filter=lambda x: x['extra']['id'] == self._id
+			)
+		
 		elif on_file:
-
 			self.warn('The `on_file` flag was activated but no target directory was specified')
 	
 	# Overriding logging methods with `loguru` specific ones
@@ -273,13 +275,14 @@ class LoguruLogger(Logger):
 class MutedLogger(Logger):
 	''' Trivial logger with for non-logging '''
 
-	#def __init__(self) -> None:
 	def __init__(self, conf = None) -> None:
 		''' Use None configuration for non specifying a target directory '''
 
+		# NOTE: Parameter `conf` in input is used to support a common
+		#       signature with other `Logger` classes but it's basically ignored.
 		super().__init__(conf=None)
 	
 	# Override for no logging
-	def _info(self, mess: str): print(mess)
+	def _info(self, mess: str): pass
 	def _warn(self, mess: str): pass
 	def _err (self, mess: str): pass

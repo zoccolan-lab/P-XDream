@@ -99,7 +99,7 @@ def plot_scores(
         ax[i].set_ylabel('Target scores')
         ax[i].set_title(k.split('_')[0].capitalize())
         ax[i].legend()
-        customize_axes_bounds(ax[i])
+        # customize_axes_bounds(ax[i])
 
     # Save or display  
     if out_dir:
@@ -179,7 +179,7 @@ def plot_scores(
     plt.xlabel('Target score')
     plt.ylabel('Prob. density')
     plt.legend()
-    customize_axes_bounds(ax)
+    # customize_axes_bounds(ax)
     
     # Save or display  
     if out_dir:
@@ -328,8 +328,8 @@ def plot_scores_by_cat(
     ax[1].legend()
 
     subplot_same_lims(ax, sel_axs = 'x')
-    customize_axes_bounds(ax[0])
-    customize_axes_bounds(ax[1])
+    #customize_axes_bounds(ax[0])
+    #customize_axes_bounds(ax[1])
     
     # Save
     if out_dir:
@@ -436,7 +436,7 @@ def plot_optimizing_units(
 
     # Set x-axis ticks to integer values and only where the points are
     ax.set_xticks(xs)
-    customize_axes_bounds(ax)
+    #customize_axes_bounds(ax)
 
     # Save or display  
     if out_dir:

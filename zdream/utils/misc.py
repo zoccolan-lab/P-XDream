@@ -1,3 +1,4 @@
+from copy import deepcopy
 import re
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
 
@@ -242,13 +243,22 @@ def overwrite_dict(a: Dict, b: Dict) -> Dict:
     Overwrite keys of a nested dictionary A with those of a 
     second flat dictionary B is their values are not none.
     '''
+
+    def overwrite_dict_aux(a_: Dict, b_: Dict):
     
-    for key in a:
-        if isinstance(a[key], Dict):
-            overwrite_dict(a[key], b)
-        elif key in b:
-            a[key] = b[key]
-    return a
+        for key in a_:
+            if isinstance(a_[key], Dict):
+                overwrite_dict_aux(a_[key], b_)
+            elif key in b_:
+                a_[key] = b_[key]
+        return a_
+    
+    # Create new dictionary
+    a_copy = deepcopy(a)
+
+    overwrite_dict_aux(a_=a_copy, b_=b)
+    
+    return a_copy
 
 def flatten_dict(d: Dict)-> Dict:
     '''
