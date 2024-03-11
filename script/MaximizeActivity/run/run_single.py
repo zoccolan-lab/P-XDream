@@ -30,11 +30,13 @@ def main(args):
     # Hold main display screen reference
     if full_conf['render']:
         main_screen = DisplayScreen.set_main_screen()
+
+    # Add close screen flag on as the experiment
+    # only involves one run
+    full_conf['close_screen'] = True
     
     experiment = MaximizeActivityExperiment.from_config(full_conf)
     experiment.run()
-
-    experiment._logger.remove_all_screens()
 
 target_units_help = '''
 The format to specify the structure is requires separating dictionaries with comma:

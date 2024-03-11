@@ -4,7 +4,7 @@ import pandas as pd
 from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
 from zdream.generator import InverseAlexGenerator
-from zdream.logger import Logger, LoguruLogger, MutedLogger
+from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer
 from zdream.probe import RecordingProbe
 from zdream.scores import MaxActivityScorer
@@ -156,7 +156,8 @@ class MaximizeActivityExperiment(Experiment):
             "dataset": dataset if use_nat else None,
             'display_plots': conf['display_plots'],
             'render': conf['render'],
-            'rec_only': rec_only if rec_only else None
+            'close_screen': conf.get('close_screen', False),
+            'rec_only': rec_only
         }
 
         # Experiment configuration
@@ -187,11 +188,17 @@ class MaximizeActivityExperiment(Experiment):
     
         self._use_natural = mock_mask is not None and mock_mask.count(False) > 0
 
-        if self._use_natural:
-            self._dataset   = cast(MiniImageNet, config.data['dataset'])
+        # Extract from Data
+
+        # Visualization flags
         self._display_plots = cast(bool, config.data['display_plots'])
         self._render        = cast(bool, config.data['render'])
-        self._rec_only      = cast(dict[str, List[int]] | None, config.data['rec_only'])
+        self._close_screen  = cast(bool, config.data['close_screen'])
+        
+        self._rec_only      = cast(Dict[str, List[int]| None] , config.data['rec_only'])
+
+        if self._use_natural:
+            self._dataset   = cast(MiniImageNet, config.data['dataset'])
 
     def _progress_info(self, i: int) -> str:
 
@@ -233,8 +240,8 @@ class MaximizeActivityExperiment(Experiment):
         # Set gif
         self._gif: List[Image.Image] = []
 
+        # Last seen labels
         if self._use_natural:
-            # Last seen labels
             self._labels: List[int] = []
 
 
@@ -273,6 +280,10 @@ class MaximizeActivityExperiment(Experiment):
     def _finish(self):
 
         super()._finish()
+
+        # Close screens
+        if self._close_screen:
+            self._logger.close_all_screens()
 
         # 1. Save visual stimuli (synthetic and natural)
 
@@ -373,6 +384,18 @@ class MaximizeActivityExperiment(Experiment):
     
     
 class NeuronScoreMultiExperiment(MultiExperiment):
+
+    def __init__(
+            self, 
+            experiment:      Type['Experiment'], 
+            experiment_conf: Dict[str, List[Any]], 
+            default_conf:    Dict[str, Any]
+    ) -> None:
+        
+        super().__init__(experiment, experiment_conf, default_conf)
+
+        # Add the close screen flag to the last configuration
+        self._search_config[-1]['close_screen'] = True
     
     def _get_display_screens(self) -> List[DisplayScreen]:
 
@@ -397,7 +420,13 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         self._data['neurons']       = list()
         self._data['layer']         = list()
         self._data['deltaA_rec']    = list()
+
         self._data['Copt_rec']      = list()
+        ''' 
+        Correlation between the optimized activation as a 
+        one-dimensional array with the length the number of iterations.
+        '''
+
         self._data['Copt_rec_var']  = list()
         self._data['Crec_rec']      = list()
         self._data['Crec_rec_var']  = list()
@@ -407,7 +436,7 @@ class NeuronScoreMultiExperiment(MultiExperiment):
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
 
-    def _progress(self, exp: _MaximizeActivityExperiment, i: int):
+    def _progress(self, exp: MaximizeActivityExperiment, i: int):
         super()._progress(exp, i)
 
         self._data['score']  .append(exp.optimizer.stats['best_score'])
@@ -416,7 +445,7 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         Crec_rec={}; Crec_rec_var={}
         #iterate over recorded layers to get statistics about non optimized sites
         for k,v in exp.subject.states_history.items():
-            if exp._rec_only: #if there are recording only neurons
+            if exp._rec_only[k]: #if there are recording only neurons
                 #get the average difference in activation between the last and the first optim iteration
                 deltaA_rec[k] = np.mean(v[-1,:, exp._rec_only[k]]) - np.mean(v[0,:, exp._rec_only[k]])
                 #compute the correlation between each avg recorded unit and the mean of the optimized

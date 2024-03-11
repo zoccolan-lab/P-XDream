@@ -191,7 +191,6 @@ class DisplayScreen:
 		'''
 
 		main_screen = tk.Tk()
-		# main_screen.mainloop()
 		main_screen.withdraw()  # hide the main screen
 
 		return main_screen

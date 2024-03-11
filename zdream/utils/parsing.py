@@ -194,7 +194,7 @@ def parse_scoring_units(
         input_str: str, 
         net_info: Dict[str, Tuple[int, ...]],
         rec_neurons: Dict[str, TargetUnit]
-    ) ->tuple[dict[str, List[int]], dict[str, list[int]]]: #Dict[str, List[int]]
+    ) ->tuple[dict[str, List[int]], dict[str, list[int] | None]]: #Dict[str, List[int]]
     '''
     Converts a input string indicating the scoring units associated to each layer
     to a dictionary mapping layer name to a one-dimensional array of activations indexes
@@ -257,14 +257,15 @@ def parse_scoring_units(
             #target_dict[layer_name] will contain the indexes of the recording units 
             # to score from in the layer layer_name
             target_dict[layer_name] = list(np.random.randint(0, high=rec_units, size=rnd_units, dtype=int))
-            not_target_dict = {k: list(set(rec_to_i[k].values()) - set(v)) 
-                                for k,v in target_dict.items()}
+
             
         #not_target_dict contains for each layer all the neurons that were recorded,
         #but not scored
         not_target_dict = {k: list(set(v.values()) - set(target_dict[k])) 
                            if k in target_dict.keys() else list(v.values())
                            for k, v in rec_to_i.items()}
+        
+        not_target_dict = {k: v if len(v) > 0 else None for k, v in not_target_dict.items()}
 
         return (target_dict, not_target_dict)
     
@@ -287,6 +288,8 @@ def parse_scoring_units(
         not_target_dict = {k: list(set(v.values()) - set(target_dict[k])) 
                            if k in target_dict.keys() else list(v.values())
                            for k, v in rec_to_i.items()}
+        
+        not_target_dict = {k: v if len(v) > 0 else None for k, v in not_target_dict.items()}
         
 
         return (target_dict, not_target_dict)

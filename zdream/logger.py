@@ -183,35 +183,37 @@ class Logger:
 		except KeyError:
 			raise KeyError(f'Screen {screen_name} not present in screens {self._screens.keys()}.')
 
-	def remove_screen(self, screen_name: str):
+	def close_screen(self, screen_name: str):
 		'''
-		Remove a screen by first ending its rendering and then removing it from the list of screens.
+		Close a screen by first ending its rendering and then removing it from the list of screens.
 		It raises a key error if that screen name doesn't exist.
 		
 		:param screen_name: Name identifier for the new screen name.
 		:type screen_name: str.
 		'''
 
+		print("Closing screen")
+
 		# Stop rendering
 		try:
 			self._screens[screen_name].close()
 
 		except KeyError:
-			raise KeyError(f'Trying to remove screen {screen_name}, but not present in screens {self._screens.keys()}.')
+			raise KeyError(f'Trying to close screen {screen_name}, but not present in screens {self._screens.keys()}.')
 
 		# Remove from the dictionary
 		self._screens.pop(screen_name, None)
 
-	def remove_all_screens(self):
+	def close_all_screens(self):
 		'''
-		Remove all display screens.
+		Close all display screens.
 		'''
 
 		# This is necessary to prevent dictionary on-loop changes
 		screen_names = list(self._screens.keys())
 
 		for screen_name in screen_names:
-			self.remove_screen(screen_name=screen_name)
+			self.close_screen(screen_name=screen_name)
 
 
 	@property

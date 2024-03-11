@@ -232,8 +232,6 @@ class Experiment(ABC):
         
         experiment = cls._from_config(conf=conf)
         
-        del conf['display_screens']
-        
         experiment._set_param_configuration(param_config=conf)
 
         return experiment
@@ -465,10 +463,6 @@ class Experiment(ABC):
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
-        
-        # NOTE: Avoid in the case of a multiple experiment since they are shared
-        # Close screens
-        # self._logger.remove_all_screens()
 
         # Dump
         state = ExperimentState.from_experiment(self)
@@ -476,6 +470,11 @@ class Experiment(ABC):
             out_dir=path.join(self.target_dir, 'state'),
             logger=self._logger
         )
+
+        # NOTE: The method is also supposed to close logger screens
+        #       However this is not implemented in the default version 
+        #       because it may be possible to keep screen active for
+        #       other purposes, so the logic is lead to subclasses.
     
     def _progress_info(self, i: int) -> str:
         '''
@@ -726,10 +725,6 @@ class MultiExperiment:
 
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f'ALL EXPERIMENT RUN SUCCESSFULLY. ELAPSED TIME: {str_time} s.')
-
-
-        for screen in self._screens:
-            screen.close()
 
         # Save multi-run experiment as a .pickle file
         if self._data:
