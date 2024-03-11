@@ -9,6 +9,7 @@ import tkinter as tk
 
 
 from script.MaximizeActivity.maximize_activity import NeuronScoreMultiExperiment, MaximizeActivityExperiment
+from script.MaximizeActivity.parser import get_parser
 from zdream.experiment import MultiExperiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import flatten_dict
@@ -16,8 +17,7 @@ from zdream.utils.misc import flatten_dict
 matplotlib.use('TKAgg')
 
 # NOTE: Script directory path refers to the current script file
-SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..', '..'))
-LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
+
 
 def main(args):
 
@@ -76,57 +76,7 @@ def main(args):
 
 if __name__ == '__main__':
     
-    # Loading custom local settings
-    local_folder       = path.dirname(path.abspath(__file__))
-    script_settings_fp = path.join(local_folder, LOCAL_SETTINGS)
-    script_settings    = read_json(path=script_settings_fp)
-    
-    # Set as defaults
-    gen_weights  = script_settings['gen_weights']
-    out_dir      = script_settings['out_dir']
-    mini_inet    = script_settings['mini_inet']
-    config_path  = script_settings['maximize_activity_config']
-
-    parser = ArgumentParser()
-    
-    parser.add_argument('--config',         type=str,   help='Path for the JSON configuration file',   default = config_path,)
-    
-    # Generator
-    parser.add_argument('--weights',        type=str,   help='Path to folder of generator weights',    default = gen_weights,)
-    parser.add_argument('--mini_inet',      type=str,   help='Path to mini mini imagenet dataset',     default = mini_inet,)
-    parser.add_argument('--batch_size',     type=str,   help='Natural image dataloader batch size', default="3#4")
-    parser.add_argument('--variant',        type=str,   help='Variant of InverseAlexGenerator to use')
-    
-    # Mask generator
-    parser.add_argument('--template',       type=str ,  help='String of True(T) and False(F) as the basic sequence of the mask')
-    parser.add_argument('--shuffle',        type=bool , help='If to shuffle mask pattern')
-
-    # Subject
-    parser.add_argument('--net_name',       type=str,   help='SubjectNetwork name')
-    parser.add_argument('--rec_layers',     type=str,   help='Recording layers')
-
-    # Scorer
-    parser.add_argument('--targets',        type=str,   help='Target scoring layers and neurons')
-    parser.add_argument('--aggregation',    type=str, help='Name of scoring aggregation function between layers')
-    
-    # Optimizer
-    parser.add_argument('--pop_sz',         type=str,   help='Starting number of the population')
-    parser.add_argument('--optim_rseed',    type=str,   help='Random seed in for the optimizer')
-    parser.add_argument('--mutation_rate',  type=str,   help='Mutation rate for the optimizer')
-    parser.add_argument('--mutation_size',  type=str,   help='Mutation size for the optimizer')
-    parser.add_argument('--num_parents',    type=str,   help='Number of parents for the optimizer')
-    parser.add_argument('--temperature',    type=str,   help='Temperature for the optimizer')
-    
-    # Logger
-    parser.add_argument('--name',           type=str,   help='Experiment name')
-    parser.add_argument('--version',        type=str,   help='Experiment version')
-    parser.add_argument('--out_dir',        type=str,   help='Path to directory to save outputs',       default = out_dir,)
-    
-    # Globals
-    parser.add_argument('--num_gens',       type=str,   help='Number of total generations to evolve', default="2")
-    parser.add_argument('--display_plots',  type=str,   help='If to display plots')
-    parser.add_argument('--random_seed',    type=str,   help='Random state for the experiment')
-    parser.add_argument('--render',         type=str,   help='If to render stimuli')
+    parser = get_parser(multirun=True)
     
     conf = vars(parser.parse_args())
 

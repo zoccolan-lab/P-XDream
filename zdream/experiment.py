@@ -174,47 +174,6 @@ class ExperimentState:
         logger.info(f'')
 
 
-@dataclass
-class ExperimentConfig:
-    '''
-    The dataclass serves as a configuration for the Xdream Experiment, 
-    it specifies an instance for the four main entities involved in the experiment.
-    '''
-    
-    generator: Generator
-    ''' Generator instance. '''
-    
-    subject: InSilicoSubject
-    ''' Subject instance. '''
-    
-    scorer: Scorer
-    ''' Scorer instance. '''
-    
-    optimizer: Optimizer
-    ''' Optimize instance. '''
-    
-    iteration: int
-    ''' Number of iteration to perform in the experiment. '''
-    
-    logger: Logger
-    ''' Logger instance to log information, warnings and errors.'''
-    
-    mask_generator: MaskGenerator | None = None
-    ''' 
-    Function for mask generation. The boolean mask discriminates between synthetic
-    and natural images in the stimuli. A new mask is potentially generated at 
-    each iteration for a varying number of synthetic stimuli: the function
-    maps their number to a valid mask (i.e. as many True values as synthetic stimuli).
-    
-    NOTE Mask generator defaults to None, that must be handled by Experiment class.
-    '''
-    
-    data: Dict[str, Any] | None = None  
-    '''
-    General purpose attribute to allow the inclusion of any additional type of information.
-    '''
-    
-    
 class Experiment(ABC):
     '''
     This class implements the main pipeline of the Xdream experiment providing
@@ -231,6 +190,8 @@ class Experiment(ABC):
     def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
         
         experiment = cls._from_config(conf=conf)
+
+        conf.pop('display_screens', None)
         
         experiment._set_param_configuration(param_config=conf)
 
@@ -243,38 +204,72 @@ class Experiment(ABC):
         pass
     
     def __init__(
-            self, 
-            config: ExperimentConfig,
-            name: str = 'experiment'
-        ) -> None:
+        self,    
+        generator:      Generator,
+        subject:        InSilicoSubject,
+        scorer:         Scorer,
+        optimizer:      Optimizer,
+        iteration:      int,
+        logger:         Logger,
+        mask_generator: MaskGenerator | None = None,
+        data:           Dict[str, Any] = dict(),
+        name:           str = 'experiment'
+    ) -> None:
         '''
-        The constructor extract the terms from the configuration object.
 
-        :param config: Experiment configuration.
+        :param generator: Generator instance.
+        :type generator: Generator.
+        :param subject: InSilicoSubject instance.
+        :type subject: InSilicoSubject.
+        :param scorer: Scorer instance.
+        :type optimizer: Optimizer.
+        :param optimizer: Optimizer instance.
+        :type generator: Generator.
+        :param generator: Generator instance.
+        :type generator: Generator.
+        :param iteration: Number of iteration to perform in the experiment.
+        :type iteration: int
+        :param logger: Logger instance to log information, warnings and errors,
+                       to handle directory paths and to display screens.
+        :type logger: Logger
+        :param mask_generator: Function for mask generation. The boolean mask discriminates between synthetic
+                               and natural images in the stimuli. A new mask is potentially generated at 
+                               each iteration for a varying number of synthetic stimuli: the function
+                               maps their number to a valid mask (i.e. as many True values as synthetic stimuli).
+                               Defaults to None.
+        :type mask_generator: MaskGenerator | None
+        :param data: General purpose attribute to allow the inclusion of any additional type of information.
+        :type data: Dict[str, Any]
         :type config: ExperimentConfig
         :param name: Name identifier for the experiment version, defaults to 'experiment'.
         :type name: str, optional
-        :param param_config: Dictionary 
-        :type version: Dict[str, Any]
         '''
         
         # Experiment name
         self._name = name
         
         # Configuration attributes
-        self._generator      = config.generator
-        self._subject        = config.subject
-        self._scorer         = config.scorer
-        self._optimizer      = config.optimizer
-        self._logger         = config.logger
-        self._iteration      = config.iteration
+        self._generator = generator
+        self._subject   = subject
+        self._scorer    = scorer
+        self._optimizer = optimizer
+        self._logger    = logger
+        self._iteration = iteration
         
         # Defaults mask generator to a None mask, which is handled 
         # by the generator as a synthetic-only stimuli.
-        self._mask_generator = default(config.mask_generator, lambda x: None)
+        self._mask_generator = default(mask_generator, lambda x: None)
+
+        # NOTE: `Data` input is not used in the default version, but
+        #       it can exploited in subclasses to store additional information
 
         # Param config
         self._param_config: Dict[str, Any] = dict()
+
+    def to_state(self) -> ExperimentState:
+        ''' Returns the experiment state'''
+
+        return ExperimentState.from_experiment(experiment=self)
 
     def _set_param_configuration(self, param_config: Dict[str, Any]):
         '''

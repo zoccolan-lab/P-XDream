@@ -15,11 +15,11 @@
         "rec_layers": "21=[]"
     },
     "scorer": {
-        "targets": "21=[0:20]",
+        "scr_layers": "21=[0:20]",
         "aggregation": "mean"
     },
     "optimizer": {
-        "pop_sz": 20,
+        "pop_size": 20,
         "mutation_rate": 0.3,
         "mutation_size": 0.3,
         "num_parents": 3,
@@ -31,7 +31,7 @@
         "name": "experiment",
         "version": 0
     },
-    "num_gens": 100,
+    "iter": 100,
     "display_plots": false,
     "random_seed": 123,
     "render": true

@@ -2,17 +2,17 @@ from copy import deepcopy
 
 import pandas as pd
 from script.MaximizeActivity.plots import plot_optimizing_units, plot_scores, plot_scores_by_cat
-from zdream.experiment import Experiment, ExperimentConfig, MultiExperiment
-from zdream.generator import InverseAlexGenerator
+from zdream.experiment import Experiment, MultiExperiment
+from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
-from zdream.optimizer import GeneticOptimizer
+from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.probe import RecordingProbe
-from zdream.scores import MaxActivityScorer
-from zdream.subject import NetworkSubject
+from zdream.scores import MaxActivityScorer, Scorer
+from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
-from zdream.utils.model import Codes, DisplayScreen, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
+from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
 from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units, parse_scoring_units
 
 import numpy as np
@@ -31,8 +31,8 @@ class MaximizeActivityExperiment(Experiment):
 
     EXPERIMENT_TITLE = "MaximizeActivity"
 
-    _NAT_IMG_SCREEN = 'Best Natural Image'
-    _GEN_IMG_SCREEN = 'Best Synthetic Image'
+    NAT_IMG_SCREEN = 'Best Natural Image'
+    GEN_IMG_SCREEN = 'Best Synthetic Image'
 
     @property
     def scorer(self) -> MaxActivityScorer: return cast(MaxActivityScorer, self._scorer) 
@@ -99,7 +99,7 @@ class MaximizeActivityExperiment(Experiment):
         # Target neurons
         #TODO: use rec_only dictionary to index exp.subject.states_history
         score_dict, rec_only  = parse_scoring_units(
-            input_str=scr_conf['targets'], 
+            input_str=scr_conf['scr_layers'], 
             net_info=layer_info,
             rec_neurons=record_target
         )
@@ -117,7 +117,7 @@ class MaximizeActivityExperiment(Experiment):
             random_distr   = opt_conf['random_distr'],
             mutation_rate  = opt_conf['mutation_rate'],
             mutation_size  = opt_conf['mutation_size'],
-            population_size= opt_conf['pop_sz'],
+            population_size= opt_conf['pop_size'],
             temperature    = opt_conf['temperature'],
             num_parents    = opt_conf['num_parents']
         )
@@ -142,13 +142,13 @@ class MaximizeActivityExperiment(Experiment):
 
                 # Add screen for synthetic images
                 logger.add_screen(
-                    screen=DisplayScreen(title=cls._GEN_IMG_SCREEN, display_size=(400, 400))
+                    screen=DisplayScreen(title=cls.GEN_IMG_SCREEN, display_size=(400, 400))
                 )
 
                 # Add screen fro natural images if used
                 if use_nat:
                     logger.add_screen(
-                        screen=DisplayScreen(title=cls._NAT_IMG_SCREEN, display_size=(400, 400))
+                        screen=DisplayScreen(title=cls.NAT_IMG_SCREEN, display_size=(400, 400))
                     )
 
         # --- DATA ---
@@ -161,26 +161,43 @@ class MaximizeActivityExperiment(Experiment):
         }
 
         # Experiment configuration
-        experiment_config = ExperimentConfig(
+        experiment = cls(
             generator=generator,
             scorer=scorer,
             optimizer=optim,
             subject=sbj_net,
             logger=logger,
-            iteration=conf['num_gens'],
+            iteration=conf['iter'],
             mask_generator=mask_generator,
-            data=data
+            data=data, name=log_conf['name']
         )
-
-        experiment = cls(experiment_config, name=log_conf['name'])
 
         return experiment
 
-    def __init__(self, config: ExperimentConfig, name: str = 'experiment') -> None:
+    def __init__(
+        self,    
+        generator:      Generator,
+        subject:        InSilicoSubject,
+        scorer:         Scorer,
+        optimizer:      Optimizer,
+        iteration:      int,
+        logger:         Logger,
+        mask_generator: MaskGenerator | None = None,
+        data:           Dict[str, Any] = dict(),
+        name:           str = 'experiment'
+    ) -> None:
 
-        super().__init__(config, name)
-
-        config.data = cast(Dict[str, Any], config.data)
+        super().__init__(
+            generator      = generator,
+            subject        = subject,
+            scorer         = scorer,
+            optimizer      = optimizer,
+            iteration      = iteration,
+            logger         = logger,
+            mask_generator = mask_generator,
+            data           = data,
+            name           = name,
+        )
 
         # Create a mock mask for one synthetic image 
         # to see if natural images are involved in the experiment
@@ -191,14 +208,14 @@ class MaximizeActivityExperiment(Experiment):
         # Extract from Data
 
         # Visualization flags
-        self._display_plots = cast(bool, config.data['display_plots'])
-        self._render        = cast(bool, config.data['render'])
-        self._close_screen  = cast(bool, config.data['close_screen'])
+        self._display_plots = cast(bool, data['display_plots'])
+        self._render        = cast(bool, data['render'])
+        self._close_screen  = cast(bool, data['close_screen'])
         
-        self._rec_only      = cast(Dict[str, List[int]| None] , config.data['rec_only'])
+        self._rec_only      = cast(Dict[str, List[int]| None] , data['rec_only'])
 
         if self._use_natural:
-            self._dataset   = cast(MiniImageNet, config.data['dataset'])
+            self._dataset   = cast(MiniImageNet, data['dataset'])
 
     def _progress_info(self, i: int) -> str:
 
@@ -265,13 +282,13 @@ class MaximizeActivityExperiment(Experiment):
         if self._render:
 
             self._logger.update_screen(
-                screen_name=self._GEN_IMG_SCREEN,
+                screen_name=self.GEN_IMG_SCREEN,
                 image=best_synthetic_img
             )
 
             if self._use_natural:
                 self._logger.update_screen(
-                    screen_name=self._NAT_IMG_SCREEN,
+                    screen_name=self.NAT_IMG_SCREEN,
                     image=to_pil_image(best_natural)
                 )
 
@@ -401,13 +418,13 @@ class NeuronScoreMultiExperiment(MultiExperiment):
 
         # Screen for synthetic images
         screens = [
-            DisplayScreen(title=MaximizeActivityExperiment._GEN_IMG_SCREEN, display_size=(400, 400))
+            DisplayScreen(title=MaximizeActivityExperiment.GEN_IMG_SCREEN, display_size=(400, 400))
         ]
 
         # Add screen for natural images if at least one will use it
         if any(parse_boolean_string(conf['mask_generator']['template']).count(False) > 0 for conf in self._search_config):
             screens.append(
-                DisplayScreen(title=MaximizeActivityExperiment._NAT_IMG_SCREEN, display_size=(400, 400))
+                DisplayScreen(title=MaximizeActivityExperiment.NAT_IMG_SCREEN, display_size=(400, 400))
             )
 
         return screens
