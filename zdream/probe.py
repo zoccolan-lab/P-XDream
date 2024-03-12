@@ -17,7 +17,7 @@ from .utils.misc import default
 from .utils.misc import fit_bbox
 from .utils.model import InputLayer
 from .utils.model import RFBox
-from .utils.model import TargetUnit
+from .utils.model import RecordingUnit
 from .utils.model import SubjectState
 
 class SilicoProbe(ABC):
@@ -178,8 +178,8 @@ class InfoProbe(SilicoProbe):
         self,
         inp_shape : Tuple[int, ...],
         rf_method : Literal['forward', 'backward'] = 'forward',
-        forward_target : None | Dict[str, TargetUnit] = None,
-        backward_target: None | Dict[str, Dict[str, TargetUnit]] = None,
+        forward_target : None | Dict[str, RecordingUnit] = None,
+        backward_target: None | Dict[str, Dict[str, RecordingUnit]] = None,
     ) -> None:
         super().__init__()
         
@@ -332,7 +332,7 @@ class InfoProbe(SilicoProbe):
         
     def _get_forward_rf(
         self,
-        fw_target : Dict[str, TargetUnit]
+        fw_target : Dict[str, RecordingUnit]
     ) -> Dict[Tuple[str, str], List[RFBox]]:
         fields : Dict[Tuple[str, str], List[RFBox]] = {}
         
@@ -366,7 +366,7 @@ class InfoProbe(SilicoProbe):
     
     def _get_backward_rf(
         self,
-        bw_target : Dict[str, Dict[str, TargetUnit]],
+        bw_target : Dict[str, Dict[str, RecordingUnit]],
         act_scale : float = 1e2,
     ) -> Dict[Tuple[str, str], List[RFBox]]:
         # raise NotImplementedError()
@@ -407,7 +407,7 @@ class RecordingProbe(SilicoProbe):
     
     def __init__(
         self,
-        target : Dict[str, TargetUnit],
+        target : Dict[str, RecordingUnit],
         format : DTypeLike = np.float32,
     ) -> None:
         '''
@@ -432,6 +432,9 @@ class RecordingProbe(SilicoProbe):
         # The dictionary is indexed by the layer name and contains
         # a list with all the activations to which it was exposed to.
         self._data : Dict[str, List[NDArray]] = defaultdict(list)
+
+    @property
+    def target(self) -> Dict[str, RecordingUnit]: return self._target
         
     @property
     def features(self) -> SubjectState:

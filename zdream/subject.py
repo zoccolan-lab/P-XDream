@@ -10,7 +10,7 @@ from torch.utils.hooks import RemovableHandle
 from torchvision.models import get_model
 from torchvision.models import get_model_weights
 
-from .utils.model import Message
+from .utils.model import Message, RecordingUnit
 from .utils.model import Stimuli
 from .utils.model import SubjectState
 from .probe import SetterProbe
@@ -49,6 +49,11 @@ class InSilicoSubject(Subject):
     ) -> Tuple[SubjectState, Message]:
         
         raise NotImplementedError("Cannot instantiate a InSilicoSubject")
+    
+    @property
+    @abstractmethod
+    def target(self) -> Dict[str, RecordingUnit]:
+        pass
     
     @property
     def states_history(self) -> SubjectState:
@@ -140,11 +145,24 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         self.remove(setter_probe)
 
         # If provided, attach the recording probe to the network
-        if record_probe: self.register(record_probe)
+        if record_probe: 
+            self._target = record_probe.target
+            self.register(record_probe)
+
+    @property
+    def target(self) -> Dict[str, RecordingUnit]:
+        if hasattr(self, '_target'):
+            return self._target
+        return dict()
         
     def __str__(self) -> str:
+
+        sep = ', '
+        all = 'all'
+        recording_targets = f"{sep.join([f'{k}: {len(v) if v else all} units' for k, v in self._target.items()])}"
         
-        return f'NetworkSubject[name: {self._name}, in-shape: {self._inp_shape}, n-layers: {len(self.layer_names)}, n-probes: {len(self._probes)}]'
+        return f'NetworkSubject[name: {self._name}, in-shape: {self._inp_shape}, n-layers: {len(self.layer_names)},'\
+               f' n-probes: {len(self._probes)}, recording: ({recording_targets})]'
         
     def __call__(
         self,

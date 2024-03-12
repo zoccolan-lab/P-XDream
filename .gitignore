@@ -13,6 +13,9 @@ data/
 result/
 out/
 
+# Jupyter
+*.ipynb
+
 # Local settings - include example files
 *local_settings*
 !*.example

@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist
 from zdream.utils.model import ScoringFunction
 from zdream.utils.model import AggregateFunction
 
-from .utils.model import Message
+from .utils.model import Message, RecordingUnit, ScoringUnit
 from .utils.model import StimuliScore
 from .utils.model import SubjectState
 from .utils.misc import default
@@ -73,9 +73,15 @@ class Scorer(ABC):
         
     @property
     @abstractmethod
+    def target(self) -> Dict[str, ScoringUnit]:
+        pass
+        
+    @property
     def optimizing_units(self) -> int:
         ''' How many units involved in optimization '''
-        pass
+        return sum(
+            [len(v) for v in self.target.values()]
+        )
         
     
 class MSEScorer(Scorer):
@@ -139,18 +145,16 @@ class MSEScorer(Scorer):
         return scores
     
     @property
-    def target(self) -> Dict[str, NDArray]: return self._target
+    def target(self) -> Dict[str, RecordingUnit]:
+        # TODO
+        return self._target # type: ignore  check compatibility
 
-    @property
-    def optimizing_units(self) -> int:
-        ''' How many units involved in optimization '''
-        return len(self._target)
     
 class MaxActivityScorer(Scorer):
     
     def __init__(
             self, 
-            trg_neurons: Dict[str, List[int]], 
+            trg_neurons: Dict[str, ScoringUnit], 
             aggregate: AggregateFunction,
             reduction: Reduction = np.mean,
         ) -> None:
@@ -165,7 +169,7 @@ class MaxActivityScorer(Scorer):
         
     def __str__(self) -> str:
         
-        dims = ", ".join([f"{k}: {len(v)} units" for k, v in self._trg_neurons.items()])
+        dims = ", ".join([f"{k}: {len(v)} units" for k, v in self.target.items()])
         
         return f'MaximizeActivityScorer[target neurons: ({dims})]'
     
@@ -184,9 +188,9 @@ class MaxActivityScorer(Scorer):
         return scores    
     
     @property
-    def optimizing_units(self) -> int:
+    def target(self) -> Dict[str, ScoringUnit]:
         ''' How many units involved in optimization '''
-        return sum(len(target) for target in self._trg_neurons.values())
+        return self._trg_neurons
     
     
 class WeightedPairSimilarityScorer(Scorer):

@@ -39,12 +39,14 @@ class ExperimentState:
     #       the underlying datastructures consider an additional first dimension
     #       in the Arrays relative to the generations.
 
-    mask:       NDArray[np.bool_]               | None  # [generations x (n_gen + n_nat)]
-    labels:     NDArray[np.int32]               | None  # [generations x n_nat]
-    codes:      NDArray[np.float64]             | None  # [generations x n_gen x code_len] 
-    scores:     NDArray[np.float64]             | None  # [generations x n_gen]
-    scores_nat: NDArray[np.float64]             | None  # [generations x n_nat]
-    states:     Dict[str, NDArray[np.float64]]  | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
+    mask:       NDArray[np.bool_]              | None  # [generations x (n_gen + n_nat)]
+    labels:     NDArray[np.int32]              | None  # [generations x n_nat]
+    codes:      NDArray[np.float64]            | None  # [generations x n_gen x code_len] 
+    scores:     NDArray[np.float64]            | None  # [generations x n_gen]
+    scores_nat: NDArray[np.float64]            | None  # [generations x n_nat]
+    states:     Dict[str, NDArray[np.float64]] | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
+    recording:  Dict[str, NDArray[np.int32]]   | None  # layer_name: recorded units
+    scoring:    Dict[str, NDArray[np.int32]]   | None  # layer_name: scores activation indexes
 
     @classmethod
     def from_experiment(cls, experiment: Experiment):
@@ -56,6 +58,10 @@ class ExperimentState:
         :type experiment: Experiment
         '''
 
+        recording = {k: np.stack(v).T if v else np.array([]) for k, v in experiment.subject.target.items()}
+        scoring   = {k: np.array(v)                          for k, v in experiment.scorer .target.items()}
+
+
         return ExperimentState(
             mask       = experiment.generator.masks_history,
             labels     = experiment.generator.labels_history,
@@ -63,6 +69,8 @@ class ExperimentState:
             codes      = experiment.optimizer.codes_history,
             scores     = experiment.optimizer.scores_history,
             scores_nat = experiment.optimizer.scores_nat_history,
+            recording  = recording,
+            scoring    = scoring
         )
 
     @classmethod
@@ -88,7 +96,9 @@ class ExperimentState:
             ('codes',      'npy'),
             ('scores',     'npy'),
             ('scores_nat', 'npy'),
-            ('states',     'npz')
+            ('states',     'npz'),
+            ('recording',  'npz'),
+            ('scoring',    'npz'),
         ]
         loaded = dict()
 
@@ -102,7 +112,7 @@ class ExperimentState:
             # Loading function depending on file extension
             match ext:
                 case 'npy': load_fun = np.load
-                case 'npz': load_fun = lambda x: dict(np.load(x))
+                case 'npz': load_fun = lambda x: dict(np.load(x, allow_pickle=True))
 
             # Loading state
             if path.exists(fp):
@@ -121,6 +131,8 @@ class ExperimentState:
             codes      = loaded['codes'],
             scores     = loaded['scores'],
             scores_nat = loaded['scores_nat'],
+            recording  = loaded['recording'],
+            scoring    = loaded['scoring'],
         )
 
 
@@ -148,6 +160,8 @@ class ExperimentState:
             ('codes',      'npy'),
             ('scores',     'npy'),
             ('scores_nat', 'npy'),
+            ('recording',  'npz'),
+            ('scoring',    'npz'),
         ]
 
         # Optional states dumping

@@ -13,7 +13,7 @@ from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
-from zdream.utils.parsing import parse_boolean_string, parse_layer_target_units, parse_scoring_units
+from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
 
 import numpy as np
 import torch
@@ -83,7 +83,7 @@ class MaximizeActivityExperiment(Experiment):
         layer_info: Dict[str, Tuple[int, ...]] = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
 
         # Probe
-        record_target = parse_layer_target_units(input_str=sbj_conf['rec_layers'], net_info=layer_info)
+        record_target = parse_recording(input_str=sbj_conf['rec_layers'], net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
 
         # Subject with attached recording probe
@@ -98,10 +98,10 @@ class MaximizeActivityExperiment(Experiment):
 
         # Target neurons
         #TODO: use rec_only dictionary to index exp.subject.states_history
-        score_dict, rec_only  = parse_scoring_units(
+        score_dict, rec_only  = parse_scoring(
             input_str=scr_conf['scr_layers'], 
             net_info=layer_info,
-            rec_neurons=record_target
+            rec_info=record_target
         )
 
         scorer = MaxActivityScorer(

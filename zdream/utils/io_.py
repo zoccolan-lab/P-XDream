@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from PIL import Image
 import numpy as np
 
-from .model import TargetUnit
+from .model import RecordingUnit
 
 # --- DIRECTORIES ---
 
@@ -122,7 +122,7 @@ def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
 
 # --- TXT ---
 
-def neurons_from_file(file_path: str) -> TargetUnit:
+def neurons_from_file(file_path: str) -> RecordingUnit:
     ''' 
     Read a set of number from files which is expected   
     to contain a number per line.

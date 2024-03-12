@@ -71,9 +71,14 @@ Function producing a boolean mask given the number of synthetic images in a stim
 The number of True values in generated mask must correspond to the number of input synthetic images.
 '''
 
-TargetUnit = None | NDArray | Tuple[NDArray, ...]
+RecordingUnit = None | Tuple[NDArray, ...]
 '''
-Structure for describing the target unit to record or score from.
+Structure for describing the target unit to record from.
+'''
+
+ScoringUnit = List[int]
+'''
+Structure describing the target unit to score from.
 '''
 
 # --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
