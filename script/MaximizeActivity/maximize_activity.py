@@ -448,6 +448,22 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         self._data['Crec_rec']      = list()
         self._data['Crec_rec_var']  = list()
         self._data['num_gens']      = list()
+        self._data['desc']      = 'Scores at varying number of scoring neurons'
+        self._data['score']         = list()
+        self._data['neurons']       = list()
+        self._data['layer']         = list()
+        self._data['deltaA_rec']    = list()
+
+        self._data['Copt_rec']      = list()
+        ''' 
+        Correlation between the optimized activation as a 
+        one-dimensional array with the length the number of iterations.
+        '''
+
+        self._data['Copt_rec_var']  = list()
+        self._data['Crec_rec']      = list()
+        self._data['Crec_rec_var']  = list()
+        self._data['num_gens']      = list()
 
     @property
     def _logger_type(self) -> Type[Logger]:
@@ -480,6 +496,11 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         self._data['deltaA_rec']  .append(deltaA_rec)
         self._data['Copt_rec']  .append(Copt_rec)
         self._data['Copt_rec_var']  .append(Copt_rec_var)
+        self._data['Crec_rec']  .append(Crec_rec)
+        self._data['Crec_rec_var']  .append(Crec_rec_var)
+        
+        self._data['Copt_rec']  .append(Copt_rec)
+        self._data['Copt_rec_var']  .append(Copt_rec_var)
         self._data['Crec_rec']  .append(Copt_rec)
         self._data['Crec_rec_var']  .append(Copt_rec_var)
         
@@ -504,14 +525,28 @@ class NeuronScoreMultiExperiment(MultiExperiment):
         
         #extract data from multiexp_data as numpy arrays
         data = {
-            'scores'  : np.concatenate(multiexp_data['score']),
-            'neurons' : np.stack(multiexp_data['neurons'], dtype=np.int32),
             'layers'  : np.stack([extract_layer(el) for el in multiexp_data['layer']]),
-            'num_gens': np.stack(multiexp_data['num_gens'], dtype=np.int32)
+            'neurons' : np.stack(multiexp_data['neurons'], dtype=np.int32),
+            'num_gens': np.stack(multiexp_data['num_gens'], dtype=np.int32),
+            'scores'  : np.concatenate(multiexp_data['score'])    
         }
+
 
         
         #extract recording-related data 
+        unique_keys = list(set().union(*[d.keys() for d in multiexp_data['deltaA_rec']]))
+        for K in multiexp_data.keys():
+            if '_rec' in K:
+                prefix = 'Δrec_' if K=='deltaA_rec' else K
+                rec_delta_dict = {prefix+key: np.full(len(multiexp_data[K]), 
+                                np.nan, dtype=np.float32) for key in unique_keys}
+
+                for i, d in enumerate(multiexp_data[K]):
+                    for uk in unique_keys:
+                        if uk in d.keys():
+                            rec_delta_dict[prefix+uk][i] = d[uk]
+                #unify all data into a single dictionary
+                data.update(rec_delta_dict)
         #unique_keys are the unique sessions present in the dicts of multiexp_data rec-related data
         unique_keys = list(set().union(*[d.keys() for d in multiexp_data['deltaA_rec']]))
         for K in multiexp_data.keys():
@@ -532,15 +567,20 @@ class NeuronScoreMultiExperiment(MultiExperiment):
                 data.update(rec_dict)
         
         self.out_df = pd.DataFrame(data)
+        self.out_df.to_excel(path.join(self._logger.target_dir,'mrun_df.xlsx'), index=False)
+        
 
     def _finish(self):
         self._get_multiexp_df()
         
-        plot_optimizing_units(
-            multiexp_data=self._data,
-            out_dir=self.target_dir,
-            logger=self._logger
-        )
+        multiexp_lineplot(self.out_df, gr_vars= ['layers', 'neurons'], out_dir=self._logger.target_dir,
+                      y_var = 'scores', metrics = ['mean', 'sem'],logger=self._logger, display_plots = False)
+        
+        for c in self.out_df.columns:
+            if 'rec' in c:    
+                multiexp_lineplot(self.out_df, gr_vars= ['layers', 'neurons'], out_dir=self._logger.target_dir,
+                            y_var = c, metrics = ['mean', 'sem'],logger=self._logger, display_plots = False)
+        
         super()._finish()
 
 

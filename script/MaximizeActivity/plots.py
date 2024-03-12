@@ -1,5 +1,5 @@
 from os import path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, cast
 from collections import defaultdict
 from matplotlib.axes import Axes
 from pandas import DataFrame
@@ -451,9 +451,12 @@ def plot_optimizing_units(
         
         
 def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None, 
+                      out_dir: str | None = None,
                       gr_vars: str|list[str] = ['layers', 'neurons'], 
                       y_var: str = 'scores', 
-                      metrics: str|list[str] = ['mean', 'sem']):
+                      metrics: str|list[str] = ['mean', 'sem'],
+                      display_plots: bool = False,
+                      logger: Logger | None = None):
     
     """Plot the final trend of a specific metric 
     across different population size of different layers.
@@ -469,6 +472,8 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
     :param metrics: metrics you are interested to plot, defaults to ['mean', 'sem']
     :type metrics: str | list[str], optional
     """
+    # Default logger
+    logger = default(logger, MutedLogger())
     
     set_default_matplotlib_params(shape='rect_wide')
     # Define custom color palette with as many colors as layers
@@ -484,6 +489,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
     #if an axis is not defined create a new one
     if not(ax):
         fig, ax = plt.subplots(1)
+    ax = cast(Axes, ax)
     #for each layer, plot the lineplot of interest
     for i,l in enumerate(layers): 
         layer = result.loc[l]
@@ -491,11 +497,20 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
             ax.errorbar(layer.index.get_level_values('neurons'), layer[(y_var, 'mean')],
                 yerr=layer[(y_var, 'sem')], label=l, color = colors[i])
             #TODO: think to other metrics to plot
-            
+      
     ax.set_xlabel('Neurons')
+    ax.set_xscale('log')
     ax.set_ylabel(y_var.capitalize())
     ax.legend()
-    customize_axes_bounds(ax)
+    #customize_axes_bounds(ax)
+    # Save or display  
+    if out_dir:
+        fn = 'multiexp_'+y_var+'.png'
+        out_fp = path.join(out_dir, fn)
+        logger.info(f'Saving '+fn+' to {out_fp}')
+        fig.savefig(out_fp, bbox_inches="tight")
+    if display_plots:
+        plt.show()
     
     # Show plot
     plt.show()

@@ -131,11 +131,12 @@ def parse_layer_target_units(
                 # selected from the intervals of interest. len(shape) is indicated
                 # to get the output of the appropriate size (in case of conv layers) (correct?)
                 neurons = tuple(
-                    np.random.randint(*[
+                    np.random.choice(*[
                             [int(tmp.split(':')[axis]) for tmp in codes.strip('[]').split(' ')]
                             for axis in (0, 1)
                         ],
                         size=(int(size), len(shape)),
+                        replace=False,
                     ).T
                 )
                 
@@ -145,14 +146,23 @@ def parse_layer_target_units(
             try:
                 #same as case 5, but you ignore the codes (i.e. intervals)
                 size, _ = units.split('r')
+                size = int(size)
                 
-                neurons = tuple(
-                        np.random.randint(
-                            low=0,
-                            high=shape,
-                            size=(int(size), len(shape)),
-                        ).T
-                    )
+                
+                neurons = set()
+                
+                while len(neurons) < size:
+                    neurons |= {tuple(n) for n in
+                            np.random.randint(
+                                low=0,
+                                high=shape, 
+                                size=(size, len(shape)), 
+                            )
+                    }
+                
+                neurons = list(neurons)[:size]
+                neurons = tuple(np.array(neurons).T)
+                    
             except Exception as e:
                 raise SyntaxError(f'Error while parsing full random format. Provided command was {units}. Exception was: {e}')
             
@@ -194,7 +204,7 @@ def parse_scoring_units(
         input_str: str, 
         net_info: Dict[str, Tuple[int, ...]],
         rec_neurons: Dict[str, TargetUnit]
-    ) ->tuple[dict[str, List[int]], dict[str, list[int] | None]]: #Dict[str, List[int]]
+    ) ->tuple[dict[str, List[int]], dict[str, list[int]|None]]: #Dict[str, List[int]]
     '''
     Converts a input string indicating the scoring units associated to each layer
     to a dictionary mapping layer name to a one-dimensional array of activations indexes
@@ -256,16 +266,15 @@ def parse_scoring_units(
             
             #target_dict[layer_name] will contain the indexes of the recording units 
             # to score from in the layer layer_name
-            target_dict[layer_name] = list(np.random.randint(0, high=rec_units, size=rnd_units, dtype=int))
-
-            
+            target_dict[layer_name] = list(np.random.choice(np.arange(0,rec_units), size=rnd_units, replace=False))
+                        
         #not_target_dict contains for each layer all the neurons that were recorded,
         #but not scored
         not_target_dict = {k: list(set(v.values()) - set(target_dict[k])) 
                            if k in target_dict.keys() else list(v.values())
                            for k, v in rec_to_i.items()}
         
-        not_target_dict = {k: v if len(v) > 0 else None for k, v in not_target_dict.items()}
+        not_target_dict = {k: v if len(v)>0 else None for k,v in not_target_dict.items()}
 
         return (target_dict, not_target_dict)
     
@@ -289,8 +298,7 @@ def parse_scoring_units(
                            if k in target_dict.keys() else list(v.values())
                            for k, v in rec_to_i.items()}
         
-        not_target_dict = {k: v if len(v) > 0 else None for k, v in not_target_dict.items()}
-        
+        not_target_dict = {k: v if len(v)>0 else None for k,v in not_target_dict.items()}
 
         return (target_dict, not_target_dict)
     
@@ -298,4 +306,21 @@ def parse_scoring_units(
         raise ValueError('Trying to score non recorded neuron')
     
     
-    
+def get_neurons_target(
+        layers:  List[int],
+        neurons: List[int],
+        n_samples: int = 1,
+        rec_both: bool = True,
+) -> Tuple[str, str, str]:
+        #flatten takes a list of lists and flattens it in one flat list
+        def flatten(lst): return [item for sublist in lst for item in sublist]
+        
+        #return the correctly written parsing strings.[:-1] is to exclude the last # from the string
+        targets = ''.join(flatten([[f'{l}={n}r[]#']*n_samples for l in layers  for n in neurons]))[:-1]
+        rec_layers = ''.join(flatten([[f'{l}=[]#']*(n_samples * len(neurons)) for l in layers ]))[:-1]
+        rand_seeds = '#'.join([str(np.random.randint(0, 100000)) for _ in range(n_samples * len(neurons) * len(layers))])
+        
+        if rec_both:
+            rec_layers = '#'.join([','.join(list(set(rec_layers.split('#'))))]*(n_samples * len(neurons) * len(layers)))
+
+        return targets, rec_layers, rand_seeds
