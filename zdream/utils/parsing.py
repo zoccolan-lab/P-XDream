@@ -212,8 +212,6 @@ def parse_recording(
         # Add neurons to output dictionary
         target_dict[layer_name] = neurons
 
-    print(target_dict)
-
     return target_dict
 
 
