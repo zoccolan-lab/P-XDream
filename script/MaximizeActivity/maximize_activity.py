@@ -592,14 +592,16 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
         self._logger.prefix = '> '
 
         # Plot neuron score scaling
-        multiexp_lineplot(
-            out_df=df, 
-            gr_vars= ['layers', 'neurons'],
-            out_dir=plots_dir,
-            y_var = 'scores',
-            metrics = ['mean', 'sem'],
-            logger=self._logger
-        )
+        sc_metrics = ['scores','scores_norm']
+        for m in sc_metrics:
+            multiexp_lineplot(
+                out_df=df, 
+                gr_vars= ['layers', 'neurons'],
+                out_dir=plots_dir,
+                y_var = m,
+                metrics = ['mean', 'sem'],
+                logger=self._logger
+            )
         
         # Plot different information varying the response variable
         for c in df.columns:
@@ -637,9 +639,12 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
             'layers'  : np.stack([extract_layer(el) for el in multiexp_data['layer']]),
             'neurons' : np.stack(multiexp_data['neurons'], dtype=np.int32),
             'iter'    : np.stack(multiexp_data['iter'], dtype=np.int32),
-            'scores'  : np.concatenate(multiexp_data['score'])    
+            'scores'  : np.concatenate(multiexp_data['score']),
+            'scores_nat': np.concatenate(multiexp_data['score_nat'])     
         }
 
+        data['scores_norm'] = data['scores']/data['scores_nat']
+        
         # Extract recording-related data 
 
         # Unique_keys referred to a 
@@ -680,11 +685,9 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
 
         non_scoring_units = {}
 
-        for layer, scoring in exp.scorer.target.items():
+        #for layer, scoring in exp.scorer.target.items():
+        for layer, rec_units in exp.subject.target.items():
         
-            # Extract the number of recorded units
-            rec_units = exp.subject.target[layer]
-
             # If not all recorded extract their length
             if rec_units:
                 recorded = rec_units[0].size  # length of the first array of the tuple
@@ -694,6 +697,11 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
                 recorded = np.prod(exp.subject.layer_info[layer])
             
             # Compute the non recorded units
+            try:
+                scoring = exp.scorer.target[layer]
+            except KeyError:
+                scoring = []
+            
             not_scoring = set(range(recorded)).difference(scoring)
 
             non_scoring_units[layer] = list(not_scoring)
