@@ -184,7 +184,7 @@ class MaxActivityScorer(Scorer):
         self._check_key_consistency(target=neurons.keys(), state=state.keys())
         
         scores = {
-            layer: self.reduction(activations[:, neurons[layer]])
+            layer: self.reduction(activations[:, neurons[layer] if neurons[layer] else slice(None)])
             for layer, activations in state.items()
             if layer in neurons
         }

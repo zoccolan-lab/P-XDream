@@ -21,7 +21,7 @@ class MiniImageNet(ImageFolder):
         self,
         root: str,
         transform: Callable[..., Tensor] = transforms.Compose([
-            transforms.Resize((256, 256)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor()
         ]),
         target_transform=None
