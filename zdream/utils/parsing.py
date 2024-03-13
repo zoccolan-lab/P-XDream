@@ -147,31 +147,33 @@ def parse_recording(
         # E) Random units from interval
         elif is_random and ':' in units:
 
-            raise NotImplementedError("Option not implemented yet. ")
-
             try:
                 
                 # Splits the number of random units from the ranges of interest
                 n_rand, ranges = units.split('r')
                 n_rand = int(n_rand)
                 
-                # Compute the ravel version (simply the product) for lower and upper bound
-                low, high = [
-                    np.ravel_multi_index(
-                        multi_index=[int(tmp.split(':')[axis]) for tmp in ranges.strip('[]').split(' ')], 
-                        dims=shape
-                    )
-                    for axis in (0, 1)
+                bounds = [
+                    [int(v) if v else None for v in tmp.split(':')] # None is to handle no full-specification
+                    for tmp in ranges.strip('[]').split(' ')
                 ]
 
-                # Unravel the sampled neurons adding low offset
-                neurons = np.unravel_index(
-                    indices=np.random.choice(
-                        a = high - low,
-                        size=n_rand,
-                        replace=False, 
-                    ) + low,
-                    shape=shape
+                # Handle all possible bound combinations in the shape
+                values = np.array(
+                    list(product(*list(starmap(range, bounds))))
+                )
+                
+                # NOTE: NumPy choice requires 1-dimensional arrays, so we
+                #       sample the indices of the units we want, hence the
+                #       need to store the values here
+                neurons = tuple(
+                    values[
+                        np.random.choice(
+                            a=len(values),
+                            size=n_rand,
+                            replace=False
+                        )
+                    ].T
                 )
                 
             except Exception as e:
