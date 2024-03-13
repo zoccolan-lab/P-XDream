@@ -108,7 +108,7 @@ def plot_scores(
         out_fp = path.join(out_dir, 'scores_trend.png')
         logger.info(f'Saving score trend plot to {out_fp}')
         fig_trend.savefig(out_fp, bbox_inches="tight")
-    else:
+    if display_plots:
         plt.show()
     
     # PLOT 2. SCORES HISTOGRAM 
@@ -378,7 +378,7 @@ def plot_optimizing_units(
     logger = default(logger, MutedLogger())
 
     # Check same gen
-    all_gen = set(multiexp_data['num_gens'])
+    all_gen = set(multiexp_data['iter'])
     if len(all_gen) > 1:
         err_msg = f'Experiments were requires to have the same number of iterations, but multiple found {all_gen}'
         raise ValueError(err_msg)
@@ -412,8 +412,6 @@ def plot_optimizing_units(
 
     # Define custom color palette with as many colors as layers
     custom_palette = sns.color_palette("husl", len(combined_data))
-    
-    
 
     for idx, (label, ys) in enumerate(combined_data.items()):
 
@@ -485,7 +483,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
     # Group by the variables in gr_vars (default :'layers' and 'neurons')
     grouped = out_df.groupby(gr_vars)
     # Calculate metrics of interest (default: mean and sem) for all groupings
-    result = grouped.agg(metrics)
+    result = grouped.agg(metrics) # type: ignore
     #if an axis is not defined create a new one
     if not(ax):
         fig, ax = plt.subplots(1)
@@ -505,12 +503,9 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
     #customize_axes_bounds(ax)
     # Save or display  
     if out_dir:
-        fn = 'multiexp_'+y_var+'.png'
+        fn = f'multiexp_{y_var}.png'
         out_fp = path.join(out_dir, fn)
-        logger.info(f'Saving '+fn+' to {out_fp}')
+        logger.info(f'Saving {fn} to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
     if display_plots:
         plt.show()
-    
-    # Show plot
-    plt.show()

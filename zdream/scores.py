@@ -145,9 +145,12 @@ class MSEScorer(Scorer):
         return scores
     
     @property
-    def target(self) -> Dict[str, RecordingUnit]:
-        # TODO
-        return self._target # type: ignore  check compatibility
+    def template(self) -> SubjectState:
+        return self._target
+    
+    @property
+    def target(self) -> Dict[str, ScoringUnit]:
+        return {k: list(range(np.prod(v.shape))) for k, v in self._target.items()}
 
     
 class MaxActivityScorer(Scorer):

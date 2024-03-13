@@ -50,7 +50,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--variant',        type=def_type(str),   help='Variant of InverseAlexGenerator to use')
     
     # Mask generator
-    parser.add_argument('--template',       type=def_type(str),   help='String of True(T) and False(F) as the basic sequence of the mask')
+    parser.add_argument('--template',       type=def_type(str),   help='String of True(T) and False(F) as the basic sequence of the mask', default='T')
     parser.add_argument('--shuffle',        type=def_type(bool),  help='If to shuffle mask template')
 
     # Subject
@@ -58,7 +58,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--rec_layers',     type=def_type(str),   help=f'Recording layers with specification\n{LAYERS_NEURONS_SPECIFICATION}')
 
     # Scorer
-    parser.add_argument('--scr_layers',     type=def_type(str),   help='Target scoring layers and neurons with specification\n{LAYERS_NEURONS_SPECIFICATION}')
+    parser.add_argument('--scr_layers',     type=def_type(str),   help=f'Target scoring layers and neurons with specification\n{LAYERS_NEURONS_SPECIFICATION}')
     parser.add_argument('--aggregation',    type=def_type(str),   help='Name of scoring aggregation function between layers')
     
     # Optimizer
@@ -74,7 +74,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--out_dir',        type=def_type(str),   help='Path to directory to save outputs', default = out_dir)
     
     # Globals
-    parser.add_argument('--iter',           type=def_type(int),   help='Number of total iterations')
+    parser.add_argument('--iter',           type=def_type(int),   help='Number of total iterations', default='2')
     parser.add_argument('--display_plots',  type=def_type(bool),  help='If to display plots')
     parser.add_argument('--random_seed',    type=def_type(int),   help='Random state for the experiment')
     parser.add_argument('--render',         type=def_type(bool),  help='If to render stimuli')

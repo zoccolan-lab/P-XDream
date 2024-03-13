@@ -8,7 +8,7 @@ import matplotlib
 import tkinter as tk
 
 
-from script.MaximizeActivity.maximize_activity import NeuronScoreMultiExperiment, MaximizeActivityExperiment
+from script.MaximizeActivity.maximize_activity import NeuronScalingMultiExperiment, LayersCorrelationMultiExperiment, MaximizeActivityExperiment
 from script.MaximizeActivity.parser import get_parser
 from zdream.experiment import MultiExperiment
 from zdream.utils.io_ import read_json
@@ -64,7 +64,7 @@ def main(args):
     n_args = list(observed_lens)[0]
     args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
     
-    mrun_experiment = NeuronScoreMultiExperiment(
+    mrun_experiment = LayersCorrelationMultiExperiment(
         experiment=MaximizeActivityExperiment,
         default_conf=json_conf,
         experiment_conf=args_conf

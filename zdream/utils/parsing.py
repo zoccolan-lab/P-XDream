@@ -219,7 +219,7 @@ def parse_scoring(
         input_str: str, 
         net_info: Dict[str, Tuple[int, ...]],
         rec_info: Dict[str, RecordingUnit]
-    ) -> Tuple[Dict[str, ScoringUnit], Dict[str, ScoringUnit | None]]: 
+    ) -> Dict[str, ScoringUnit]: 
     '''
     Converts an input string indicating the scoring units associated to each layer
     to a dictionary mapping layer name to a one-dimensional array of activations indexes
@@ -294,7 +294,7 @@ def parse_scoring(
                     replace=False
                 )
             )
-
+    
     else: 
     
         # In the deterministic case we use the same parsing as for the recording one
@@ -342,31 +342,8 @@ def parse_scoring(
             
         except KeyError as e:
             raise ValueError('Trying to score non recorded neuron')
-            
-    # Compute the recorded but not scored units
-    not_scoring = {}
 
-    for layer, units in scoring.items():
-
-        # Extract the number of recorded units
-        rec_units = rec_info[layer]
-
-        # If not all recorded extract their length
-        if rec_units:
-            recorded = rec_units[0].size  # length of the first array of the tuple
-        
-        # If all recorded is the total number of neuron
-        else:
-            recorded = np.prod(net_info[layer])
-        
-        # Compute the non recorded units
-        not_recorded = set(range(recorded)).difference(scoring[layer])
-
-        # Add non recorded if any, None otherwise
-        not_scoring[layer] = not_recorded if not_recorded else None
-    
-
-    return scoring, not_scoring
+    return scoring
         
     
 # TODO not here
