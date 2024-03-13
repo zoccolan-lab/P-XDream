@@ -18,7 +18,7 @@ from .logger import Logger, MutedLogger
 from .generator import Generator
 from .utils.model import Codes, DisplayScreen, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
-from .scores import Scorer
+from .scorer import Scorer
 from .subject import InSilicoSubject
 from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
 

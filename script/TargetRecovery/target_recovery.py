@@ -15,7 +15,7 @@ from zdream.utils.model import DisplayScreen, MaskGenerator, Message, RecordingU
 from zdream.utils.model import SubjectState
 from zdream.utils.misc import device
 
-from zdream.scores import MSEScorer, Scorer
+from zdream.scorer import MSEScorer, Scorer
 from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.subject import InSilicoSubject

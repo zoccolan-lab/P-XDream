@@ -7,7 +7,7 @@ from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.probe import RecordingProbe
-from zdream.scores import MaxActivityScorer, Scorer
+from zdream.scorer import MaxActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif

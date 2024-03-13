@@ -74,7 +74,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--out_dir',        type=def_type(str),   help='Path to directory to save outputs', default = out_dir)
     
     # Globals
-    parser.add_argument('--iter',           type=def_type(int),   help='Number of total iterations', default='2')
+    parser.add_argument('--iter',           type=def_type(int),   help='Number of total iterations')
     parser.add_argument('--display_plots',  type=def_type(bool),  help='If to display plots')
     parser.add_argument('--random_seed',    type=def_type(int),   help='Random state for the experiment')
     parser.add_argument('--render',         type=def_type(bool),  help='If to render stimuli')

@@ -9,7 +9,7 @@ from itertools import combinations
 from zdream.utils.model import SubjectState
 
 from zdream.utils.model import Message
-from zdream.scores import MSEScorer, WeightedPairSimilarityScorer, MaxActivityScorer
+from zdream.scorer import MSEScorer, WeightedPairSimilarityScorer, MaxActivityScorer
 
 class MSEScorerTest(unittest.TestCase):
     
