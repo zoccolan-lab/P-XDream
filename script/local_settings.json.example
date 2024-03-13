@@ -3,5 +3,6 @@
     "mini_inet": "path/to/your/root",
     "out_dir": "path/to/output/directory",
     "test_image": "path/to/your/image",
-    "maximize_activity_config": "path/to/your/config_file/maximize_activity"
+    "maximize_activity_config": "path/to/your/config_file/maximize_activity",
+    "target_recovery_config": "path/to/your/config_file/target_recovery"
 }

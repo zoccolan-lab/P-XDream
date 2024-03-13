@@ -1,0 +1,26 @@
+{
+    "config": "",
+    "scorer": {
+        "img_path": ""
+    },
+    "generator": {
+        "weights": "",
+        "variant": "fc8"
+    },
+    "optimizer": {
+        "pop_size": 20,
+        "mutation_rate": 0.3,
+        "mutation_size": 0.3,
+        "num_parents": 3,
+        "temperature": 1.0,
+        "random_distr": "normal"
+    },
+    "logger": {
+        "out_dir": "",
+        "name": "experiment",
+        "version": 0
+    },
+    "iter": 100,
+    "random_seed": 123,
+    "render": true
+}

@@ -132,17 +132,18 @@ class MSEScorer(Scorer):
         # Check for layer name consistency
         self._check_key_consistency(target=target.keys(), state=state.keys())
         
-        def mse(a : NDArray, b : NDArray) -> NDArray:
-            a = rearrange(a, 'b ... -> b (...)')
-            b = rearrange(b, 'b ... -> b (...)')
-            return np.mean(np.square(a - b), axis=1).astype(np.float32)
-        
         scores = {
-            layer: -mse(state[layer], target[layer]) for layer in state.keys()
+            layer: - self.mse(state[layer], target[layer]) for layer in state.keys()
             if layer in target
         }
                 
         return scores
+    
+    @staticmethod
+    def mse(a : NDArray, b : NDArray) -> NDArray:
+            a = rearrange(a, 'b ... -> b (...)')
+            b = rearrange(b, 'b ... -> b (...)')
+            return np.mean(np.square(a - b), axis=1).astype(np.float32)
     
     @property
     def template(self) -> SubjectState:
