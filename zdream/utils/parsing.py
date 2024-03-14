@@ -19,6 +19,16 @@ def parse_boolean_string(boolean_str: str) -> List[bool]:
 
     return[char_to_bool(ch=ch) for ch in boolean_str]
 
+def parse_signature(
+    input_str : str,
+) -> Dict[str, float]:
+    '''
+    Converts and input string indicating the signature for the
+    WeightedPairSimilarityScorer into the appropriate type
+    (a dictionary mapping layer-name-string to floats).
+    '''
+    
+    raise NotImplementedError()
 
 def parse_recording(
         input_str: str,

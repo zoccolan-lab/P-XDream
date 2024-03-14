@@ -5,4 +5,5 @@
     "test_image": "path/to/your/image",
     "maximize_activity_config": "path/to/your/config_file/maximize_activity",
     "target_recovery_config": "path/to/your/config_file/target_recovery"
+    "adversarial_attack_config": "path/to/your/config_file/adversarial_attack"
 }

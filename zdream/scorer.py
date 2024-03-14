@@ -36,6 +36,8 @@ class Scorer(ABC):
     '''
     Abstract class for computing subject scores.
     '''
+    
+    name = 'Scorer'
 
     def __init__(
         self,
@@ -75,7 +77,15 @@ class Scorer(ABC):
     @abstractmethod
     def target(self) -> Dict[str, ScoringUnit]:
         pass
+    
+    def __str__(self) -> str:
         
+        dims = ", ".join([f"{k}: {len(v)} units" for k, v in self.target.items()])
+        
+        return f'{self.name}[target size: ({dims})]'
+    
+    def __repr__(self) -> str: return str(self)
+
     @property
     def optimizing_units(self) -> int:
         ''' How many units involved in optimization '''
@@ -90,6 +100,8 @@ class MSEScorer(Scorer):
         across one or multiple layers can be set.
         The scoring function is the MSE with the target.
     '''
+    
+    name = 'MSEScorer'
     
     def __init__(
         self,
@@ -119,15 +131,6 @@ class MSEScorer(Scorer):
             aggregate=aggregate,    
         )
         
-    def __str__(self) -> str:
-        
-        dims = ", ".join([f"{k}: {v.shape}" for k, v in self._target.items()])
-        
-        return f'MSEScorer[target size: ({dims})]'
-    
-    def __repr__(self) -> str: return str(self)
-
-        
     def _score(self, state: SubjectState, target: SubjectState) -> Dict[str, StimuliScore]:
         # Check for layer name consistency
         self._check_key_consistency(target=target.keys(), state=state.keys())
@@ -156,6 +159,8 @@ class MSEScorer(Scorer):
     
 class MaxActivityScorer(Scorer):
     
+    name = 'MaximizeActivityScorer'
+    
     def __init__(
             self, 
             trg_neurons: Dict[str, ScoringUnit], 
@@ -171,15 +176,7 @@ class MaxActivityScorer(Scorer):
                 
         super().__init__(criterion, aggregate)
         
-    def __str__(self) -> str:
-        
-        dims = ", ".join([f"{k}: {len(v)} units" for k, v in self.target.items()])
-        
-        return f'MaximizeActivityScorer[target neurons: ({dims})]'
-    
-    def __repr__(self) -> str: return str(self)
-        
-    def _combine(self, state: SubjectState, neurons: Dict[str, List[int]]) -> Dict[str, StimuliScore]:
+    def _combine(self, state: SubjectState, neurons: Dict[str, ScoringUnit]) -> Dict[str, StimuliScore]:
         
         self._check_key_consistency(target=neurons.keys(), state=state.keys())
         
@@ -203,11 +200,14 @@ class WeightedPairSimilarityScorer(Scorer):
     between groups of subject states. Weights can either be positive
     or negative. Groups are defined via a grouping function. 
     '''
+    
+    name = 'WeightedPairSimilarityScorer'
 
     # TODO: We are considering all recorded neurons
     def __init__(
         self,
         signature : Dict[str, float],
+        trg_neurons: Dict[str, ScoringUnit], 
         metric : _MetricKind = 'euclidean',
         filter_distance_fn : Callable[[NDArray], NDArray] | None = None,
     ) -> None: 
@@ -252,10 +252,16 @@ class WeightedPairSimilarityScorer(Scorer):
         # If similarity function is not given use euclidean distance as default
         self._metric = partial(pdist, metric=metric)
         
-        criterion = partial(self._score, filter_distance_fn=filter_distance_fn)
+        criterion = partial(
+            self._score,
+            filter_distance_fn=filter_distance_fn,
+            neuron_targets=trg_neurons,   
+        )
         aggregate = partial(self._dprod, signature=signature)
         
         self._signature = signature
+        
+        self._trg_neurons = trg_neurons
 
         super().__init__(
             criterion=criterion,
@@ -267,8 +273,6 @@ class WeightedPairSimilarityScorer(Scorer):
         weights = ", ".join([f"{k}: {v}" for k, v in self._signature.items()])
         
         return f'WeightedPairSimilarityScorer[metric: {self._metric}; target size: ({weights})]'
-        
-    def __repr__(self) -> str: return str(self)
 
     @property
     def optimizing_units(self) -> int:
@@ -278,10 +282,14 @@ class WeightedPairSimilarityScorer(Scorer):
     def _score(
         self,
         state : SubjectState,
-        filter_distance_fn : Callable[[NDArray], NDArray]
+        filter_distance_fn : Callable[[NDArray], NDArray],
+        neuron_targets : Dict[str, ScoringUnit],
     ) -> Dict[str, NDArray]:
         scores = {
-            k: -self._metric(v) for k, v in state.items()
+            layer: -self._metric(
+                activations[:, neuron_targets[layer] if neuron_targets[layer] else slice(None)]
+            ) for layer, activations in state.items()
+            if layer in neuron_targets
         }
         
         scores = {
@@ -299,4 +307,8 @@ class WeightedPairSimilarityScorer(Scorer):
             )
         )
         
+    @property
+    def target(self) -> Dict[str, ScoringUnit]:
+        ''' How many units involved in optimization '''
+        return self._trg_neurons
 
