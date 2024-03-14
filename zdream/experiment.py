@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import tkinter
 from typing import Any, Dict, List, Tuple, Type
 
+from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
@@ -746,9 +747,9 @@ class MultiExperiment:
         Run the actual multi-run by executing all experiments in 
         the provided configurations.
         '''
-
+        plt.ioff()
         for i, conf in enumerate(self._search_config):
-            
+            conf["display_plots"] = False
             self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
             
             exp = self._Exp.from_config(conf=conf)
