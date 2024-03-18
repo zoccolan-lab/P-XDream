@@ -234,16 +234,6 @@ class DSCluster:
             )
             for lbl in aff_mat.labels
         ]
-        
-class A:
-    my_list = [1, 2, 3]
-
-    def __iter__(self):
-        return iter(A.my_list)
-
-    @property
-    def foo(self):
-        return [i * 2 for i in self]
 
 class DSClusters:
     '''
@@ -491,7 +481,7 @@ class DSClustering:
 
                 # Compute coherence 
                 # W_S = \sum_{i \in S} w_S(i)
-                w: float = np.sum(x)
+                w: np.float32 = np.sum(x)
             
                 # Normalize the distribution
                 x = x / w
@@ -570,3 +560,4 @@ class DSClustering:
         if self._min_elements == 1:
             for singleton in DSCluster.extract_singletons(aff_mat=aff_mat):
                 self._clusters.add(cluster=singleton)
+                
