@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from copy import copy
 from dataclasses import dataclass
-from typing import List, Tuple, cast
+from os import path
+from statistics import mean
+from typing import Any, Counter, Dict, Iterable, List, Tuple, cast
 import numpy as np
 from numpy.typing import NDArray
 
 from zdream.logger import Logger, MutedLogger
+from zdream.utils.io_ import read_json, save_json
 from zdream.utils.misc import default
 
 Label  = np.int32 | np.str_
@@ -165,16 +168,20 @@ class DSCluster:
         '''
         
         label : Label
-        rank  : float
+        rank  : np.float32
         
         def __str__ (self) -> str: return f'({self.label}, {self.rank})'
         def __repr__(self) -> str: return str(self)
+        
+        @property
+        def info(self) -> Tuple[Label, np.float32]: 
+            return self.label, self.rank
         
     def __init__(
         self, 
         labels: Labels, 
         ranks: NDArray[np.float32],
-        w: float
+        w: np.float32
     ):
         '''
         Instantiate a new cluster 
@@ -184,7 +191,7 @@ class DSCluster:
         :param ranks: Cluster object ranks.
         :type ranks: NDArray[np.float32]
         :param w: Cluster coherence score.
-        :type w: float
+        :type w: np.float32
         '''
         
         self._w       = w
@@ -192,9 +199,10 @@ class DSCluster:
         
     # --- MAGIC METHODS ---
     
-    def __str__ (self) -> str: return f'DSCluster[objects: {len(self)}, coherence: {self.W}]'
-    def __repr__(self) -> str: return str(self)
-    def __len__ (self) -> int: return len(self._objects)
+    def __str__ (self) -> str:                return f'DSCluster[objects: {len(self)}, coherence: {self.W}]'
+    def __repr__(self) -> str:                return str(self)
+    def __len__ (self) -> int:                return len (self.objects)
+    def __iter__(self) -> Iterable[DSObject]: return iter(self.objects)
     
     # --- PROPERTIES ---
     
@@ -222,10 +230,148 @@ class DSCluster:
             DSCluster(
                 labels = np.array([lbl]), 
                 ranks  = np.array([1.]),
-                w = 1.
+                w      = np.float32(1.)
             )
             for lbl in aff_mat.labels
         ]
+        
+class A:
+    my_list = [1, 2, 3]
+
+    def __iter__(self):
+        return iter(A.my_list)
+
+    @property
+    def foo(self):
+        return [i * 2 for i in self]
+
+class DSClusters:
+    '''
+    Class for manipulating a set of `DSCluster` objects
+    extracted from the same learning algorithm.
+    
+    The class compute some statistics on clusters and 
+    allow to dump them to file.
+    '''
+    
+    def __init__(self) -> None:
+        '''
+        Create an empty set of clusters
+        '''
+        
+        self.empty()
+
+    
+    # --- MAGIC METHODS ---   
+    
+    def __str__ (self) -> str:                 return   f'DSClusters[n-clusters: {len(self)}, '\
+                                                        f'avg per cluster: {round(self.avg_count, 3)}]'
+    def __repr__(self) -> str:                 return str(self)
+    def __len__ (self) -> int:                 return len (self.clusters)
+    def __iter__(self) -> Iterable[DSCluster]: return iter(self.clusters)
+    
+    # --- PROPERTIES ---
+    
+    @property
+    def clusters(self) -> List[DSCluster]: return self._clusters
+    
+    @property
+    def clusters_counts(self) -> Dict[int, int]:
+        '''
+        Return a dictionary mapping the cluster cardinality
+        to the number of clusters with that number of elements
+
+        :return: Cluster cardinality mapping.
+        :rtype: Dict[int, int]
+        '''
+        
+        lens = [len(cluster) for cluster in self] # type: ignore
+        return dict(Counter(lens))
+    
+    @property
+    def avg_count(self) -> float:
+        '''
+        Return the average number of elements in 
+        the cluster collection
+
+        :return: Cluster cardinality mapping.
+        :rtype: Dict[int, int]
+        '''
+        
+        return mean([elements * count for elements, count in self.clusters_counts.items()])
+    
+    # --- UTILITIES ---
+    
+    def empty(self):
+        '''
+        Empty the set of clusters
+        '''
+        
+        self._clusters: List[DSCluster] = []
+        
+    def add(self, cluster: DSCluster):
+        '''
+        Add a new cluster to the connection
+        '''
+        
+        self._clusters.append(cluster)
+        
+    def dump(self, out_fp: str, logger: Logger | None = None):
+        '''
+        Store cluster information to file as a .JSON file
+
+        :param out_fp: Output file path where to save clustering information
+        :type out_fp: str
+        :param logger: Logger to log i/o operation. If not given MutedLogger is set.
+        :type logger: Logger | None, optional
+        '''
+        
+        def obj_to_dict(obj: DSCluster.DSObject) -> Dict[str, Any]:
+            return {
+                'label': obj.label.tolist(),
+                'rank' : obj. rank.tolist()
+            }
+        
+        logger = default(logger, MutedLogger())
+        
+        out_dict = {
+            f'DS_{i}': {
+                'objects': [obj_to_dict(obj) for obj in cluster],
+                "W": cluster.W.tolist()
+            }
+            for i, cluster in enumerate(self) # type: ignore
+        } 
+        
+        fp = path.join(out_fp, 'DSClusters.json')
+        logger.info(f'Saving clusters info to {fp}')
+        save_json(data=out_dict, path=fp)
+        
+    @classmethod
+    def from_file(cls, fp: str) -> DSClusters:
+        '''
+        Load a DSCluster state from JSON file
+
+        :param fp: File path to .JSON file where DSClusters information is stored.
+        :type fp: str
+        :return: Loaded clusters object.
+        :rtype: DSClusters
+        '''
+        
+        data = read_json(path=fp)
+        
+        clusters = DSClusters()
+        
+        for cluster in data.values():
+            
+            clusters.add(
+                cluster = DSCluster(
+                    labels = np.array([obj['label'] for obj in cluster['objects']]),
+                    ranks  = np.array([obj['rank' ] for obj in cluster['objects']]),
+                    w      = np.float32(cluster['W'])
+                )
+            )
+            
+        return clusters
     
     
 class DSClustering:
@@ -273,7 +419,7 @@ class DSClustering:
         self._logger = default(logger, MutedLogger())
         
         # Clusters
-        self._clusters: List[DSCluster] = []
+        self._clusters: DSClusters = DSClusters()
         
     # --- MAGIC METHODS ---
     
@@ -288,7 +434,7 @@ class DSClustering:
     # --- PROPERTIES ---
     
     @property
-    def clusters(self) -> List[DSCluster]:
+    def clusters(self) -> DSClusters:
         '''
         Returns clusters found by DS algorithm.
         It raises an error if not computed yet.
@@ -307,7 +453,7 @@ class DSClustering:
             x: NDArray | None = None,
             max_iter: int   = 1000,
             eps:  float = 1e-8
-        ) -> Tuple[NDArray, float, bool]:
+        ) -> Tuple[NDArray, np.float32, bool]:
             '''
             Perform one-step replicator dynamics on the given affinity matrix.
 
@@ -373,7 +519,7 @@ class DSClustering:
 
         # NOTE: If the algorithm was already run, 
         #       all previous results are lost.
-        self._clusters: List[DSCluster] = []
+        self._clusters.empty()
 
         # Repeat until affinity matrix has positive sum of similarities
         # TODO: Check why is this condition
@@ -405,7 +551,7 @@ class DSClustering:
             
             # Add the cluster if it satisfies the minimum element constraint
             if len(ds_cluster) >= self._min_elements:
-                self._clusters.append(ds_cluster)
+                self._clusters.add(cluster=ds_cluster)
                 
             # Warn if the extracted cluster was not added because of minimum
             # element constraint
@@ -422,4 +568,5 @@ class DSClustering:
         # In the case the minimum number of elements in a cluster is zero 
         # Add all remaining objects as singleton clusters
         if self._min_elements == 1:
-            self._clusters.extend(DSCluster.extract_singletons(aff_mat=aff_mat))
+            for singleton in DSCluster.extract_singletons(aff_mat=aff_mat):
+                self._clusters.add(cluster=singleton)
