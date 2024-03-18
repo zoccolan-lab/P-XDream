@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass
 from typing import List, Tuple, cast
 import numpy as np
@@ -21,7 +22,7 @@ class AffinityMatrix:
     def __init__(self, aff_mat: NDArray, labels: Labels | None = None) -> None:
         '''
         Instantiate a new object with affinity matrix
-        It performs sanity check for shape and dimension
+        It performs sanity check for shape and values
 
         :param aff_mat: Affinity matrix.
         :type aff_mat: NDArray
@@ -30,19 +31,37 @@ class AffinityMatrix:
         :type labels: Labels
         '''
         
-        # Sanity checks for square affinity matrix
+        # Sanity checks
+        
+        # A) Shape check
         if len(aff_mat.shape) != 2 or aff_mat.shape[0] != aff_mat.shape[1]:
-            err_msg = f'Affinity Matrix is supposed to be square, but {aff_mat.shape} shape found.'
+            err_msg = f'The affinity matrix is supposed to be square, but {aff_mat.shape} shape found.'
             raise ValueError(err_msg)
         
+        # B) Symmetric check
+        if not np.array_equal(aff_mat, aff_mat.T):
+            err_msg = f'The affinity matrix it\'s not symmetric.'
+            raise ValueError(err_msg)
+        
+        # C) Zero diagonal check
+        if np.any(np.diag(aff_mat) != 0):
+            err_msg = f'The affinity matrix diagonal contains non-zero values.'
+            raise ValueError(err_msg)
+            
+        # D) Positive similarities 
+        if np.any(aff_mat < 0):
+            err_msg = f'The affinity matrix contains negative similarities.'
+            raise ValueError(err_msg)
+        
+        # Save matrix and labels
         self._aff_mat: NDArray = aff_mat
         self._labels : Labels  = default(labels, np.array(list(range(len(self)))))
     
     # --- MAGIC METHODS ---
     
-    def __len__ (self) -> int:              return self.shape[0]
-    def __str__ (self) -> str:              return f'AffinityMatrix[objects: {len(self)}]'
-    def __repr__(self) -> str:              return str(self)
+    def __len__ (self) -> int: return self.shape[0]
+    def __str__ (self) -> str: return f'AffinityMatrix[objects: {len(self)}]'
+    def __repr__(self) -> str: return str(self)
     
     def __copy__(self) -> 'AffinityMatrix': 
         return AffinityMatrix(
@@ -59,7 +78,7 @@ class AffinityMatrix:
     def labels(self) -> Labels: return self._labels
     
     @property
-    def shape(self)  -> Tuple[int, ...]: return self.aff_mat.shape
+    def shape(self) -> Tuple[int, ...]: return self.aff_mat.shape
     
     # --- UTILITIES ---
         
@@ -82,7 +101,7 @@ class AffinityMatrix:
             
         # Subset columns and rows
         new_mat = np.delete(self._aff_mat, ids, axis=0)
-        new_mat = np.delete(  new_mat, ids, axis=1)
+        new_mat = np.delete(      new_mat, ids, axis=1)
         
         # Return new instance if not inplace operation
         if not inplace:
@@ -119,8 +138,12 @@ class AffinityMatrix:
         :return: Random affinity matrix.
         '''
         
-        rand_aff_mat = np.random.uniform(low, high, size=(size, size))
-        np.fill_diagonal(rand_aff_mat, 1)  # 1-diagonal
+        # NOTE: In the case the user specifies a negative lower bound
+        #       it cannot be compliant with positive pairwise similarities constraint
+        
+        rand_aff_mat = np.random.uniform(low, high, size=(size, size)) # square matrix
+        rand_aff_mat = (rand_aff_mat +  rand_aff_mat.T) / 2            # symmetric
+        np.fill_diagonal(rand_aff_mat, 0)                              # 0-diagonal
         
         return AffinityMatrix(aff_mat=rand_aff_mat)
     
@@ -136,21 +159,22 @@ class DSCluster:
     class DSObject:
         '''
         Subclass representing an object inside the DS cluster
-        with two attributes: the label identifying the object
-        and the rank inside the cluster.
+        with two attributes: 
+        - the label identifying the object
+        - the rank inside the cluster.
         '''
         
         label : Label
         rank  : float
         
-        def __str__(self)  -> str: return f'({self.label}, {self.rank})'
+        def __str__ (self) -> str: return f'({self.label}, {self.rank})'
         def __repr__(self) -> str: return str(self)
         
     def __init__(
         self, 
         labels: Labels, 
         ranks: NDArray[np.float32],
-        coherence: float
+        w: float
     ):
         '''
         Instantiate a new cluster 
@@ -159,11 +183,11 @@ class DSCluster:
         :type labels: Labels
         :param ranks: Cluster object ranks.
         :type ranks: NDArray[np.float32]
-        :param coherence: Cluster coherence score.
-        :type coherence: float
+        :param w: Cluster coherence score.
+        :type w: float
         '''
         
-        self._W       = coherence
+        self._w       = w
         self._objects = [self.DSObject(label=label, rank=rank) for label, rank in zip(labels, ranks)]
         
     # --- MAGIC METHODS ---
@@ -175,7 +199,7 @@ class DSCluster:
     # --- PROPERTIES ---
     
     @property
-    def W(self): return self._W
+    def W(self): return self._w
     
     @property
     def objects(self): return self._objects
@@ -192,11 +216,13 @@ class DSCluster:
         :rtype: List[DSCluster]
         '''
         
+        # NOTE: In the base case of the inductive definition
+        #       of w_S(i) the base case corresponds to 1 when |S| = 1
         return [
             DSCluster(
                 labels = np.array([lbl]), 
                 ranks  = np.array([1.]),
-                coherence = 1.
+                w = 1.
             )
             for lbl in aff_mat.labels
         ]
@@ -205,7 +231,10 @@ class DSCluster:
 class DSClustering:
     '''
     Class for performing DominantSet clustering using
-    an affinity matrix
+    an affinity matrix.
+    
+    See: Dominant Sets and Pairwise Clustering', 
+         by Massimiliano Pavan and Marcello Pelillo, PAMI 2007.
     '''
         
     def __init__(
@@ -237,8 +266,8 @@ class DSClustering:
         
         # Clustering hyperparameters
         self._min_elements = min_elements
-        self._max_iter = max_iter
-        self._eps = eps
+        self._max_iter     = max_iter
+        self._eps          = eps
         
         # Default logger
         self._logger = default(logger, MutedLogger())
@@ -249,11 +278,11 @@ class DSClustering:
     # --- MAGIC METHODS ---
     
     def __str__(self) -> str: 
-        return f'DSClustering[objects: {len(self._aff_mat)}; '\
-               f'min_elements: {self._min_elements}; '\
-               f'max_iter: {self._max_iter}; '\
-               f'eps: {self._eps}]'
-               
+        return  f'DSClustering[objects: {len(self._aff_mat)}; '\
+                f'min_elements: {self._min_elements}; '\
+                f'max_iter: {self._max_iter}; '\
+                f'eps: {self._eps}]'
+
     def __repr__(self) -> str: return str(self)
     
     # --- PROPERTIES ---
@@ -280,7 +309,7 @@ class DSClustering:
             eps:  float = 1e-8
         ) -> Tuple[NDArray, float, bool]:
             '''
-            Perform one-step replicator dynamics on the affinity matrix.
+            Perform one-step replicator dynamics on the given affinity matrix.
 
             Replicator dynamics is an algorithm used for clustering based on affinity matrix.
             It iteratively updates the distribution of cluster memberships until convergence or
@@ -311,11 +340,15 @@ class DSClustering:
                 x_old = np.copy(x)  
 
                 # Promote cluster membership with higher payoffs
+                # x = x' A x
                 x = x * aff_mat.dot(x)
 
-                # Compute coherence and normalize the distribution
-                coherence: float = np.sum(x)
-                x = x / coherence
+                # Compute coherence 
+                # W_S = \sum_{i \in S} w_S(i)
+                w: float = np.sum(x)
+            
+                # Normalize the distribution
+                x = x / w
 
                 # Compute the change in distribution with previous iterations
                 dist = np.sqrt(np.sum((x - x_old) ** 2))
@@ -326,68 +359,67 @@ class DSClustering:
             # Convergence flag
             converged = iter < max_iter
                 
-            return x, coherence, converged
+            return x, w, converged
     
     def run(self):
         '''
-        Run DS clustering algorithm with object parameters
+        Run DS clustering algorithm with specified class hyper-parameters
         '''
         
-        # Copy the object matrix
         # NOTE: The matrix is subject to subsetting during the
-        #       clustering algorithm so we simply 
-        aff_mat = self._aff_mat.__copy__()
+        #       clustering algorithm so we use a copy to prevent
+        #       the original one from modifications
+        aff_mat = copy(self._aff_mat)
 
-        # NOTE: If the algorithm was already run, the previous 
-        #       results are lost.
+        # NOTE: If the algorithm was already run, 
+        #       all previous results are lost.
         self._clusters: List[DSCluster] = []
 
-        # Repeat until affinity matrix has positive similarities
+        # Repeat until affinity matrix has positive sum of similarities
+        # TODO: Check why is this condition
+        
+        iter = 1  # only used for logging
+    
         while np.sum(aff_mat.aff_mat) > 0:
 
             # Perform 1-step of replicator dynamics
-            x, coherence, converged = DSClustering._replicator_dynamics(
+            x, w, converged = DSClustering._replicator_dynamics(
                 aff_mat=aff_mat, 
                 max_iter=self._max_iter
             )
             
             # Warning if it didn't converge
             if not converged:
-                wrn_msg = f'Cluster {len(self._clusters)+1} didn\'t converge in {self._max_iter} iterations. '
+                wrn_msg = f'Cluster {iter} didn\'t converge in {self._max_iter} iterations. '
                 self._logger.warn(wrn_msg)
             
-            # Extract dominant set indexes
-            ids: NDArray[np.int32] = np.where(x >= self._eps)[0]
+            # Extract the cluster as vector support
+            support: NDArray[np.int32] = np.where(x >= self._eps)[0]
 
             # Create the extracted cluster
             ds_cluster = DSCluster(
-                labels=aff_mat.labels[ids],
-                ranks=x[ids],
-                coherence=coherence
+                labels=aff_mat.labels[support],
+                ranks=x[support],
+                w=w
             )
             
             # Add the cluster if it satisfies the minimum element constraint
             if len(ds_cluster) >= self._min_elements:
                 self._clusters.append(ds_cluster)
                 
-            # Otherwise warn 
+            # Warn if the extracted cluster was not added because of minimum
+            # element constraint
             else:
-                wrn_msg = f'Cluster with {len(ds_cluster)} elements found at iteration {len(self._clusters)+1}, '\
-                          f'but it don\'t satisfy minimum number of elements requires which is {self._min_elements}.'
+                wrn_msg =   f'Cluster with {len(ds_cluster)} elements found at iteration {iter}, '\
+                            f'but it don\'t satisfy minimum number of elements requires which is {self._min_elements}.'
                 self._logger.warn(wrn_msg)
             
             # Subset affinity matrix with non clustered objects            
-            aff_mat.delete_objects(ids=ids, inplace=True)
+            aff_mat.delete_objects(ids=support, inplace=True)
+            
+            iter += 1
 
         # In the case the minimum number of elements in a cluster is zero 
         # Add all remaining objects as singleton clusters
         if self._min_elements == 1:
             self._clusters.extend(DSCluster.extract_singletons(aff_mat=aff_mat))
-
-        # In the case the minimum number of elements in a cluster is greater than zero
-        # Remove all cluster with not enough elements
-        else:
-            self._clusters = [
-                cluster for cluster in self._clusters 
-                if len(cluster) > self._min_elements
-            ]
