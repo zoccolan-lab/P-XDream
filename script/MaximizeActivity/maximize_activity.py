@@ -6,7 +6,7 @@ from zdream.experiment import Experiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
-from zdream.probe import RecordingProbe
+from zdream.probe import InfoProbe, RecordingProbe
 from zdream.scorer import MaxActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.utils.dataset import MiniImageNet, resize_images
@@ -158,7 +158,6 @@ class MaximizeActivityExperiment(Experiment):
         # --- DATA ---
         data = {
             "dataset": dataset if use_nat else None,
-            'display_plots': conf['display_plots'],
             'render': conf['render'],
             'close_screen': conf.get('close_screen', False)
         }
@@ -211,7 +210,6 @@ class MaximizeActivityExperiment(Experiment):
 
         # Extract from Data
 
-        self._display_plots = cast(bool, data['display_plots'])
         self._render        = cast(bool, data['render'])
         self._close_screen  = cast(bool, data['close_screen'])
         
@@ -261,6 +259,47 @@ class MaximizeActivityExperiment(Experiment):
         # Last seen labels
         if self._use_natural:
             self._labels: List[int] = []
+        """             
+        #mock images for receptive field mapping (both forward and backward)
+        self.nr_imgs4rf = 10
+        msg = Message(
+            mask=np.ones(self.nr_imgs4rf, dtype=bool),
+            label=[],    
+        )
+        
+
+        mock_inp = torch.randn(self.nr_imgs4rf, *self.subject._inp_shape[1:], device=self.subject.device)
+        #get the layers you are recording from. We will map the scoring neurons on each of them.
+        #we sort the target layers by their depth in ascending order
+        rec_layers =  list(self.subject._target.keys()) + ['00_input_01']
+        rec_layers = sorted(rec_layers, key=lambda x: int(x.split('_')[0]))
+        #ASSUMPTION: i am assuming that all scored units are from the same layer
+        scored_units = self.scorer._trg_neurons
+        mapped_layers = list(set(rec_layers) - set(scored_units.keys()))
+        
+        backward_target = {ml: scored_units for ml in mapped_layers}
+        # Create the InfoProbe and attach it to the subject
+        probe = InfoProbe(
+            inp_shape=self.subject._inp_shape,
+            rf_method='backward',
+            backward_target= backward_target #pensarci sopra sul tipo di backward_target
+        )
+
+        # NOTE: For backward receptive field we need to register both
+        #       the forward and backward probe hooks
+        self.subject.register(probe)
+
+        # Expose the subject to the mock input to collect the set
+        # of shapes of the underlying network
+        _ = self.subject((mock_inp, msg), raise_no_probe=False)
+
+        # Collect the receptive fields from the info probe
+        fields = probe.rec_field
+        
+        self.rf_mappings = fields
+
+        # Remove the probe from the subject
+        self.subject.remove(probe) """
 
 
     def _progress(self, i: int):
@@ -351,7 +390,6 @@ class MaximizeActivityExperiment(Experiment):
                 self.optimizer.stats_nat if self._use_natural else dict(),
             ),
             out_dir=plots_dir,
-            display_plots=self._display_plots,
             logger=self._logger
         )
 
@@ -364,7 +402,6 @@ class MaximizeActivityExperiment(Experiment):
                 lbls    = self._labels,
                 out_dir = plots_dir, 
                 dataset = self._dataset,
-                display_plots=self._display_plots,
                 logger=self._logger
             )
         self._logger.prefix=''
