@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from copy import copy
 from dataclasses import dataclass
 from os import path
@@ -8,149 +9,11 @@ from typing import Any, Counter, Dict, Iterable, List, Tuple, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from zdream.clustering.model import AffinityMatrix, Label, Labels
 from zdream.logger import Logger, MutedLogger
 from zdream.utils.io_ import read_json, save_json
 from zdream.utils.misc import default
 
-Label  = np.int32 | np.str_
-Labels = NDArray[Label]
-
-class AffinityMatrix:
-    '''
-    Class representing a 2-dimensional square affinity matrix
-    It allows to associate labels to each object and perform
-    basic operations such as copying and subsetting
-    '''
-    
-    def __init__(self, aff_mat: NDArray, labels: Labels | None = None) -> None:
-        '''
-        Instantiate a new object with affinity matrix
-        It performs sanity check for shape and values
-
-        :param aff_mat: Affinity matrix.
-        :type aff_mat: NDArray
-        :param labels: Labels associated to each object.
-                       If not given matrix indexes are used.
-        :type labels: Labels
-        '''
-        
-        # Sanity checks
-        
-        # A) Shape check
-        if len(aff_mat.shape) != 2 or aff_mat.shape[0] != aff_mat.shape[1]:
-            err_msg = f'The affinity matrix is supposed to be square, but {aff_mat.shape} shape found.'
-            raise ValueError(err_msg)
-        
-        # B) Symmetric check
-        if not np.array_equal(aff_mat, aff_mat.T):
-            err_msg = f'The affinity matrix it\'s not symmetric.'
-            raise ValueError(err_msg)
-        
-        # C) Zero diagonal check
-        if np.any(np.diag(aff_mat) != 0):
-            err_msg = f'The affinity matrix diagonal contains non-zero values.'
-            raise ValueError(err_msg)
-            
-        # D) Positive similarities 
-        if np.any(aff_mat < 0):
-            err_msg = f'The affinity matrix contains negative similarities.'
-            raise ValueError(err_msg)
-        
-        # Save matrix and labels
-        self._aff_mat: NDArray = aff_mat
-        self._labels : Labels  = default(labels, np.array(list(range(len(self)))))
-    
-    # --- MAGIC METHODS ---
-    
-    def __len__ (self) -> int: return self.shape[0]
-    def __str__ (self) -> str: return f'AffinityMatrix[objects: {len(self)}]'
-    def __repr__(self) -> str: return str(self)
-    
-    def __copy__(self) -> 'AffinityMatrix': 
-        return AffinityMatrix(
-            aff_mat = np.copy(self.aff_mat), 
-            labels  = np.copy(self.labels)
-        )
-    
-    # --- PROPERTIES ---
-        
-    @property
-    def aff_mat(self) -> NDArray: return self._aff_mat
-    
-    @property
-    def labels(self) -> Labels: return self._labels
-    
-    @property
-    def shape(self) -> Tuple[int, ...]: return self.aff_mat.shape
-    
-    # --- UTILITIES ---
-        
-    def delete_objects(self, ids: NDArray[np.int32], inplace: bool = False) -> AffinityMatrix | None:
-        '''
-        Performs a subsetting of the affinity matrix by deleting objects with specified indexes.
-        The modification can be either inplace or generate a new instance.
-
-        :param ids: Object ids to perform subsetting.
-        :type ids: NDArray[np.int32]
-        :param inplace: If to apply the subsetting to current object or if to generate 
-                        a new one, defaults to False.
-        :type inplace: bool, optional
-        :return: The subsetted matrix if the operation is not inplace, None if it is inplace.
-        :rtype: AffinityMatrix | None
-        '''
-        
-        # Subset labels
-        new_labels = np.delete(self._labels, ids)
-            
-        # Subset columns and rows
-        new_mat = np.delete(self._aff_mat, ids, axis=0)
-        new_mat = np.delete(      new_mat, ids, axis=1)
-        
-        # Return new instance if not inplace operation
-        if not inplace:
-            return AffinityMatrix(aff_mat=new_mat, labels=new_labels)
-        
-        # Update attributes of current objects
-        self._labels  = new_labels
-        self._aff_mat = new_mat
-        
-    def dot(self, arr: NDArray) -> NDArray:
-        '''
-        Perform the dot product with an input matrix
-
-        :param arr: Matrix to perform dot product.
-        :type arr: NDArray
-        :return: Matrix result of the dot product.
-        :rtype: NDArray
-        '''
-        
-        return self.aff_mat.dot(arr)
-        
-    @classmethod
-    def random(cls, size: int, low: float = 0., high: float = 1.) -> 'AffinityMatrix':
-        '''
-        Factory method to generate a random affinity matrix of a specified size within a given range.
-        The diagonal is one
-        
-        :param size: Size of the square matrix (number of rows/columns).
-        :type size: int
-        :param low: Lower bound of the random numbers (inclusive), defaults to 0.
-        :type low: float
-        :param high: Upper bound of the random numbers (exclusive), defaults to 1.
-        :type high: float
-        :return: Random affinity matrix.
-        '''
-        
-        # NOTE: In the case the user specifies a negative lower bound
-        #       it cannot be compliant with positive pairwise similarities constraint
-        
-        rand_aff_mat = np.random.uniform(low, high, size=(size, size)) # square matrix
-        rand_aff_mat = (rand_aff_mat +  rand_aff_mat.T) / 2            # symmetric
-        np.fill_diagonal(rand_aff_mat, 0)                              # 0-diagonal
-        
-        return AffinityMatrix(aff_mat=rand_aff_mat)
-    
-    
 class DSCluster:
     ''' 
     Class representing a cluster result of Dominant Set clustering
@@ -288,7 +151,7 @@ class DSClusters:
         :rtype: Dict[int, int]
         '''
         
-        return mean([elements * count for elements, count in self.clusters_counts.items()])
+        return sum([elements * count for elements, count in self.clusters_counts.items()]) / len(self)
     
     # --- UTILITIES ---
     
@@ -364,10 +227,13 @@ class DSClusters:
         return clusters
     
     
-class DSClustering:
+class DSClustering(ABC):
     '''
-    Class for performing DominantSet clustering using
-    an affinity matrix.
+    Abstract class for performing generic DominantSet clustering
+    using an affinity matrix.
+    
+    The class implements the constrained version of dominant set
+    and has a `run` abstract method to be implemented in subclasses.
     
     See: Dominant Sets and Pairwise Clustering', 
          by Massimiliano Pavan and Marcello Pelillo, PAMI 2007.
@@ -378,7 +244,8 @@ class DSClustering:
         aff_mat: AffinityMatrix,
         min_elements: int = 1,
         max_iter: int = 1000,
-        eps: float = 1e-6,
+        delta_eps: float = 1e-8,
+        zero_eps: float = 1e-12,
         logger: Logger | None = None
     ) -> None:
         '''
@@ -391,19 +258,23 @@ class DSClustering:
         :type min_elements: int, optional
         :param max_iter: Maximum number of iterations of the replicator dynamics, defaults to 1000.
         :type max_iter: int, optional
-        :param eps: Convergence threshold for the replicator dynamics, defaults to 1e-6.
-        :type eps: float, optional
+        :param delta_eps: Convergence threshold for the replicator dynamics.
+                          Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
+        :type delta_eps: float, optional
+        :param zero_eps: Approximation bound for probabilities zero flattening, defaults to 1e-12.
+        :type zero_eps: float, optional
         :param logger: Logger to log clustering progress. If not given MutedLogger is set.
         :type logger: Logger | None, optional
         '''
-        
+
         # Affinity Matrix
         self._aff_mat = aff_mat
         
         # Clustering hyperparameters
         self._min_elements = min_elements
         self._max_iter     = max_iter
-        self._eps          = eps
+        self._delta_eps    = delta_eps
+        self._zero_eps     = zero_eps
         
         # Default logger
         self._logger = default(logger, MutedLogger())
@@ -415,9 +286,7 @@ class DSClustering:
     
     def __str__(self) -> str: 
         return  f'DSClustering[objects: {len(self._aff_mat)}; '\
-                f'min_elements: {self._min_elements}; '\
-                f'max_iter: {self._max_iter}; '\
-                f'eps: {self._eps}]'
+                f'min_elements: {self._min_elements}]'
 
     def __repr__(self) -> str: return str(self)
     
@@ -440,9 +309,11 @@ class DSClustering:
     @staticmethod
     def _replicator_dynamics(
             aff_mat: AffinityMatrix,
-            x: NDArray | None = None,
-            max_iter: int   = 1000,
-            eps:  float = 1e-8
+            x: NDArray | None = None, # type: ignore
+            alpha: float = 0.,
+            max_iter: int = 1000,
+            delta_eps: float = 1e-8,
+            zero_eps: float = 1e-12,
         ) -> Tuple[NDArray, np.float32, bool]:
             '''
             Perform one-step replicator dynamics on the given affinity matrix.
@@ -451,56 +322,168 @@ class DSClustering:
             It iteratively updates the distribution of cluster memberships until convergence or
             maximum iteration limit is reached.
 
-            :param a: Affinity matrix representing the pairwise similarities between data points.
-            :param a: Initial distribution of cluster memberships. If not provided, a uniform
-                      distribution will be used.
-            :param max_iter: Maximum number of iterations. Default is 1000.
-            :param eps: Convergence threshold. The algorithm stops if the change in distribution
-                        between iterations is smaller than this value. Default is 1e-8.
+            :param aff_mat: Affinity matrix representing the pairwise similarities between data points.
+            :param aff_mat: Initial distribution of cluster memberships. If not provided, a uniform
+                            distribution will be used.
+            :param alpha: Regularization factor for spurious solutions.
+            :type alpha: float
+            :param max_iter: Maximum number of iterations of the replicator dynamics, defaults to 1000.
+            :type max_iter: int, optional
+            :param delta_eps: Convergence threshold for the replicator dynamics.
+                            Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
+            :type delta_eps: float, optional
+            :param zero_eps: Approximation bound for probabilities zero flattening, defaults to 1e-12.
+            :type zero_eps: float, optional
             :return: Tuple containing the final distribution of cluster memberships, their coherence and 
                      a boolean indicating if the process converged.
             '''
             
             # In the case initial distribution is not given use a uniform one
-            x = default(x, np.zeros(len(aff_mat)) + 1 / len(aff_mat))
+            x: NDArray = default(x, np.zeros(len(aff_mat)) + 1 / len(aff_mat))
 
             # Initialize hyperparameters
-            dist:  float = 2 * eps  # this is just for entering the first loop
-            iter:  int   = 0 
+            dist:  float = 2 * delta_eps  # this is just for entering the first loop
+            iter:  int   = 0
+            
+            # We extract the actual matrix from the object
+            # to use it's method and avoid computational overhead of
+            # class internal checks
+            a = aff_mat.aff_mat
 
             # Loop until convergence threshold
             # or until predetermined number of iterations            
-            while iter < max_iter and dist > eps:
+            while iter < max_iter and dist > delta_eps:
                 
                 # Store old distribution for convergence comparison
                 x_old = np.copy(x)  
 
                 # Promote cluster membership with higher payoffs
-                # x = x' A x
-                x = x * aff_mat.dot(x)
+                # x_i = x_i^T (Ax_i - \alpha x_i)
+                x_ = x * (a.dot(x) - alpha * x)
+                
+                # Compute cluster coherency
+                #w = (x * a.dot(x)).sum()
 
-                # Compute coherence 
+                # Compute normalization 
                 # W_S = \sum_{i \in S} w_S(i)
-                w: np.float32 = np.sum(x)
+                # den = x^T (A - \alpha I) x
+                a_: NDArray = a - alpha * np.eye(len(aff_mat))
+                den = (x * a_.dot(x)).sum()
             
                 # Normalize the distribution
-                x = x / w
-
+                x = x_ / den
+                
                 # Compute the change in distribution with previous iterations
                 dist = np.sqrt(np.sum((x - x_old) ** 2))
 
                 # Increment the iteration counter
                 iter += 1
+            
+            # W_S = \sum_{i \in S} w_S(i)
+            # w = den # TODO is this correct of should we compute w = (x * a.dot(x)).sum()
+                    # before normalization? - this would add overhead at every cycle
+                    
+            x.clip(min=0)
                 
             # Convergence flag
             converged = iter < max_iter
                 
-            return x, w, converged
+            return x, den, converged
     
+    @abstractmethod
     def run(self):
         '''
         Run DS clustering algorithm with specified class hyper-parameters
         '''
+
+        pass
+    
+    
+class BaseDSClustering(DSClustering):
+    
+    def __init__(
+        self, 
+        aff_mat: AffinityMatrix, 
+        min_elements: int = 1, 
+        max_iter: int = 1000, 
+        delta_eps: float = 1e-8, 
+        zero_eps: float = 1e-12, 
+        logger: Logger | None = None
+    ) -> None:
+        
+        super().__init__(aff_mat, min_elements, max_iter, delta_eps, zero_eps, logger)
+        
+    @staticmethod
+    def _replicator_dynamics(
+        aff_mat: AffinityMatrix,
+        x: NDArray | None = None, # type: ignore
+        max_iter: int = 1000,
+        delta_eps: float = 1e-8,
+        zero_eps: float = 1e-12
+    ) -> Tuple[NDArray, np.float32, bool]:
+        
+        # NOTE: The best-practice solution should be to implement a STUB
+        #       to the replicator dynamic of the previous function defaulting
+        #       hyperparameter alpha to 0. i.e. no spurious solutions.
+        
+        #       However this implies making twice the same dot product, 
+        #       we reimplement the replicator dynamic in its simpler
+        #       version to save a factor of 2.
+        
+        # NOTE: Use this if not interested in computational overhead
+        # return DSClustering._replicator_dynamics(
+        #     aff_mat=aff_mat, 
+        #     x=x,
+        #     alpha=0, # this is the core of the logic
+        #     max_iter=max_iter,
+        #     delta_eps=delta_eps, 
+        #     zero_eps=zero_eps
+        # )
+        
+        # In the case initial distribution is not given use a uniform one
+        x: NDArray = default(x, np.zeros(len(aff_mat)) + 1 / len(aff_mat))
+
+        # Initialize hyperparameters
+        dist:  float = 2 * delta_eps  # this is just for entering the first loop
+        iter:  int   = 0
+        
+        # We extract the actual matrix from the object
+        # to use it's method and avoid computational 
+        # overhead of class internal checks
+        a = aff_mat.aff_mat
+
+        # Loop until convergence threshold
+        # or until predetermined number of iterations            
+        while iter < max_iter and dist > delta_eps:
+            
+            # Store old distribution for convergence comparison
+            x_old = np.copy(x)  
+
+            # Promote cluster membership with higher payoffs
+            # x_i = x_i^T A x_i 
+            x_ = x * a.dot(x)
+
+            # Compute internal coherence 
+            # W_S = x^T A x
+            w = x_.sum()
+        
+            # Normalize the distribution
+            x = x_ / w
+            
+            # Compute the change in distribution with previous iterations
+            dist = np.sqrt(np.sum((x - x_old) ** 2))
+
+            # Increment the iteration counter
+            iter += 1
+            
+        x.clip(min=0)
+            
+        # Convergence flag
+        converged = iter < max_iter
+            
+        return x, w, converged
+        
+    def run(self):
         
         # NOTE: The matrix is subject to subsetting during the
         #       clustering algorithm so we use a copy to prevent
@@ -519,7 +502,7 @@ class DSClustering:
         while np.sum(aff_mat.aff_mat) > 0:
 
             # Perform 1-step of replicator dynamics
-            x, w, converged = DSClustering._replicator_dynamics(
+            x, w, converged = BaseDSClustering._replicator_dynamics(
                 aff_mat=aff_mat, 
                 max_iter=self._max_iter
             )
@@ -530,7 +513,7 @@ class DSClustering:
                 self._logger.warn(wrn_msg)
             
             # Extract the cluster as vector support
-            support: NDArray[np.int32] = np.where(x >= self._eps)[0]
+            support: NDArray[np.int32] = np.where(x > self._zero_eps)[0]
 
             # Create the extracted cluster
             ds_cluster = DSCluster(
@@ -560,4 +543,19 @@ class DSClustering:
         if self._min_elements == 1:
             for singleton in DSCluster.extract_singletons(aff_mat=aff_mat):
                 self._clusters.add(cluster=singleton)
-                
+
+
+class HierarchicalDSClustering(DSClustering):
+
+    def __init__(
+        self, 
+        aff_mat: AffinityMatrix, 
+        min_elements: int = 1, 
+        max_iter: int = 1000, 
+        delta_eps: float = 1e-8, 
+        zero_eps: float = 1e-12, 
+        logger: Logger | None = None
+    ) -> None:
+        
+        super().__init__(aff_mat, min_elements, max_iter, delta_eps, zero_eps, logger)
+    

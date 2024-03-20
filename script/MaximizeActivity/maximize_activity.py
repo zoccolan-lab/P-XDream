@@ -9,7 +9,7 @@ from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.probe import RecordingProbe
 from zdream.scorer import MaxActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
-from zdream.utils.dataset import MiniImageNet, resize_images
+from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Message, ScoringUnit, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
@@ -70,8 +70,7 @@ class MaximizeActivityExperiment(Experiment):
         # Dataloader
         use_nat = template.count(False) > 0
         if use_nat:
-            rsz_inet_dir = resize_images(input_dir = gen_conf['mini_inet'])
-            dataset      = MiniImageNet(root=rsz_inet_dir)
+            dataset      = MiniImageNet(root=gen_conf['mini_inet'])
             dataloader   = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
 
         # Instance
