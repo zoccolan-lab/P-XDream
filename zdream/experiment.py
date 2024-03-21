@@ -6,7 +6,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import tkinter
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type, cast
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -17,12 +17,12 @@ from .utils.io_ import save_json, store_pickle
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
-from .utils.model import Codes, DisplayScreen, MaskGenerator, Message, Stimuli, StimuliScore, SubjectState
+from .utils.model import Codes, DisplayScreen, Mask, MaskGenerator, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
 from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
-
+from .message import Message
 
 @dataclass
 class ExperimentState:
@@ -42,36 +42,34 @@ class ExperimentState:
 
     mask:       NDArray[np.bool_]              | None  # [generations x (n_gen + n_nat)]
     labels:     NDArray[np.int32]              | None  # [generations x n_nat]
-    codes:      NDArray[np.float64]            | None  # [generations x n_gen x code_len] 
-    scores:     NDArray[np.float64]            | None  # [generations x n_gen]
-    scores_nat: NDArray[np.float64]            | None  # [generations x n_nat]
-    states:     Dict[str, NDArray[np.float64]] | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
-    recording:  Dict[str, NDArray[np.int32]]   | None  # layer_name: recorded units
-    scoring:    Dict[str, NDArray[np.int32]]   | None  # layer_name: scores activation indexes
+    codes:      NDArray[np.float32]            | None  # [generations x n_gen x code_len] 
+    scores_gen: NDArray[np.float32]            | None  # [generations x n_gen]
+    scores_nat: NDArray[np.float32]            | None  # [generations x n_nat]
+    states:     Dict[str, NDArray[np.float32]] | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
+    rec_units:  Dict[str, NDArray[np.int32]]   | None  # layer_name: recorded units
+    scr_units:  Dict[str, NDArray[np.int32]]   | None  # layer_name: scores activation indexes
 
     @classmethod
-    def from_experiment(cls, experiment: Experiment):
-        '''
-        Load an experiment state from the `history` fields of 
-        an `Experiment` instance.
-
-        :param experiment: `Experiment` object instance instance.
-        :type experiment: Experiment
-        '''
-
-        recording = {k: np.stack(v).T if v else np.array([]) for k, v in experiment.subject.target.items()}
-        scoring   = {k: np.array(v)                          for k, v in experiment.scorer .target.items()}
-
-
+    def from_msg(cls, msg : Message) -> 'ExperimentState':
+        
+        # Collate histories into a single data bundle
+        states = {
+            key: np.stack([state[key] for state in msg.states_history]) if msg.states_history else np.array([])
+            for key in msg.rec_layers
+        }
+        
+        rec_units = {k: np.stack(v).T if v else np.array([]) for k, v in msg.rec_units.items()}
+        scr_units = {k: np.array(v)                          for k, v in msg.scr_units.items()}
+        
         return ExperimentState(
-            mask       = experiment.generator.masks_history,
-            labels     = experiment.generator.labels_history,
-            states     = experiment.subject  .states_history,
-            codes      = experiment.optimizer.codes_history,
-            scores     = experiment.optimizer.scores_history,
-            scores_nat = experiment.optimizer.scores_nat_history,
-            recording  = recording,
-            scoring    = scoring
+            mask       = np.stack(msg.masks_history),
+            labels     = np.stack(msg.labels_history),
+            states     = states,
+            codes      = np.stack(msg.codes_history),
+            scores_gen = np.stack(msg.scores_gen_history),
+            scores_nat = np.stack(msg.scores_nat_history),
+            rec_units  = rec_units,
+            scr_units  = scr_units,
         )
 
     @classmethod
@@ -94,12 +92,12 @@ class ExperimentState:
         to_load = [
             ('mask',       'npy'),
             ('labels',     'npy'),
-            ('codes',      'npy'),
-            ('scores',     'npy'),
-            ('scores_nat', 'npy'),
             ('states',     'npz'),
-            ('recording',  'npz'),
-            ('scoring',    'npz'),
+            ('codes',      'npy'),
+            ('scores_gen', 'npy'),
+            ('scores_nat', 'npy'),
+            ('rec_units',  'npz'),
+            ('scr_units',  'npz'),
         ]
         loaded = dict()
 
@@ -130,14 +128,14 @@ class ExperimentState:
             labels     = loaded['labels'],
             states     = loaded['states'],
             codes      = loaded['codes'],
-            scores     = loaded['scores'],
+            scores_gen = loaded['scores_gen'],
             scores_nat = loaded['scores_nat'],
-            recording  = loaded['recording'],
-            scoring    = loaded['scoring'],
+            rec_units  = loaded['rec_units'],
+            scr_units  = loaded['scr_units'],
         )
 
 
-    def dump(self, out_dir: str, logger: Logger | None = None, dump_states = False):
+    def dump(self, out_dir: str, logger: Logger | None = None):
         '''
         Dump experiment state to an output directory where it creates a proper `state` subfolder.
         Dumping the subject state is optional as typically memory demanding.
@@ -147,8 +145,6 @@ class ExperimentState:
         :param logger: Logger to log i/o information. If not specified
                        a `MutedLogger` is used. 
         :type logger: Logger | None, optional
-        :param dump_states: If to store subject states, defaults to False.
-        :type dump_states: bool, optional
         '''
         
         # Logger default
@@ -159,14 +155,12 @@ class ExperimentState:
             ('mask',       'npy'),
             ('labels',     'npy'),
             ('codes',      'npy'),
-            ('scores',     'npy'),
+            ('states',     'npz'),
+            ('scores_gen', 'npy'),
             ('scores_nat', 'npy'),
-            ('recording',  'npz'),
-            ('scoring',    'npz'),
+            ('rec_units',  'npz'),
+            ('scr_units',  'npz'),
         ]
-
-        # Optional states dumping
-        if dump_states: to_load.append(('states', 'npz'))
 
         logger.info(f'Dumping experiment to {out_dir}')
         os.makedirs(out_dir, exist_ok=True)
@@ -182,9 +176,19 @@ class ExperimentState:
                 case 'npz': save_fun = np.savez
 
             # Saving state
-            logger.info(f"> Saving {name} history from {fp}")
+            match name:
+                case 'labels': check_fn = lambda x : x.size
+                case 'states': check_fn = lambda x : all([v.size for v in x.values()])
+                case 'scores_nat': check_fn = lambda x : x.size
+                case _: check_fn = lambda _ : True
+                
             state = self.__getattribute__(name)
-            save_fun(fp, state)
+            
+            if check_fn(state):
+                logger.info(f"> Saving {name} history from {fp}")
+                save_fun(fp, state)
+            else:
+                logger.warn(f'> Attempting dump of {name} but was empty')
         
         logger.info(f'')
 
@@ -273,18 +277,16 @@ class Experiment(ABC):
         
         # Defaults mask generator to a None mask, which is handled 
         # by the generator as a synthetic-only stimuli.
-        self._mask_generator = default(mask_generator, lambda x: None)
+        self._mask_generator = cast(
+            MaskGenerator,
+            default(mask_generator, lambda x: np.array([], dtype=np.bool_))
+        )
 
         # NOTE: `Data` input is not used in the default version, but
         #       it can exploited in subclasses to store additional information
 
         # Param config
         self._param_config: Dict[str, Any] = dict()
-
-    def to_state(self) -> ExperimentState:
-        ''' Returns the experiment state'''
-
-        return ExperimentState.from_experiment(experiment=self)
 
     def _set_param_configuration(self, param_config: Dict[str, Any]):
         '''
@@ -337,6 +339,10 @@ class Experiment(ABC):
     def target_dir(self) -> str:
         return self._logger.target_dir
     
+    @property
+    def num_imgs(self) -> int:
+        return self._optimizer.n_states
+    
     # --- DATAFLOW METHODS ---
     
     # The following methods implements the main experiment data pipeline:
@@ -349,9 +355,31 @@ class Experiment(ABC):
     #
     # NOTE Experiment subclasses that intend to manipulate the data in the pipeline must
     #      override the specific function. The overridden method is in general advised not to
-    #      redefine the default behavior but to redirect to it using the `super` keyboard. 
+    #      redefine the default behavior but to redirect to it using the `super` keyboard.
+    
+    def _run_init(self, msg : Message) -> Tuple[Codes, Message]:
+        # Codes initialization
+        codes = self.optimizer.init()
+        
+        # Update the message codes history
+        msg.codes_history.append(codes)
+        
+        return codes, msg
+    
+    def _codes_to_inputs(self, codes: Tuple[Codes, Message]) -> Tuple[Codes, Message]:
+        '''
+        This method is put here as a hook that can be overridden by an
+        experiment in case some manipulation of the codes (e.g. reshaping)
+        is needed to properly format them to suit the generator inputs.
+        
+        :param codes: Codes representing the Optimizer output
+        :type codes: Codes
+        :return: A new set of codes that suit the generator as inputs
+        :rtype: Codes
+        '''
+        return codes
 
-    def _codes_to_stimuli(self, codes: Codes) -> Tuple[Stimuli, Message]:
+    def _codes_to_stimuli(self, data: Tuple[Codes, Message]) -> Tuple[Stimuli, Message]:
         '''
         The method uses the generator that maps input codes to visual stimuli.
         It uses the mask generator to generate the mask that interleaves
@@ -363,11 +391,16 @@ class Experiment(ABC):
         :rtype: Tuple[Stimuli, Message]
         '''
         
+        codes, msg = data
+        
         # Generate the mask based on the number of codes 
         # produced by the optimizer.
-        mask = self._mask_generator(self.optimizer.n_states)
+        msg.mask = self._mask_generator(self.num_imgs)
+        msg.masks_history.append(msg.mask)
         
-        return self.generator(codes=codes, mask=mask)
+        data = (codes, msg)
+        
+        return self.generator(data)
     
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
         '''
@@ -379,7 +412,15 @@ class Experiment(ABC):
         :rtype: Tuple[SubjectState, Message]
         '''
         
-        return self.subject(data=data)
+        states, msg = self.subject(data=data)
+    
+        return states, msg
+    
+    def _sbj_state_to_scr_state(self, sbj_state : Tuple[SubjectState, Message]) -> Tuple[SubjectState, Message]:
+        '''
+        
+        '''
+        return sbj_state
     
     def _sbj_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         '''
@@ -391,9 +432,14 @@ class Experiment(ABC):
         :rtype: Tuple[StimuliScore, Message]
         '''
         
-        return self.scorer(data=data)
+        scores, msg = self.scorer(data=data)
     
-    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
+        msg.scores_gen_history.append(scores[ msg.mask])
+        msg.scores_nat_history.append(scores[~msg.mask])
+        
+        return scores, msg
+    
+    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
         '''
         The method uses the scores for each stimulus to optimize the images
         in the latent coded space, resulting in a new set of codes.
@@ -410,7 +456,12 @@ class Experiment(ABC):
         :rtype: Codes
         '''
         
-        return self.optimizer.step(data=data)
+        codes, msg = self.optimizer.step(data=data)
+    
+        # Update the message codes history
+        msg.codes_history.append(codes)
+        
+        return codes, msg
     
     # --- RUN ---
     
@@ -421,7 +472,7 @@ class Experiment(ABC):
     # NOTE: The overriding of the function is in general suggested not to redefine
     #       the default behavior but to redirect to it using `super` keyboard.
     
-    def _init(self):
+    def _init(self) -> Message:
         '''
         The method is called before running the actual experiment.
         The default version logs the attributes of the components.
@@ -460,9 +511,19 @@ class Experiment(ABC):
         self._logger.info(mess=f'Scorer:    {self.scorer}')
         self._logger.info(mess=f'Optimizer: {self.optimizer}')
         self._logger.info(f"")
+        
+                
+        # We generate an initial message containing the start time
+        msg = Message(
+            start_time = time.time(),
+            rec_units  = self.subject.target,
+            scr_units  = self.scorer.target,
+        )
+        
+        return msg
 
         
-    def _finish(self):
+    def _finish(self, msg : Message) -> Message:
         '''
         The method is called at the end of the actual experiment.
         The default version logs the experiment elapsed time.
@@ -470,12 +531,12 @@ class Experiment(ABC):
         '''
 
         # Log total elapsed time
-        str_time = stringfy_time(sec=self._elapsed_time)
+        str_time = stringfy_time(sec=msg.elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
 
         # Dump
-        state = ExperimentState.from_experiment(self)
+        state = ExperimentState.from_msg(msg)
         state.dump(
             out_dir=path.join(self.target_dir, 'state'),
             logger=self._logger
@@ -485,8 +546,10 @@ class Experiment(ABC):
         #       However this is not implemented in the default version 
         #       because it may be possible to keep screen active for
         #       other purposes, so the logic is lead to subclasses.
+        
+        return msg
     
-    def _progress_info(self, i: int) -> str:
+    def _progress_info(self, i: int, msg : Message) -> str:
         '''
         The method returns the information to log in the progress at each iteration.
         Default version returns the progress percentage.
@@ -502,12 +565,12 @@ class Experiment(ABC):
 
         j = i + 1 # index is off-by-one
         
-        progress = f'{j:>{len(str(self._iteration))+1}}/{self._iteration}'
+        progress = f'{j:>{len(str(self._iteration))}}/{self._iteration}'
         perc     = f'{j * 100 / self._iteration:>5.2f}%'
         
         return f'{self}: [{progress}] ({perc})'
     
-    def _progress(self, i: int):
+    def _progress(self, i: int, msg : Message):
         '''
         The method is called at the end of any experiment iteration.
         The default version logs the default progress information.
@@ -515,9 +578,9 @@ class Experiment(ABC):
         :param i: Current iteration number.
         :type i: int
         '''
-        self._logger.info(self._progress_info(i=i))
+        self._logger.info(self._progress_info(i=i, msg=msg))
         
-    def _run(self):
+    def _run(self, msg : Message) -> Message:
         '''
         The method implements the core of the experiment.
         It initializes random codes and iterates combining 
@@ -527,19 +590,24 @@ class Experiment(ABC):
 
         self._logger.info("Running...")
         
-        # Codes initialization
-        codes = self.optimizer.init()
+        opt_codes, msg = self._run_init(msg)
         
         for i in range(self._iteration):
-            
-            stimuli   = self._codes_to_stimuli(codes)
-            sbj_state = self._stimuli_to_sbj_state(stimuli)
-            stm_score = self._sbj_state_to_stm_score(sbj_state)            
-            codes     = self._stm_score_to_codes(stm_score)
+            inp_codes, msg = self._codes_to_inputs       ((opt_codes, msg))
+            s_stimuli, msg = self._codes_to_stimuli      ((inp_codes, msg))
+            sbj_state, msg = self._stimuli_to_sbj_state  ((s_stimuli, msg))
+            scr_state, msg = self._sbj_state_to_scr_state((sbj_state, msg))
+            stm_score, msg = self._sbj_state_to_stm_score((scr_state, msg))
+            opt_codes, msg = self._stm_score_to_codes    ((stm_score, msg))
 
-            self._progress(i=i)
+            self._progress(i=i, msg=msg)
+            
+        msg.end_time = time.time()
+        msg.elapsed_time = msg.start_time - msg.end_time
+            
+        return msg
     
-    def run(self):
+    def run(self) -> Message:
         '''
         The method implements the experiment logic by combining
         `init()`, `run()` and `finish()` methods. 
@@ -547,18 +615,13 @@ class Experiment(ABC):
         be accessed in the `finish()` method.
         '''
         
-        self._init()
+        msg = self._init()
         
-        start_time = time.time()
+        msg = self._run(msg)
         
-        self._run()
+        msg = self._finish(msg)
         
-        end_time = time.time()
-        
-        self._elapsed_time = end_time - start_time
-        
-        self._finish()
-        
+        return msg
 
 class MultiExperiment:
     '''
@@ -754,7 +817,7 @@ class MultiExperiment:
             
             exp = self._Exp.from_config(conf=conf)
             
-            exp.run()
+            msg = exp.run()
             
             self._progress(exp=exp, i=i)
 

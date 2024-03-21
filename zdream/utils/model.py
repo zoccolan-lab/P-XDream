@@ -1,5 +1,4 @@
 import tkinter as tk
-from dataclasses import dataclass, field
 from typing      import Callable, Dict, List, Tuple
 from functools   import partial
 
@@ -12,13 +11,13 @@ from PIL          import Image, ImageTk
 
 # --- TYPE ALIASES ---
 
-Mask = List[bool]   
+Mask = NDArray[np.bool_]   
 ''' 
 Boolean mask associated to a set of stimuli, indicating if they refer 
 to synthetic of natural images (True for synthetic, False for natural).
 '''     
 
-Codes = NDArray[np.float64]
+Codes = NDArray[np.float32]
 '''
 Set of codes representing the images in a latent space.
 The representation is a 2-dimensional array, with the
@@ -43,7 +42,8 @@ is mapped to its specific activations in the form of a batched array.
 StimuliScore = NDArray[np.float32] 
 '''
 Set of scores associated to each stimuli in
-the form of a one-dimensional array.
+the form of a one-dimensional array of size
+equal to the batch size.
 '''
 
 RFBox = Tuple[int, ...]
@@ -81,18 +81,6 @@ ScoringUnit = List[int]
 Structure describing the target unit to score from.
 '''
 
-# --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
-
-scoring_functions: Dict[str, ScoringFunction] = {
-
-}
-
-aggregating_functions: Dict[str, AggregateFunction] = {
-	'mean'  : lambda x: np.mean  (np.stack(list(x.values())), axis=0),
-	'sum'   : lambda x: np.sum   (np.stack(list(x.values())), axis=0),
-	'median': lambda x: np.median(np.stack(list(x.values())), axis=0),
-}
-
 # --- MASK GENERATOR
 
 def mask_generator_from_template(
@@ -114,7 +102,7 @@ def mask_generator_from_template(
 	:rtype: MaskGenerator
 	'''
     
-	def repeat_pattern(n : int, template: List[bool], shuffle: bool	) -> List[bool]:
+	def repeat_pattern(n : int, template: List[bool], shuffle: bool	) -> Mask:
 		''' Generate a list by concatenating an input pattern with shuffling option. '''
 		
 		bool_l = []
@@ -124,7 +112,7 @@ def mask_generator_from_template(
 				np.random.shuffle(template)
 			bool_l.extend(template)
 			
-		return bool_l
+		return np.array(bool_l, dtype=np.bool_)
 	
 	# Check the presence of one single True value
 	n_true = template.count(True)
@@ -134,36 +122,6 @@ def mask_generator_from_template(
 	
 	return partial(repeat_pattern, template=template, shuffle=shuffle)
 
-
-# --- MESSAGE ---
-
-@dataclass
-class Message:
-    '''
-    The dataclass is an auxiliary generic component that
-    is shared among the entire data-flow.
-    The aim of the class is to make different components communicate
-    through the data-passing of common object they all can manipulate.
-    '''
-    
-    mask    : NDArray[np.bool_] = field(default_factory=lambda: np.array([]))
-    '''
-    Boolean mask associated to a set of stimuli indicating if they are
-    synthetic of natural images. Defaults to empty array indicating absence 
-	of natural images.
-    
-    NOTE: The mask has not `Mask` as it's not a list but an array.
-          This is made to facilitate filtering operations that are primarily
-          applied to arrays.
-    '''
-    
-    label   : List[int] = field(default_factory=lambda: [])
-    '''
-    List of labels associated to the set of stimuli. Defaults to empty list.
-    
-    NOTE: Labels are only associated to natural images so they are
-          they only refers to 'False' entries in the mask.
-    '''
 
 # --- NETWORKS --- 
 

@@ -1,12 +1,30 @@
 from collections import defaultdict
 from itertools import product, starmap
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 import warnings
 
-from .model import RecordingUnit, ScoringUnit
+from .model import RecordingUnit, ScoringUnit, ScoringFunction, AggregateFunction
 from .io_ import neurons_from_file
 
 import numpy as np
+
+# --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
+
+scoring_functions: Dict[str, ScoringFunction] = {
+
+}
+
+aggregating_functions: Dict[str, AggregateFunction] = {
+	'mean'  : lambda x: np.mean  (np.stack(list(x.values())), axis=0),
+	'sum'   : lambda x: np.sum   (np.stack(list(x.values())), axis=0),
+	'median': lambda x: np.median(np.stack(list(x.values())), axis=0),
+}
+
+numpy_functions : Dict[str, Callable] = {
+	'mean'   : np.mean,
+	'sum'    : np.sum,
+	'median' : np.median,
+}
 
 def parse_boolean_string(boolean_str: str) -> List[bool]:
     ''' Converts a boolean string of T and F characters in a boolean list'''
@@ -21,14 +39,43 @@ def parse_boolean_string(boolean_str: str) -> List[bool]:
 
 def parse_signature(
     input_str : str,
+    net_info: Dict[str, Tuple[int, ...]],
 ) -> Dict[str, float]:
     '''
     Converts and input string indicating the signature for the
     WeightedPairSimilarityScorer into the appropriate type
     (a dictionary mapping layer-name-string to floats).
+    
+    The format to specify the signature requires separating specification
+    for different layers with comma:
+        layer1=signature1, layer2=signature2, ..., layerN=signatureN
+        
+    Where signature specification is expected to be a string that
+    can be parsed by float(signature).
+    
+    Example:
+    signature = parse_signature(
+        'conv2d_03=4.8, relu_08=-0.77, linear_03=+0.001' 
+    )
+    
+    print(signature)
+    > {
+        'conv2d_03' : 4.8,
+        'relu_08' : -0.77,
+        'linear_03' : 0.001,
+    }
     '''
     
-    raise NotImplementedError()
+    # Extract layer names from the net information 
+    # for mapping layer-IDs to their name
+    layer_names = list(net_info.keys())
+    
+    signature = {
+        layer_names[int(k.strip())] : float(v)
+        for k, v in [layer.split('=') for layer in input_str.split(',')]
+    }
+    
+    return signature
 
 def parse_recording(
         input_str: str,

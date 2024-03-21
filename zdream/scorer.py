@@ -13,10 +13,11 @@ from scipy.spatial.distance import pdist
 from zdream.utils.model import ScoringFunction
 from zdream.utils.model import AggregateFunction
 
-from .utils.model import Message, RecordingUnit, ScoringUnit
+from .utils.model import ScoringUnit
 from .utils.model import StimuliScore
 from .utils.model import SubjectState
 from .utils.misc import default
+from .message import Message
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
 #       which we need to redefine for issues with importing private variables from modules.
@@ -209,7 +210,8 @@ class WeightedPairSimilarityScorer(Scorer):
         signature : Dict[str, float],
         trg_neurons: Dict[str, ScoringUnit], 
         metric : _MetricKind = 'euclidean',
-        filter_distance_fn : Callable[[NDArray], NDArray] | None = None,
+        dist_reduce_fn  : Callable[[NDArray], NDArray] | None = None,
+        layer_reduce_fn : Callable[[NDArray], NDArray] | None = None
     ) -> None: 
         '''
         
@@ -247,17 +249,23 @@ class WeightedPairSimilarityScorer(Scorer):
         
         
         # If grouping function is not given use even-odd split as default
-        filter_distance_fn = default(filter_distance_fn, lambda x : x)
+        dist_reduce_fn  = default(dist_reduce_fn,  np.mean)
+        layer_reduce_fn = default(layer_reduce_fn, partial(np.mean, axis=0))
         
         # If similarity function is not given use euclidean distance as default
         self._metric = partial(pdist, metric=metric)
+        self._metric_name = metric
         
-        criterion = partial(
+        criterion : ScoringFunction = partial(
             self._score,
-            filter_distance_fn=filter_distance_fn,
+            reduce_fn=dist_reduce_fn,
             neuron_targets=trg_neurons,   
         )
-        aggregate = partial(self._dprod, signature=signature)
+        aggregate = partial(
+            self._dotprod,
+            signature=signature,
+            reduce_fn=layer_reduce_fn    
+        )
         
         self._signature = signature
         
@@ -268,11 +276,8 @@ class WeightedPairSimilarityScorer(Scorer):
             aggregate=aggregate,
         )
         
-    def __str__(self) -> str:
-        
-        weights = ", ".join([f"{k}: {v}" for k, v in self._signature.items()])
-        
-        return f'WeightedPairSimilarityScorer[metric: {self._metric}; target size: ({weights})]'
+    def __str__(self) -> str:        
+        return f'WeightedPairSimilarityScorer[metric: {self._metric_name}; signature: {self._signature}]'
 
     @property
     def optimizing_units(self) -> int:
@@ -282,28 +287,31 @@ class WeightedPairSimilarityScorer(Scorer):
     def _score(
         self,
         state : SubjectState,
-        filter_distance_fn : Callable[[NDArray], NDArray],
+        reduce_fn : Callable[[NDArray], NDArray],
         neuron_targets : Dict[str, ScoringUnit],
     ) -> Dict[str, NDArray]:
-        scores = {
-            layer: -self._metric(
-                activations[:, neuron_targets[layer] if neuron_targets[layer] else slice(None)]
-            ) for layer, activations in state.items()
-            if layer in neuron_targets
-        }
         
         scores = {
-            k: filter_distance_fn(v) for k, v in scores.items()
+            layer: np.array([
+                reduce_fn(-self._metric(group))
+                for group in activations[..., neuron_targets[layer] if neuron_targets[layer] else slice(None)]
+            ])
+            for layer, activations in state.items()
+            if layer in neuron_targets
         }
         
         return scores
 
-    def _dprod(self, state : Dict[str, StimuliScore], signature : Dict[str, float]) -> StimuliScore:
+    def _dotprod(
+        self,
+        state : Dict[str, StimuliScore],
+        signature : Dict[str, float],
+        reduce_fn : Callable[[NDArray], NDArray],     
+    ) -> StimuliScore:
         return cast(
             StimuliScore,
-            np.sum(
-                [v * state[k] for k, v in signature.items()],
-                axis=0
+            reduce_fn(
+                np.stack([v * state[k] for k, v in signature.items()])
             )
         )
         

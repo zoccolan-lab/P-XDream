@@ -12,10 +12,10 @@
     },
     "subject": {
         "net_name": "alexnet",
-        "rec_layers": "21=[]"
+        "rec_layers": "21=[0:20]"
     },
     "scorer": {
-        "scr_layers": "21=[0:20]",
+        "scr_layers": "21=[]",
         "aggregation": "mean"
     },
     "optimizer": {

@@ -35,7 +35,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     gen_weights  = script_settings['gen_weights']
     out_dir      = script_settings['out_dir']
     mini_inet    = script_settings['mini_inet']
-    config_path  = script_settings['maximize_activity_config']
+    config_path  = script_settings['adversarial_attack_config']
 
     parser = ArgumentParser()
     
@@ -78,5 +78,6 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--display_plots',  type=def_type(bool),  help='If to display plots')
     parser.add_argument('--random_seed',    type=def_type(int),   help='Random state for the experiment')
     parser.add_argument('--render',         type=def_type(bool),  help='If to render stimuli')
+    parser.add_argument('--n_group',        type=def_type(int),   help='Size of group to compute the score on')
 
     return parser

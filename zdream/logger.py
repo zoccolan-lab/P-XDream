@@ -192,7 +192,7 @@ class Logger:
 		:type screen_name: str.
 		'''
 
-		print("Closing screen")
+		self.info("Closing screen")
 
 		# Stop rendering
 		try:

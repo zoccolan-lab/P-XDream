@@ -7,20 +7,20 @@
         "variant": "fc8"
     },
     "mask_generator": {
-        "template": "TFFFF",
+        "template": "T",
         "shuffle": false
     },
     "subject": {
         "net_name": "alexnet",
-        "rec_layers": "21=[]"
+        "rec_layers": "0=[], 21=10r[]"
     },
     "scorer": {
-        "scr_layers": "21=[0:20]",
+        "scr_layers": "0=[], 21=[]",
         "metric": "euclidean",
-        "signature": "0=+1 21=-1"
+        "signature": "0=+1, 21=-1"
     },
     "optimizer": {
-        "pop_size": 2,
+        "pop_size": 20,
         "mutation_rate": 0.3,
         "mutation_size": 0.3,
         "num_parents": 3,
@@ -35,5 +35,6 @@
     "iter": 100,
     "display_plots": false,
     "random_seed": 123,
-    "render": true
+    "render": true,
+    "n_group" : 2
 }

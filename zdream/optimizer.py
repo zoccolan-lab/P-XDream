@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Literal, Tuple, List
+from typing import Callable, Dict, Literal, Tuple, List
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.special import softmax
 
-from .utils.model import Codes, StimuliScore, SubjectState, Message
-from .utils.misc import default, lazydefault, SEM
+from .utils.model import Codes, StimuliScore
+from .utils.misc import default, lazydefault
+from .message import Message
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']
 ''' Name of distributions for random initial codes '''
@@ -59,29 +60,13 @@ class Optimizer(ABC):
         self._space = lazydefault(states_space, lambda : {i : (None, None) for i in range(len(states_shape))})  # type: ignore
         self._shape = lazydefault(states_shape, lambda : (len(states_space),))                                  # type: ignore
         
-        # List of Optimization codes
-        # We keep history of codes among generations
-        self._codes     : List[NDArray] = []
-        
-        # Optimizer scores for synthetic and natural images
-        # We keep track of scores among generations to compute basic statistics
-        self._scores     : List[NDArray] = []
-        self._scores_nat : List[NDArray] = []
-        
         # Random distribution
         # NOTE: We also initialize the internal random number generator 
         #       for reproducibility, if not given it isn't set.
         self._distr = random_distr
         self._rng   = np.random.default_rng(random_seed)
-
-    @property
-    def codes_history(self)      -> NDArray: return np.stack(self._codes)
-
-    @property
-    def scores_history(self)     -> NDArray: return np.stack(self._scores)
-
-    @property
-    def scores_nat_history(self) -> NDArray: return np.stack(self._scores_nat)
+        
+        self._prev_codes : None | Codes = None
         
     @property
     def n_states(self) -> int: return 1
@@ -91,7 +76,7 @@ class Optimizer(ABC):
     '''
     
     @abstractmethod
-    def step(self, data: Tuple[StimuliScore, Message]) -> Codes:
+    def step(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the
@@ -108,44 +93,14 @@ class Optimizer(ABC):
         pass
     
     @property
-    def score(self) -> NDArray:
-        '''
-        Returns codes score after the last step.
-        '''
-        if not self._scores:
-            err_msg = 'Scores are not available yet'
-            raise ValueError(err_msg)
-        return self._scores[-1]
-    
-    @property
     def codes(self) -> Codes:
         '''
         Returns codes after the last step.
         '''
-        if not self._codes:
+        if self._prev_codes is None:
             err_msg = 'Codes are not available yet'
             raise ValueError(err_msg)
-        return self._codes[-1] 
-    
-    
-    @property
-    def solution(self) -> Codes:
-        '''
-        Retrieve the code that produced the highest score
-        from code scores history.
-
-        :return: Best code score.
-        :rtype: NDArray
-        '''
-        
-        # Extract indexes for best scores
-        flat_idx : np.intp  = np.argmax(self._scores)
-        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(self._scores))
-        
-        # Extract the best code from generation and index
-        best_code = self._codes[best_gen][best_idx]
-        
-        return best_code
+        return self._prev_codes
         
     # --- CODE INITIALIZATION ---
     
@@ -169,13 +124,13 @@ class Optimizer(ABC):
                 err_msg = 'Provided initial condition does not match expected shape'
                 raise Exception(err_msg)
             # Use input codes as first codes
-            self._codes = [init_codes.copy()]
+            self._prev_codes = init_codes.copy()
         # Codes were not provided: random generation
         else:
             # Use the specified distribution to randomly sample initial codes
-            self._codes = [self._rnd_sample(size=(self.n_states, *self._shape), **kwargs)]
+            self._prev_codes = self._rnd_sample(size=(self.n_states, *self._shape), **kwargs)
 
-        return self.codes
+        return self._prev_codes.copy()
     
     @property
     def _rnd_sample(self) -> Callable:
@@ -192,62 +147,6 @@ class Optimizer(ABC):
             case 'laplace':  return self._rng.laplace
             case 'logistic': return self._rng.logistic
             case _: raise ValueError(f'Unrecognized distribution: {self._distr}')
-            
-    # --- STATISTICS ---    
-    
-    def _get_stats(self, scores: List[NDArray], synthetic: bool) -> Dict[str, Any]:
-        '''
-        Perform basic statics on scores, either associated to natural or synthetic images.
-
-        :param scores: List of scores over generations.
-        :type scores: List[NDArray]
-        :param param: If statistics refer to synthetic images.
-        :type param: bool
-        :return: A dictionary containing different statics per score at different generations.
-        :rtype: Dict[str, Any]
-        '''
-        
-        # Extract indexes for best scores
-        flat_idx : np.intp  = np.argmax(scores)
-        best_gen, *best_idx = np.unravel_index(flat_idx, np.shape(scores))
-        
-        # Histogram indexes
-        hist_idx : List[int]  = np.argmax(scores, axis=1)
-        
-        # We compute statics relative to scores
-        stats = {
-            'best_score' : scores[best_gen][best_idx],
-            'curr_score' : scores[-1],
-            'mean_shist' : np.array([np.mean(s) for s in scores]),
-            'sem_shist'  : np.array([SEM(s)    for s in scores]),
-            'best_shist' : [score[idx] for score, idx in zip(scores, hist_idx)],    
-        }
-        
-        if synthetic:
-            
-            # Add information relative to codes
-            stats_codes = {
-                'best_code'  : self.solution,
-                'curr_codes' : self.codes,
-                'best_phist' : [codes[idx] for codes, idx in zip(self._codes, hist_idx)]
-            }
-            
-            # Update stats dictionary
-            stats.update(stats_codes)
-            
-        return stats
-        
-        
-    @property
-    def stats(self) -> Dict[str, Any]:
-        ''' Return statistics for synthetic codes '''
-        return self._get_stats(scores=self._scores, synthetic=True)
-    
-    @property
-    def stats_nat(self) -> Dict[str, Any]: 
-        ''' Return statistics for natural images '''
-        return self._get_stats(scores=self._scores_nat, synthetic=False)
-
     
 class GeneticOptimizer(Optimizer):
     '''
@@ -332,15 +231,15 @@ class GeneticOptimizer(Optimizer):
         The number of states is the number of produced codes.
         If no code was produced yet, it is simply the initial population size.
         '''
-        return len(self.codes) if self._codes else self._init_pop_size
+        return len(self._prev_codes) if self._prev_codes is not None else self._init_pop_size
     
     def step(
         self,
         data : Tuple[StimuliScore, Message],
-        out_pop_size: int | None = None,
+        out_pop_size: int   | None = None,
         temperature : float | None = None, 
         save_topk : int = 2,   
-    ) -> Codes:
+    ) -> Tuple[Codes, Message]:
         '''
         Optimizer step function that uses an associated score
         to each code to produce a new set of stimuli.
@@ -366,30 +265,21 @@ class GeneticOptimizer(Optimizer):
         # Extract score and message
         scores, msg = data
         
-        # Use message mask for filtering out natural images
-        # and track their scores
-        self._scores_nat.append(scores[~msg.mask])
-        
         # Optimization parameter
         scores      = scores[msg.mask]                         # Use only synthetic images
         pop_size    = default(out_pop_size, self.n_states)     # Use previous number of states as default
         temperature = default(temperature, self._temperature)  # Use optimizer temperature as default
 
         # Prepare data structure for the optimized codes
-        codes_new = np.empty(shape=(pop_size, *self._shape))
+        codes_new = np.empty(shape=(pop_size, *self._shape), dtype=np.float32)
 
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring stimuli
         sort_s = np.argsort(scores)
         topk_c = self.codes[sort_s[-save_topk:]]
         
-        # rest_p = self.param[sort_idx[:-save_topk]]
-        # rest_s = self.score[sort_idx[:-save_topk]]
-
         # Convert scores to fitness (probability) via 
         # temperature-gated softmax function (needed only for rest of population)
-        
-        # fitness = softmax(rest_s / temperature)
         fitness = softmax(scores / temperature)
         
         # The rest of the population is obtained by generating
@@ -397,7 +287,6 @@ class GeneticOptimizer(Optimizer):
         
         # Breeding
         next_gen = self._breed(
-            population=self.codes,
             pop_fitness=fitness,
             num_children=pop_size - save_topk,
         )
@@ -408,16 +297,10 @@ class GeneticOptimizer(Optimizer):
         # New codes combining previous top-k codes and new generated ones
         codes_new[:save_topk] = topk_c
         codes_new[save_topk:] = next_gen
-
-        # Update internal codes and score history
-        # NOTE: These two lists are NOT aligned. They are
-        #       off-by-one as observed states correspond
-        #       to last parameter set and we are devising
-        #       the new one right now (hence why old_score)
-        self._scores.append(scores)
-        self._codes.append(codes_new)
         
-        return codes_new
+        self._prev_codes = codes_new.copy()
+
+        return codes_new, msg
     
     def _mutate(
         self,
@@ -464,8 +347,7 @@ class GeneticOptimizer(Optimizer):
     
     def _breed(
         self,
-        population : NDArray | None = None,
-        pop_fitness : NDArray | None = None,
+        pop_fitness : NDArray,
         num_children : int | None = None,
         allow_clones : bool = False,
     ) -> NDArray:
@@ -488,8 +370,7 @@ class GeneticOptimizer(Optimizer):
         # NOTE: We use lazydefault here because .param and .score might
         #       not be populated (i.e. first call to breed) but we don't
         #       want to fail if either population or fitness are provided
-        population  = lazydefault(population,  lambda : self.codes)
-        pop_fitness = lazydefault(pop_fitness, lambda : self.score)
+        population  = self.codes
         num_children = default(num_children, len(population))
         
         # Select the breeding family based on the fitness of each parent

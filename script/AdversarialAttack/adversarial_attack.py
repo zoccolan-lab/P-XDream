@@ -2,6 +2,7 @@
 
 from os import path
 import os
+from einops import rearrange
 import numpy as np
 import torch
 from PIL import Image
@@ -20,7 +21,8 @@ from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
-from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Message, ScoringUnit, Stimuli, StimuliScore, SubjectState, mask_generator_from_template
+from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, StimuliScore, SubjectState, mask_generator_from_template
+from zdream.message import Message
 
 from numpy.typing import NDArray
 
@@ -36,6 +38,9 @@ class AdversarialAttackExperiment(Experiment):
 
     @property
     def subject(self) -> NetworkSubject:    return cast(NetworkSubject, self._subject) 
+    
+    @property
+    def num_imgs(self) -> int: return self._n_group * self._optimizer.n_states
 
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> 'AdversarialAttackExperiment':
@@ -106,19 +111,21 @@ class AdversarialAttackExperiment(Experiment):
         # TODO: Implement parsing for signature
         signature = parse_signature(
             input_str=scr_conf['signature'],
+            net_info=layer_info,
         )
 
         scorer = WeightedPairSimilarityScorer(
             signature=signature,
             trg_neurons=scoring_units,
             metric=scr_conf['metric'],
-            filter_distance_fn=None,
+            dist_reduce_fn=None,
+            layer_reduce_fn=None,
         )
 
         # --- OPTIMIZER ---
 
         optim = GeneticOptimizer(
-            states_shape   = generator.input_dim,
+            states_shape   = (2, *generator.input_dim),
             random_seed    =     conf['random_seed'],
             random_distr   = opt_conf['random_distr'],
             mutation_rate  = opt_conf['mutation_rate'],
@@ -162,7 +169,8 @@ class AdversarialAttackExperiment(Experiment):
             "dataset": dataset if use_nat else None,
             'display_plots': conf['display_plots'],
             'render': conf['render'],
-            'close_screen': conf.get('close_screen', False)
+            'close_screen': conf.get('close_screen', False),
+            'n_group' : conf['n_group'],
         }
 
         # Experiment configuration
@@ -209,25 +217,26 @@ class AdversarialAttackExperiment(Experiment):
         # to see if natural images are involved in the experiment
         mock_mask = self._mask_generator(1)
     
-        self._use_natural = mock_mask is not None and mock_mask.count(False) > 0
+        self._use_natural = mock_mask is not None and mock_mask.size and sum(~mock_mask) > 0
 
         # Extract from Data
 
         self._display_plots = cast(bool, data['display_plots'])
         self._render        = cast(bool, data['render'])
         self._close_screen  = cast(bool, data['close_screen'])
+        self._n_group       = cast(int,  data['n_group'])
         
         if self._use_natural:
             self._dataset   = cast(MiniImageNet, data['dataset'])
 
-    def _progress_info(self, i: int) -> str:
+    def _progress_info(self, i: int, msg : Message) -> str:
 
         # We add the progress information about the best
         # and the average score per each iteration
-        stat_gen = self.optimizer.stats
+        stat_gen = msg.stats_gen
 
         if self._use_natural:
-            stat_nat = self.optimizer.stats_nat
+            stat_nat = msg.stats_nat
 
         best_gen = cast(NDArray, stat_gen['best_score']).mean()
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
@@ -244,13 +253,13 @@ class AdversarialAttackExperiment(Experiment):
         else:
             desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str}'
 
-        progress_super = super()._progress_info(i=i)
+        progress_super = super()._progress_info(i=i, msg=msg)
 
         return f'{progress_super}{desc}'
 
-    def _init(self):
+    def _init(self) -> Message:
 
-        super()._init()
+        msg = super()._init()
 
         # Data structure to save best score and best image
         if self._use_natural:
@@ -264,14 +273,17 @@ class AdversarialAttackExperiment(Experiment):
         if self._use_natural:
             self._labels: List[int] = []
 
+        return msg
 
-    def _progress(self, i: int):
+    def _progress(self, i: int, msg : Message):
 
-        super()._progress(i)
+        super()._progress(i, msg)
 
         # Get best stimuli
-        best_code = self.optimizer.solution
-        best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
+        best_code = msg.solution
+        best_synthetic, _ = self.generator(
+            data=(best_code, Message(mask=np.array([True]))),
+        )
         best_synthetic_img = to_pil_image(best_synthetic[0])
 
         if self._use_natural:
@@ -295,9 +307,9 @@ class AdversarialAttackExperiment(Experiment):
                     image=to_pil_image(best_natural)
                 )   
 
-    def _finish(self):
+    def _finish(self, msg : Message):
 
-        super()._finish()
+        super()._finish(msg)
 
         # Close screens
         if self._close_screen:
@@ -311,7 +323,9 @@ class AdversarialAttackExperiment(Experiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen, _ = self.generator(codes=self.optimizer.solution, pipeline=False)
+        best_gen, _ = self.generator(
+            data=(msg.solution, Message(mask=np.array([True]))),
+        )
         best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
@@ -351,6 +365,32 @@ class AdversarialAttackExperiment(Experiment):
         
         self._logger.info(mess='')
         
+    def _run_init(self, msg : Message) -> Tuple[Codes, Message]:
+        codes, msg = super()._run_init(msg)
+        
+        msg.n_group = self._n_group
+        
+        return codes, msg
+        
+    def _codes_to_inputs(self, data: Tuple[Codes, Message]) -> Tuple[Codes, Message]:
+        # In the adversarial attack experiment each code represent
+        # a pair of images, so is expected to have double the size
+        # required by the generator, we override this hook to properly
+        # resize the codes to split them in half and stack them along
+        # the batch dimension
+        
+        codes, msg = data
+        
+        codes = rearrange(codes, f'b g ... -> (b g) ...', g=self._n_group)
+    
+        return codes, msg
+    
+    def _sbj_state_to_scr_state(self, sbj_state: Tuple[SubjectState, Message]) -> Tuple[SubjectState, Message]:
+        
+        state, msg = sbj_state
+        state = {k : rearrange(v, '(b g) ... -> b g ...', g=self._n_group) for k, v in state.items()}
+        
+        return state, msg
 
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
 
@@ -361,7 +401,7 @@ class AdversarialAttackExperiment(Experiment):
 
         return super()._stimuli_to_sbj_state(data)
 
-    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
+    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
 
         sub_score, msg = data
 

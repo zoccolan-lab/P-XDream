@@ -21,8 +21,8 @@ from tqdm.auto import trange
 from .utils.model import Stimuli
 from .utils.model import Codes
 from .utils.model import Mask
-from .utils.model import Message
 from .utils.misc import default
+from .message import Message
 
 
 """ 
@@ -43,9 +43,6 @@ class Generator(ABC, nn.Module):
     
     A Generator allows to interleave synthetic images
     with natural images by the specification of a mask.
-
-    Generator are also responsible for tracking the
-    history of generated images. # TODO Never used (?)
     '''
 
     def __init__(
@@ -82,13 +79,6 @@ class Generator(ABC, nn.Module):
         # NOTE: The network defaults to None. Subclasses are asked to 
         #       provide the specific instance 
         self._network = None
-
-        # List for tracking image history
-        self._im_hist : List[Image.Image] = [] # TODO Never used (?)
-
-        # History
-        self._masks:  List[NDArray[np.bool_]] = []
-        self._labels: List[NDArray[np.int64]] = []
 
     def set_nat_img_loader(self, nat_img_loader : DataLoader | None) -> None:
         '''
@@ -178,7 +168,7 @@ class Generator(ABC, nn.Module):
         self, 
         mask : Mask | None, 
         num_gen_img : int
-    ) -> List[bool]:
+    ) -> Mask:
         '''
         The method is an auxiliary routine for the forward method
         responsible for checking consistency of the masking for 
@@ -208,14 +198,14 @@ class Generator(ABC, nn.Module):
         
         # If natural images are expected but no dataloader is 
         # available we raise an error
-        if mask and ~all(mask) and self._nat_img_loader is None:
+        if mask is not None and ~all(mask) and self._nat_img_loader is None:
             err_msg =   'Mask for natural images were provided but no dataloader is available. '\
                         'Use `set_nat_img_loader()` to set one.'
             raise AssertionError(err_msg)
     
-        # If the mixing mask was not specified we set the trivial one.
-        # mask = default(mask, [True] * b) -> better, but not for type checker :(
-        if not mask: mask = [True] * num_gen_img
+        # If the mixing mask was not specified we set the trivial one.     
+        if mask is None or not mask.size:
+            mask = np.array([True] * num_gen_img, dtype=np.bool_)
         
         # If the number of True values in the mask doesn't match 
         # the number of synthetic images we raise a error.
@@ -295,30 +285,21 @@ class Generator(ABC, nn.Module):
     
     def __call__(
         self, 
-        codes: Codes,
-        mask : Mask | None = None,
-        pipeline: bool = True
-
+        data: Tuple[Codes, Message],
     ) -> Tuple[Stimuli, Message]:
         
         stimuli, msg = self.forward(
-            codes=codes,
-            mask=mask
+            data
         )
-
-        if pipeline:
-
-            # History
-            self._masks .append(msg.mask)
-            self._labels.append(np.array(msg.label))
 
         return stimuli, msg
 
     def forward(
         self, 
-        codes: Codes,
+        data: Tuple[Codes, Message],
         mask : Mask | None = None
     ) -> Tuple[Stimuli, Message]:
+        # TODO: Update documentation
         '''
         Produce the stimuli using latent image codes, along with some
         auxiliary information in the form of a message.
@@ -334,21 +315,23 @@ class Generator(ABC, nn.Module):
         :rtype: Tuple[Stimuli, Message]
         '''
         
+        codes, msg = data
+        
         # Extract the number of codes from batch size
         num_gen_img, *_ = codes.shape
 
         # Mask sanity check
-        mask = self._masking_sanity_check(mask=mask, num_gen_img=num_gen_img)
+        mask = self._masking_sanity_check(mask=msg.mask, num_gen_img=num_gen_img)
     
         # Get synthetic images form the _forward method
         # which is specific for each subclass architecture
-        gen_img, message = self._forward(codes=codes)
+        gen_img, msg = self._forward(data)
         gen_img.to(self.device)
         
         # Count synthetic and natural
 
-        num_gen_img = mask.count(True)
-        num_nat_img = mask.count(False)
+        num_gen_img = sum( mask)
+        num_nat_img = sum(~mask)
         
         # Extract synthetic images shape
         _, *gen_img_shape = gen_img.shape
@@ -359,20 +342,21 @@ class Generator(ABC, nn.Module):
         
         # Interleave synthetic and generated according to the mask
         mask_ten = torch.tensor(mask, device = self.device)
-        out = torch.empty( num_nat_img + num_gen_img, *gen_img_shape, device=self.device)
+        out = torch.empty(num_nat_img + num_gen_img, *gen_img_shape, device=self.device)
         out[ mask_ten] = gen_img
         out[~mask_ten] = nat_img
         
         # Attach information to the message
-        message.mask = np.array(mask, dtype=np.bool_)
-        message.label = labels
-        return out, message
+        msg.label = labels
+        msg.labels_history.append(labels)
+        
+        return out, msg
     
     @torch.no_grad()
     @abstractmethod 
     def _forward(
         self, 
-        codes : Codes
+        data : Tuple[Codes, Message],
     ) -> Tuple[Stimuli, Message]:
         '''
         The abstract method will be implemented in each 
@@ -451,7 +435,7 @@ class InverseAlexGenerator(Generator):
     @torch.no_grad()
     def _forward(
         self, 
-        codes : Codes
+        data : Tuple[Codes, Message],
     ) -> Tuple[Stimuli, Message]:
         '''
         Generated synthetic images starting with their latent code
@@ -462,6 +446,8 @@ class InverseAlexGenerator(Generator):
         :rtype: Tuple[Stimuli, Message]
         '''
         
+        codes, msg = data
+        
         # NOTE: We convert numpy codes to tensors as input for the generator
         codes_ = torch.from_numpy(codes).to(self.device).to(self.dtype)
             
@@ -469,19 +455,10 @@ class InverseAlexGenerator(Generator):
         gens = self._network(codes_)
         gens = self._output_pipe(gens)
 
-        # TODO: @Lorenzo Why this scaling here?
-        # TODO: @Paolo Kreimann does it in his code. I don't know why this is
         if self.type_net in ['conv','norm']:
             gens *= 255
-            
-        # Generate message
-        # NOTE: The information regarding it's in practice useless as it
-        #       will be overloaded in the forward method.
-        # NOTE: At this moment it's trivial but it offers the possibility
-        #       to attach auxiliary information in the future.
-        message = Message(mask=np.array([True]*gens.shape[0]), label=[]) 
 
-        return gens, message
+        return gens, msg
 
     @property
     def input_dim(self) -> Tuple[int, ...]:
@@ -502,13 +479,6 @@ class InverseAlexGenerator(Generator):
             case 'norm1': return (3, 240, 240)
             case 'norm2': return (3, 240, 240)
             case _: return (3, 256, 256)
-
-    @property
-    def masks_history(self)   -> NDArray[np.bool_]:
-        return np.stack(self._masks)
-
-    @property
-    def labels_history(self) -> NDArray[np.int64]: return np.stack(self._labels)
             
     def _get_pipe(self, variant : InverseAlexVariant) -> Callable[[Tensor], Tensor]:
         def _opt1(imgs : Tensor) -> Tensor:

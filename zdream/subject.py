@@ -10,7 +10,7 @@ from torch.utils.hooks import RemovableHandle
 from torchvision.models import get_model
 from torchvision.models import get_model_weights
 
-from .utils.model import Message, RecordingUnit
+from .utils.model import RecordingUnit
 from .utils.model import Stimuli
 from .utils.model import SubjectState
 from .probe import SetterProbe
@@ -21,6 +21,7 @@ from .utils.misc import default
 from .utils.misc import device
 from .utils.misc import unpack
 from .utils.misc import replace_inplace
+from .message import Message
 
 class Subject(ABC):
     '''
@@ -40,7 +41,6 @@ class InSilicoSubject(Subject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._states: List[SubjectState] = []
     
     @abstractmethod
     def __call__(
@@ -54,25 +54,7 @@ class InSilicoSubject(Subject):
     @abstractmethod
     def target(self) -> Dict[str, RecordingUnit]:
         pass
-    
-    @property
-    def states_history(self) -> SubjectState:
-        ''' 
-        Returns the history of subject states as a single
-        subject state with stacked activations
-        '''
-        if not self._states:
-            raise ValueError("No state produced yet. ") 
-        
-        keys = self._states[0].keys()
-        
-        return {
-            key: np.stack([state[key] for state in self._states])
-            for key in keys
-    }
-    
-    
-    
+
 class NetworkSubject(InSilicoSubject, nn.Module):
     '''
         Class representing an artificial network involved in
@@ -193,8 +175,6 @@ class NetworkSubject(InSilicoSubject, nn.Module):
             probe=probe,
             auto_clean=auto_clean
         )
-
-        self._states.append(state)
 
         return state, msg
 

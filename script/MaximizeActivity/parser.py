@@ -50,7 +50,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--variant',        type=def_type(str),   help='Variant of InverseAlexGenerator to use')
     
     # Mask generator
-    parser.add_argument('--template',       type=def_type(str),   help='String of True(T) and False(F) as the basic sequence of the mask', default='T')
+    parser.add_argument('--template',       type=def_type(str),   help='String of True(T) and False(F) as the basic sequence of the mask')
     parser.add_argument('--shuffle',        type=def_type(bool),  help='If to shuffle mask template')
 
     # Subject

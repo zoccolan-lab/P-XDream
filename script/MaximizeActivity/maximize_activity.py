@@ -12,8 +12,9 @@ from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.utils.dataset import MiniImageNet, resize_images
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
-from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Message, ScoringUnit, Stimuli, StimuliScore, SubjectState, aggregating_functions, mask_generator_from_template
-from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
+from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, StimuliScore, SubjectState, mask_generator_from_template
+from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, aggregating_functions
+from zdream.message import Message
 
 import numpy as np
 import torch
@@ -70,8 +71,8 @@ class MaximizeActivityExperiment(Experiment):
         # Dataloader
         use_nat = template.count(False) > 0
         if use_nat:
-            rsz_inet_dir = resize_images(input_dir = gen_conf['mini_inet'])
-            dataset      = MiniImageNet(root=rsz_inet_dir)
+            # rsz_inet_dir = resize_images(input_dir = gen_conf['mini_inet'])
+            dataset      = MiniImageNet(root=gen_conf['mini_inet'])
             dataloader   = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
 
         # Instance
@@ -207,7 +208,7 @@ class MaximizeActivityExperiment(Experiment):
         # to see if natural images are involved in the experiment
         mock_mask = self._mask_generator(1)
     
-        self._use_natural = mock_mask is not None and mock_mask.count(False) > 0
+        self._use_natural = mock_mask is not None and sum(~mock_mask) > 0
 
         # Extract from Data
 
@@ -218,14 +219,14 @@ class MaximizeActivityExperiment(Experiment):
         if self._use_natural:
             self._dataset   = cast(MiniImageNet, data['dataset'])
 
-    def _progress_info(self, i: int) -> str:
+    def _progress_info(self, i: int, msg : Message) -> str:
 
         # We add the progress information about the best
         # and the average score per each iteration
-        stat_gen = self.optimizer.stats
+        stat_gen = msg.stats_gen
 
         if self._use_natural:
-            stat_nat = self.optimizer.stats_nat
+            stat_nat = msg.stats_nat
 
         best_gen = cast(NDArray, stat_gen['best_score']).mean()
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
@@ -242,13 +243,13 @@ class MaximizeActivityExperiment(Experiment):
         else:
             desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str}'
 
-        progress_super = super()._progress_info(i=i)
+        progress_super = super()._progress_info(i=i, msg=msg)
 
         return f'{progress_super}{desc}'
 
-    def _init(self):
+    def _init(self) -> Message:
 
-        super()._init()
+        msg = super()._init()
 
         # Data structure to save best score and best image
         if self._use_natural:
@@ -262,14 +263,15 @@ class MaximizeActivityExperiment(Experiment):
         if self._use_natural:
             self._labels: List[int] = []
 
+        return msg
 
-    def _progress(self, i: int):
+    def _progress(self, i: int, msg : Message):
 
-        super()._progress(i)
+        super()._progress(i, msg)
 
         # Get best stimuli
-        best_code = self.optimizer.solution
-        best_synthetic, _ = self.generator(codes=best_code, pipeline=False)
+        best_code = msg.solution
+        best_synthetic, _ = self.generator(data=(best_code, Message(mask=np.array([True]))))
         best_synthetic_img = to_pil_image(best_synthetic[0])
 
         if self._use_natural:
@@ -293,9 +295,9 @@ class MaximizeActivityExperiment(Experiment):
                     image=to_pil_image(best_natural)
                 )   
 
-    def _finish(self):
+    def _finish(self, msg : Message):
 
-        super()._finish()
+        super()._finish(msg)
 
         # Close screens
         if self._close_screen:
@@ -309,7 +311,7 @@ class MaximizeActivityExperiment(Experiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen, _ = self.generator(codes=self.optimizer.solution, pipeline=False)
+        best_gen, _ = self.generator(data=(msg.solution, Message(mask=np.array([True]))))
         best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
@@ -343,12 +345,12 @@ class MaximizeActivityExperiment(Experiment):
         self._logger.prefix='> '
         plot_scores(
             scores=(
-                self.optimizer.scores_history,
-                self.optimizer.scores_nat_history if self._use_natural else np.array([])
+                np.stack(msg.scores_gen_history),
+                np.stack(msg.scores_nat_history) if self._use_natural else np.array([])
             ),
             stats=(
-                self.optimizer.stats,
-                self.optimizer.stats_nat if self._use_natural else dict(),
+                msg.stats_gen,
+                msg.stats_nat if self._use_natural else dict(),
             ),
             out_dir=plots_dir,
             display_plots=self._display_plots,
@@ -358,8 +360,8 @@ class MaximizeActivityExperiment(Experiment):
         if self._use_natural:
             plot_scores_by_cat(
                 scores=(
-                    self.optimizer.scores_history,
-                    self.optimizer.scores_nat_history
+                    np.stack(msg.scores_gen_history),
+                    np.stack(msg.scores_nat_history)
                 ),
                 lbls    = self._labels,
                 out_dir = plots_dir, 
@@ -381,7 +383,7 @@ class MaximizeActivityExperiment(Experiment):
 
         return super()._stimuli_to_sbj_state(data)
 
-    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Codes:
+    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
 
         sub_score, msg = data
 
@@ -444,11 +446,11 @@ class NeuronScalingMultiExperiment(MultiExperiment):
         self._data['iter'   ] = list()
 
 
-    def _progress(self, exp: MaximizeActivityExperiment, i: int):
+    def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
 
         super()._progress(exp, i)
 
-        self._data['score']  .append(exp.optimizer.stats['best_score'])
+        self._data['score']  .append(msg.stats_gen['best_score'])
         self._data['neurons'].append(exp.scorer.optimizing_units)
         self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
         self._data['iter']   .append(exp._iteration) # TODO make public property        
@@ -521,18 +523,18 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
         self._data['Crec_rec_var']  = list()
 
     
-    def _progress(self, exp: MaximizeActivityExperiment, i: int):
+    def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
 
         super()._progress(exp, i)
 
         mock_template = exp._mask_generator(1)
-        use_nat = mock_template is not None and mock_template.count(False) > 0
+        use_nat = mock_template is not None and sum(~mock_template) > 0
 
         # Update score and parameters
-        self._data['score']    .append(exp.optimizer.stats['best_score'])
-        self._data['score_nat'].append(exp.optimizer.stats_nat['best_score'] if use_nat else np.nan)
+        self._data['score']    .append(msg.stats_gen['best_score'])
+        self._data['score_nat'].append(msg.stats_nat['best_score'] if use_nat else np.nan)
         self._data['neurons']  .append(exp.scorer.optimizing_units)
-        self._data['layer']    .append(list(exp.scorer._trg_neurons.keys()))
+        self._data['layer']    .append(msg.scr_layers)
         self._data['iter']     .append(exp._iteration) # TODO make public property
         
         # Create new dictionary for fields
@@ -560,7 +562,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
                 # Compute the correlation between each avg recorded unit and the mean of the optimized sites. 
                 # Store correlation mean and variance
                 avg_rec  = np.mean(activations[:, :, non_scoring_units], axis=1).T
-                corr_vec = np.corrcoef(exp.optimizer.stats['mean_shist'], avg_rec)[0, 1:]
+                corr_vec = np.corrcoef(msg.stats_gen['mean_shist'], avg_rec)[0, 1:]
                 Copt_rec[layer]     = np.mean(corr_vec)
                 Copt_rec_var[layer] = np.std(corr_vec)
 
