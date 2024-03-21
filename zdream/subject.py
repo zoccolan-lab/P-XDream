@@ -129,7 +129,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         # If provided, attach the recording probe to the network
         if record_probe: 
             self._target = record_probe.target
-            self.register(record_probe)
+            self.register_forward(record_probe)
 
     @property
     def target(self) -> Dict[str, RecordingUnit]:
@@ -254,6 +254,14 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         self._probes[probe] = handles
         
         return handles
+    
+    def clean(self) -> None:
+        """clean subject states and probe content
+        """
+        self._states : List[SubjectState] = []
+        
+        if self.recorder is not None:
+            self.recorder.clean() 
     
     def remove(self, probe : SilicoProbe) -> None:
         '''

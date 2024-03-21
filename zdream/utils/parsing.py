@@ -360,6 +360,14 @@ def parse_scoring(
                     replace=False
                 )
             )
+
+            #      for i in range(len(rec_layer))])
+            
+            #if isinstance(rec_layer, tuple):
+            #    scoring[layer_name] = [tuple([rec_layer[i][scoring[layer_name][j]] 
+            #                           for i in range(len(rec_layer))])
+            #                           for j in range(len(scoring[layer_name]))]
+        
     
     else: 
     
@@ -418,15 +426,23 @@ def get_neurons_target(
         neurons: List[int],
         n_samples: int = 1,
         rec_both: bool = True,
+        random_rec: int = 1000
+        
 ) -> Tuple[str, str, str]:
         #flatten takes a list of lists and flattens it in one flat list
         def flatten(lst): return [item for sublist in lst for item in sublist]
         
         #return the correctly written parsing strings.[:-1] is to exclude the last # from the string
         targets = ''.join(flatten([[f'{l}={n}r[]#']*n_samples for l in layers  for n in neurons]))[:-1]
-        rec_layers = ''.join(flatten([[f'{l}=[]#']*(n_samples * len(neurons)) for l in layers ]))[:-1]
+        linear_l = [layer for layer in layers if layer > 15]
+        conv_layers = [layer for layer in layers if layer <= 15]
+        rec_layers_lin = ''.join(flatten([[f'{l}=[]#']*(n_samples * len(neurons)) for l in linear_l ]))[:-1] if linear_l else ''
+
+        rec_layers_conv = ''.join(flatten([[f'{l}={random_rec}r[]#']*(n_samples * len(neurons)) for l in conv_layers ]))[:-1] if conv_layers else ''
+
+        rec_layers = '#'.join([rec_layers_lin,rec_layers_conv]) if rec_layers_lin and rec_layers_conv else rec_layers_lin or rec_layers_conv
         rand_seeds = '#'.join([str(np.random.randint(0, 100000)) for _ in range(n_samples * len(neurons) * len(layers))])
-        
+                
         if rec_both:
             rec_layers = '#'.join([','.join(list(set(rec_layers.split('#'))))]*(n_samples * len(neurons) * len(layers)))
 
