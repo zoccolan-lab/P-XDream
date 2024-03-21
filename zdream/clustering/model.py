@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from zdream.logger import Logger, MutedLogger
 from zdream.subject import InSilicoSubject
-from zdream.utils.misc import default
+from zdream.utils.misc import default, device
 from zdream.utils.model import Message
 
 # --- TYPE ALIAS ---
@@ -190,7 +190,7 @@ class NeuronalRecording:
         self, 
         subject:       InSilicoSubject, 
         dataset:       Dataset, 
-        indexes:       List[int] | None        = None, 
+        image_ids:     List[int]               = [], 
         stimulus_post: Callable[[Any], Tensor] = (lambda x: x),
         state_post:    Callable[[Any], Tensor] = (lambda x: x),
         logger:        Logger                  = MutedLogger()
@@ -202,9 +202,9 @@ class NeuronalRecording:
         :type subject: InSilicoSubject
         :param dataset: Dataset of visual stimuli
         :type dataset: Dataset
-        :param indexes: Indexes of stimuli to present.
-                        If not specified the entire dataset is used.
-        :type indexes: List[int] | None
+        :param image_ids: Indexes of stimuli to present.
+                          If not specified the entire dataset is used.
+        :type image_ids: List[int] | None
         :param stimulus_post: Postprocessing for stimulus, defaults to identity.
         :type stimulus_post: Callable[[Any], Tensor] | None
         :param state_post: Postprocessing for subject state, defaults to identity.
@@ -219,9 +219,12 @@ class NeuronalRecording:
         self._stimulus_post = stimulus_post
         self._state_post    = state_post
         self._logger        = logger
-        self._indexes       = default(indexes, list(range(len(dataset)))) # type: ignore
+        self._image_ids     = image_ids if image_ids else list(range(len(dataset))) # type: ignore
         
         self._recording: NDArray = np.array([])
+        
+    def __str__(self) -> str:
+        return f'NeuralRecording[subject: {self._subject}; n-stimuli: {len(self._image_ids)}]'\
         
     @property
     def recordings(self) -> Recording:
@@ -239,28 +242,29 @@ class NeuronalRecording:
         '''
         
         # If not given we set checkpoint progress greater that iterations
-        log_chk = default(log_chk, len(self._indexes)+1)
+        log_chk = default(log_chk, len(self._image_ids)+1)
         
         sbj_states = []
         msg = Message()
         
-        for i, idx in enumerate(self._indexes):
+        for i, idx in enumerate(self._image_ids):
             
             # Log progress
             if i % log_chk == 0:
-                progress = f'{i:>{len(str(len(self._indexes)))+1}}/{len(self._indexes)}'
-                self._logger.info(mess=f'Iteration [{progress}]')
+                progress = f'{i:>{len(str(len(self._image_ids)))+1}}/{len(self._image_ids)}'
+                perc     = f'{i * 100 / len(self._image_ids):>5.2f}%'
+                self._logger.info(mess=f'Iteration [{progress}] ({perc})')
             
             # Retrieve stimulus
             stimulus: Tensor = self._dataset[idx]
-            stimulus = self._stimulus_post(stimulus)
+            stimulus = self._stimulus_post(stimulus).to(device)
             
             # Compute subject state
             try: 
                 sbj_state, _ = self._subject(data=(stimulus, msg))
                 sbj_state = self._state_post(sbj_state)
             except Exception as e:
-                self._logger.warn(f"Unable to process image with index {i}: {e}")
+                self._logger.warn(f"Unable to process image with index {idx}: {e}")
                 
             # Update states
             sbj_states.append(sbj_state)

@@ -1,20 +1,161 @@
 from argparse import ArgumentParser
 from os import path
+from typing import Any, Dict, List, cast
 
 from zdream.clustering.model import NeuronalRecording, PairwiseSimilarity
-from zdream.logger import LoguruLogger
-from zdream.subject import NetworkSubject
+from zdream.experiment import Experiment
+from zdream.generator import Generator
+from zdream.logger import Logger, LoguruLogger
+from zdream.optimizer import Optimizer
+from zdream.scorer import Scorer
+from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.probe import RecordingProbe
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.io_ import read_json
-from zdream.utils.parsing import parse_recording
+from zdream.utils.io_ import read_json, save_json
+from zdream.utils.misc import flatten_dict, stringfy_time
+from zdream.utils.model import MaskGenerator
+from zdream.utils.parsing import parse_int_list, parse_recording
 
-SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
-LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
+class NeuralRecordingExperiment(Experiment):
+    
+    EXPERIMENT_TITLE = "NeuronalRecording"
+    
+    def __init__(
+        self, 
+        neuronal_recording: NeuronalRecording, 
+        logger: Logger,
+        data: Dict[str, Any] = dict(),
+        name: str = 'experiment'
+    ) -> None:
+        
+        super().__init__(
+            # NOTE: We set None unused elements in the experiment
+            generator=None, # type: ignore
+            scorer=None,    # type: ignore
+            optimizer=None, # type: ignore
+            subject=None,   # type: ignore
+            iteration=0, 
+            logger=logger,
+            data=data,
+            name=name
+        )
+        
+        self._neuronal_recording = neuronal_recording
+        
+        self._log_chk = cast(int, data['log_chk'])
+        
+        
+    @classmethod
+    def _from_config(cls, conf : Dict[str, Any]) -> 'NeuralRecordingExperiment':
+        
+        sbj_conf = conf['subject']
+        dat_conf = conf['dataset']
+        log_conf = conf['logger']
+        
+        # Extract layers info
+        layer_info = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
+        
+        # --- PROBE ---
+        record_target = parse_recording(input_str=sbj_conf['rec_layers'], net_info=layer_info)
+        
+        if len(record_target) > 1:
+            raise NotImplementedError(f'Recording only supported for one layer. Multiple found: {record_target.keys()}.')
+        
+        probe = RecordingProbe(target=record_target) # type: ignore
 
-LAYERS_NEURONS_SPECIFICATION = '''
-TMP
-'''
+        # --- SUBJECTS ---
+        sbj_net = NetworkSubject(
+            record_probe=probe,
+            network_name=sbj_conf['net_name']
+        )
+        sbj_net._network.eval()
+        
+        # --- DATASET ---
+        dataset = MiniImageNet(root=dat_conf['mini_inet'])
+        
+        # --- LOGGER ---
+        log_conf['title'] = NeuralRecordingExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(conf=log_conf)
+        
+        # --- NEURAL RECORDING ---
+        indexes = parse_int_list(dat_conf['image_ids'])
+        
+        neuronal_recording = NeuronalRecording(
+            subject=sbj_net,
+            dataset=dataset,
+            image_ids=indexes,
+            stimulus_post=lambda x: x['imgs'].unsqueeze(dim=0),
+            state_post=lambda x: list(x.values())[0][0],
+            logger=logger
+        )
+        
+        # --- DATA ---
+        data = {
+            'log_chk': conf['log_chk']
+        }
+        
+        return NeuralRecordingExperiment(
+            neuronal_recording=neuronal_recording,
+            logger=logger,
+            data=data
+        )
+        
+    def _init(self):
+        '''
+        The method is called before running the actual experiment.
+        The default version logs the attributes of the components.
+        It is supposed to contain all preliminary operations such as initialization.
+        '''
+
+        # Create experiment directory
+        self._logger.create_target_dir()
+
+        # Save and log parameters
+        if self._param_config:
+
+            flat_dict = flatten_dict(self._param_config)
+            
+            # Log
+            self._logger.info(f"")
+            self._logger.info(mess=str(self))
+            self._logger.info(f"Parameters:")
+
+            max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
+
+            for k, v in flat_dict.items():
+                k_ = f"{k}:"
+                self._logger.info(f'{k_:<{max_key_len}}   {v}')
+
+            # Save
+            config_param_fp = path.join(self.target_dir, 'params.json')
+            self._logger.info(f"Saving param configuration to: {config_param_fp}")
+            save_json(data=self._param_config, path=config_param_fp)
+
+        # Components
+        self._logger.info(f"")
+        self._logger.info(f"Components:")
+        self._logger.info(mess=f'Recording: {self._neuronal_recording}')
+        self._logger.info(f"")
+    
+    def _run(self):
+        
+        self._neuronal_recording.record(log_chk=self._log_chk)
+    
+    def _finish(self):
+        
+        # Log total elapsed time
+        str_time = stringfy_time(sec=self._elapsed_time)
+        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
+        self._logger.info(mess="")
+        
+        # Save recordings
+        self._neuronal_recording.save(out_dir=self.target_dir)
+        
+        # Save similarities
+        pw = PairwiseSimilarity(recordings=self._neuronal_recording.recordings)
+        pw.cosine_similarity.save(out_dir=self.target_dir, logger=self._logger)
+
+
 
 def main(args): 
     
@@ -28,76 +169,4 @@ def main(args):
         raise NotImplementedError('Recording only supports one layer. ')
     
     probe = RecordingProbe(target=record_target) # type: ignore
-
-    # SUBJECTS
-    sbj_net = NetworkSubject(
-        record_probe=probe,
-        network_name=args['net_name']
-    )
-    sbj_net._network.eval()
     
-    # DATASET
-    dataset = MiniImageNet(root=args['mini_inet'])
-    
-    # LOGGER
-    logger = LoguruLogger(
-        conf={
-            'out_dir': args['out_dir'],
-            'title':   'NeuralRecording',
-            'name':    args['name'],
-            'version': args['version']
-        }
-    )
-    
-    # NEURAL RECORDING
-    recording = NeuronalRecording(
-        subject=sbj_net,
-        dataset=dataset,
-        indexes=conf['image_ids'],
-        stimulus_post=lambda x: x['imgs'].unsqueeze(dim=0),
-        state_post=lambda x: list(x.values())[0][0],
-        logger=logger
-    )
-    
-    recording.record(log_chk=10)
-    
-    recording.save(out_dir=logger.target_dir)
-    
-    # SIMILARITIES
-    pw = PairwiseSimilarity(recordings=recording.recordings)
-    
-    pw.cosine_similarity.save(out_dir=logger.target_dir, logger=logger)
-
-
-if __name__ == '__main__':    
-
-    # Loading custom local settings to set as defaults
-    local_folder       = path.dirname(path.abspath(__file__))
-    script_settings_fp = path.join(local_folder, LOCAL_SETTINGS)
-    script_settings    = read_json(path=script_settings_fp)
-    
-    # Set paths as defaults
-    out_dir  = script_settings['out_dir']
-    inet_dir = script_settings['mini_inet']
-
-    parser = ArgumentParser()
-    
-    # Subject
-    parser.add_argument('--net_name',   type=str,   help='Network name',                                      default='alexnet')
-    parser.add_argument('--rec_layers', type=str,   help=f"Layers to record. {LAYERS_NEURONS_SPECIFICATION}", default='21=[]')
-    
-    # Dataset
-    parser.add_argument('--mini_inet',  type=str,   help='Path to Mini-Imagenet dataset',                     default=inet_dir)
-    parser.add_argument('--image_ids',  type=list,  help='Image indexes for recording')
-    
-    # Logger
-    parser.add_argument('--name',       type=str,   help='Experiment name',                                   default='recording')
-    parser.add_argument('--version',    type=int,   help='Experiment version',                                default=0)
-    parser.add_argument('--out_dir',    type=str,   help='Path to directory to save outputs',                 default = out_dir)
-    
-    # Globals
-    parser.add_argument('--log_ckp',    type=int,   help='Logging checkpoints',                               default = 10)
-    
-    conf = vars(parser.parse_args())
-    
-    main(conf)
