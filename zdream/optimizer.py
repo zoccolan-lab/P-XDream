@@ -381,7 +381,7 @@ class GeneticOptimizer(Optimizer):
             size=(num_children, self._num_parents),
             p=pop_fitness,
             replace=True,
-        ) if allow_clones else np.stack([
+        ) if allow_clones else np.stack([ # TODO avoid resampling with only two parents
             self._rng.choice(
                 len(population),
                 size=self._num_parents,

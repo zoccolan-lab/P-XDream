@@ -37,6 +37,13 @@ def parse_boolean_string(boolean_str: str) -> List[bool]:
 
     return[char_to_bool(ch=ch) for ch in boolean_str]
 
+def parse_int_list(integer_list_str: str) -> List[int]:
+    ''' Converts string of integers separated by comma to a list of integers'''
+    
+    if integer_list_str:
+        return[int(n) for n in integer_list_str.split(',')]
+    return []
+
 def parse_signature(
     input_str : str,
     net_info: Dict[str, Tuple[int, ...]],

@@ -6,4 +6,5 @@
     "maximize_activity_config": "path/to/your/config_file/maximize_activity",
     "target_recovery_config": "path/to/your/config_file/target_recovery"
     "adversarial_attack_config": "path/to/your/config_file/adversarial_attack"
+    "neural_recording_config": "path/to/your/config_file/neural_recording"
 }

@@ -136,6 +136,9 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         if hasattr(self, '_target'):
             return self._target
         return dict()
+    
+    @property
+    def in_shape(self) -> Tuple[int, ...]: return self._inp_shape
         
     def __str__(self) -> str:
 

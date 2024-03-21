@@ -12,6 +12,9 @@ from PIL import Image
 
 from typing import Callable, Dict, Tuple
 
+from zdream.logger import Logger, MutedLogger
+from zdream.utils.misc import default
+
 
 '''
 NOTE: To download
@@ -58,6 +61,74 @@ class MiniImageNet(ImageFolder):
             'imgs' : img,
             'lbls' : lbl,
         }
+        
+    @staticmethod
+    def resize_dataset(in_dir: str, out_dir: str | None = None, target_size: tuple=(256, 256), logger: Logger | None = None):
+        '''
+        Resizes mini-Imagenet dataset images to the target_size and stores them in a new folder.
+        This is made to avoid the overhead of on-line resizing.
+        
+        :param in_dir: Directory where mini-Imagenet images are stored, defaults to None
+        :type in_dir: str
+        :param out_dir: Directory where to save the resized dataset.
+                        If not given suffix `resized` is added to input directory.
+        :type out_dir: str | None, optional
+        :param target_size: Desired new size (H x W) of the images, defaults to (256, 256)
+        :type target_size: tuple, optional
+        :param logger: Optional logger to log resizing information. If non given defaults to MutedLogger.
+        :type target_size: Logger | None
+        '''
+        
+        # Logger default
+        logger = default(logger, MutedLogger())
+        
+        # If output_dir is defined, add resized suffix
+        if not out_dir:
+            out_dir = f'{in_dir}_resized'
+            
+        # Check if output directory already exists. If True, terminate
+        if os.path.exists(out_dir):
+            logger.info(mess=f"Output directory '{out_dir}' already exists.")
+            return
+        
+        # Create directory
+        logger.info(f'Creating directory {out_dir}')
+        os.makedirs(out_dir)
+        
+        # Iterate for all the subfolders in input_dir
+        for item in os.listdir(in_dir):
+            
+            # If a file copy it
+            if '.' in item:
+                in_fp  = os.path.join(in_dir,  item)
+                out_image_fp = os.path.join(out_dir, item)
+                shutil.copyfile(in_fp, out_image_fp)
+                
+            # Folders
+            else:
+                
+                logger.info(mess=f'Copying directory {item}')
+                
+                in_subfolder = os.path.join(in_dir, item)
+                
+                # Create output folder
+                out_subfolder = os.path.join(out_dir, item)
+                os.makedirs(out_subfolder, exist_ok=True)
+                
+                # Iterate through each file in each directory of input_dir
+                for image in os.listdir(in_subfolder):
+                    
+                    in_image_fp = os.path.join(in_subfolder, image)
+                    
+                    # Copy image
+                    if os.path.isfile(in_image_fp):
+                        try:
+                            with Image.open(in_image_fp) as img:
+                                resized_img = img.resize(target_size)
+                                out_image_fp = os.path.join(out_subfolder, image)
+                                resized_img.save(out_image_fp)
+                        except Exception as e:
+                            logger.error(f"Failed to process {image}: {e}")
 
 
 class RandomImageDataset(Dataset):
@@ -85,53 +156,4 @@ class RandomImageDataset(Dataset):
             'lbls' : torch.tensor([0]),
         }
         
-def resize_images(input_dir: str, output_dir:str | None = None, target_size: tuple=(256, 256)) -> str:
-    """resizes tiny-imagenet images to the target_size and stores them 
-    in a new folder output_dir
-    
-    :param input_dir: directory where tiny-imagenet images are stored
-    :type input_dir: str
-    :param output_dir: directory where tiny-imagenet images are stored, defaults to None
-    :type output_dir: str | None, optional
-    :param target_size: desired size (h x w) of the images, defaults to (256, 256)
-    :type target_size: tuple, optional
-    :return the main directory where resized images are located 
-    :rtype: str
-    """
-    #if output_dir is defined, a default dir _resized is assigned
-    if output_dir is None:
-        fp_parts = input_dir.split(os.sep); fp_parts[-1] = fp_parts[-1]+"_resized"
-        output_dir = os.sep.join(fp_parts)
-        
-    # Check if output directory already exists. If True, terminate
-    if os.path.exists(output_dir):
-        print(f"Output directory '{output_dir}' already exists.")
-        return output_dir
-    
-    #iterate for all the subfolders in input_dir
-    for cl in os.listdir(input_dir):
-        if '.' not in cl: #to avoid files present in input_dir
-            cat_dir = os.path.join(input_dir, cl)
-            print(cl)
-            # Create output directory for class cl if it doesn't exist
-            cat_dir_resize = os.path.join(output_dir, cl)
-            if not os.path.exists(cat_dir_resize):
-                os.makedirs(cat_dir_resize)
-            # Iterate through each file in each directory of input_dir
-            for filename in os.listdir(cat_dir):
-                filepath = os.path.join(cat_dir, filename)
-                if os.path.isfile(filepath):
-                    try:
-                        with Image.open(filepath) as img:
-                            resized_img = img.resize(target_size)
-                            output_filepath = os.path.join(cat_dir_resize, filename)
-                            resized_img.save(output_filepath) # Save the resized image
-                    except Exception as e:
-                        print(f"Error in processing {filename}: {e}")
-        #the imagenet_lbls file is also present in tiny-imagenet input_dir.
-        #just copy it in the output_dir
-        elif cl=='imagenet_lbls.txt':
-            output_filepath = os.path.join(output_dir, cl)
-            shutil.copyfile(os.path.join(input_dir, cl), output_filepath)
-            
-    return output_dir
+

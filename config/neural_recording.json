@@ -1,0 +1,17 @@
+{
+    "config": "",
+    "subject": {
+        "net_name": "alexnet",
+        "rec_layers": "21=[]"
+    },
+    "dataset": {
+        "mini_inet": "",
+        "image_ids": ""
+    },
+    "logger": {
+        "out_dir": "",
+        "name": "experiment",
+        "version": 0
+    },
+    "log_chk": 10
+}
