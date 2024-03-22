@@ -122,6 +122,21 @@ def to_gif(image_list: List[Image.Image], out_fp: str, duration: int = 100):
 
 # --- TXT ---
 
+def read_txt(file_path: str) -> List[str]:
+    ''' 
+    Read .TXT file lines
+    '''
+    
+    # Open file
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        
+    # Strip newline characters from each line
+    lines = [line.strip() for line in lines]
+    
+    return lines
+
+
 def neurons_from_file(file_path: str) -> RecordingUnit:
     ''' 
     Read a set of number from files which is expected   

@@ -38,13 +38,13 @@ class AffinityMatrix:
     basic operations such as copying and subsetting
     '''
 
-    def __init__(self, aff_mat: NDArray, labels: Labels | None = None) -> None:
+    def __init__(self, A: NDArray, labels: Labels | None = None) -> None:
         '''
         Instantiate a new object with affinity matrix
         It performs sanity check for shape and values
 
-        :param aff_mat: Affinity matrix.
-        :type aff_mat: NDArray
+        :param A: Affinity matrix.
+        :type A: NDArray
         :param labels: Labels associated to each object.
                        If not given matrix indexes are used.
         :type labels: Labels
@@ -53,27 +53,27 @@ class AffinityMatrix:
         # Sanity checks
 
         # A) Shape check
-        if len(aff_mat.shape) != 2 or aff_mat.shape[0] != aff_mat.shape[1]:
-            err_msg = f'The affinity matrix is supposed to be square, but {aff_mat.shape} shape found.'
+        if len(A.shape) != 2 or A.shape[0] != A.shape[1]:
+            err_msg = f'The affinity matrix is supposed to be square, but {A.shape} shape found.'
             raise ValueError(err_msg)
 
         # B) Symmetric check
-        if not np.array_equal(aff_mat, aff_mat.T):
+        if not np.array_equal(A, A.T):
             err_msg = f'The affinity matrix it\'s not symmetric.'
             raise ValueError(err_msg)
 
         # C) Zero diagonal check
-        if np.any(np.diag(aff_mat) != 0):
+        if np.any(np.diag(A) != 0):
             err_msg = f'The affinity matrix diagonal contains non-zero values.'
             raise ValueError(err_msg)
 
         # D) Positive similarities 
-        if np.any(aff_mat < 0):
+        if np.any(A < 0):
             err_msg = f'The affinity matrix contains negative similarities.'
             raise ValueError(err_msg)
 
         # Save matrix and labels
-        self._aff_mat: NDArray = aff_mat
+        self._A: NDArray = A
         self._labels : Labels  = default(labels, np.array(list(range(len(self)))))
 
     # --- MAGIC METHODS ---
@@ -84,20 +84,20 @@ class AffinityMatrix:
 
     def __copy__(self) -> 'AffinityMatrix':
         return AffinityMatrix(
-            aff_mat = np.copy(self.aff_mat),
+            A = np.copy(self.A),
             labels  = np.copy(self.labels)
         )
 
     # --- PROPERTIES ---
 
     @property
-    def aff_mat(self) -> NDArray: return self._aff_mat
+    def A(self) -> NDArray: return self._A
 
     @property
     def labels(self) -> Labels: return self._labels
 
     @property
-    def shape(self) -> Tuple[int, ...]: return self.aff_mat.shape
+    def shape(self) -> Tuple[int, ...]: return self.A.shape
 
     # --- UTILITIES ---
 
@@ -119,16 +119,16 @@ class AffinityMatrix:
         new_labels = np.delete(self._labels, ids)
 
         # Subset columns and rows
-        new_mat = np.delete(self._aff_mat, ids, axis=0)
+        new_mat = np.delete(self._A, ids, axis=0)
         new_mat = np.delete(      new_mat, ids, axis=1)
 
         # Return new instance if not inplace operation
         if not inplace:
-            return AffinityMatrix(aff_mat=new_mat, labels=new_labels)
+            return AffinityMatrix(A=new_mat, labels=new_labels)
 
         # Update attributes of current objects
         self._labels  = new_labels
-        self._aff_mat = new_mat
+        self._A = new_mat
         
     def save(
         self,
@@ -154,7 +154,22 @@ class AffinityMatrix:
         # Save file
         out_fp = os.path.join(out_dir, file_name)
         logger.info(f'Saving affinity matrix to {out_fp}')
-        np.save(out_fp, self.aff_mat)
+        np.save(out_fp, self.A)
+
+    @classmethod
+    def from_file(cls, path: str, labels: Labels | None = None) -> 'AffinityMatrix':
+        '''
+        Load affinity matrix from .NPY file
+
+        :param path: File path to numpy matrix.
+        :type path: str
+        :return: Loaded affinity matrix
+        :rtype: AffinityMatrix
+        '''
+        
+        aff_mat = np.load(file=path)
+        
+        return AffinityMatrix(A=aff_mat, labels=labels)
 
     @classmethod
     def random(cls, size: int, low: float = 0., high: float = 1.) -> 'AffinityMatrix':
@@ -178,7 +193,7 @@ class AffinityMatrix:
         rand_aff_mat = (rand_aff_mat +  rand_aff_mat.T) / 2            # symmetric
         np.fill_diagonal(rand_aff_mat, 0)                              # 0-diagonal
 
-        return AffinityMatrix(aff_mat=rand_aff_mat)
+        return AffinityMatrix(A=rand_aff_mat)
     
 
 class NeuronalRecording:
@@ -323,4 +338,4 @@ class PairwiseSimilarity:
         aff_mat = (cosine_similarity(self._recordings) + np.ones(len(self))) / 2
         np.fill_diagonal(aff_mat, 0)
         
-        return AffinityMatrix(aff_mat=aff_mat) 
+        return AffinityMatrix(A=aff_mat) 
