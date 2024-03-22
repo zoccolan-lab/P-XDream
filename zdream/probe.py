@@ -286,8 +286,14 @@ class InfoProbe(SilicoProbe):
         curr = module.name
         
         if curr not in self._b_target: return
-
-        if isinstance(grad_inp, tuple): grad, *_ = grad_inp
+        
+        #NOTE: in the following line, once grad_in was used. 
+        #I changed it with grad_out because the dimensionalities of 
+        #layers were not correct.
+        #My interpretation is grad_in represents the gradient entering the
+        #layer of interest (i.e. the one from the layer below) and grad_out the
+        #gradient outputted by the layer of interest.
+        if isinstance(grad_out, tuple): grad, *_ = grad_out
         
         grad = grad.detach().abs().cpu().numpy() if grad is not None else None
         self._ingrad[(curr, self.source)].append(grad)
