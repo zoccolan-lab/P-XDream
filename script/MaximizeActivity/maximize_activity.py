@@ -261,24 +261,36 @@ class MaximizeActivityExperiment(Experiment):
         # Last seen labels
         if self._use_natural:
             self._labels: List[int] = []
-        """             
+                  
         #mock images for receptive field mapping (both forward and backward)
         self.nr_imgs4rf = 10
         msg = Message(
             mask=np.ones(self.nr_imgs4rf, dtype=bool),
             label=[],    
         )
-        
-
-        mock_inp = torch.randn(self.nr_imgs4rf, *self.subject._inp_shape[1:], device=self.subject.device)
+    
+        mock_inp = torch.randn(self.nr_imgs4rf, *self.subject._inp_shape[1:], device=self.subject.device, requires_grad=True)
         #get the layers you are recording from. We will map the scoring neurons on each of them.
         #we sort the target layers by their depth in ascending order
         rec_layers =  list(self.subject._target.keys()) + ['00_input_01']
         rec_layers = sorted(rec_layers, key=lambda x: int(x.split('_')[0]))
-        #ASSUMPTION: i am assuming that all scored units are from the same layer
-        scored_units = self.scorer._trg_neurons
-        mapped_layers = list(set(rec_layers) - set(scored_units.keys()))
+        #ASSUMPTION: i am assuming that all scored units are from the same layer 
+        # NOTE: Its critical that leading dimension is the channel!
+        #       Hence the ().T at the end of the extraction
         
+        #scored_units = {k:np.expand_dims(np.array(v), axis = 0) 
+        #                if len(np.array(v).shape) ==1 else (np.array(v)).T
+        #                for k,v in self.scorer._trg_neurons.items()}
+        
+        rec_targets = self.subject.target
+        
+        scored_units = {k:np.expand_dims(np.array(v), axis = 0) 
+                        if int(k.split('_')[0])>15 
+                        else np.concatenate([rec_targets[k][i][v] for i in range(len(rec_targets[k]))])
+                        for k,v in self.scorer._trg_neurons.items()}
+
+                
+        mapped_layers = list(set(rec_layers) - set(scored_units.keys()))
         backward_target = {ml: scored_units for ml in mapped_layers}
         # Create the InfoProbe and attach it to the subject
         probe = InfoProbe(
@@ -301,8 +313,9 @@ class MaximizeActivityExperiment(Experiment):
         self.rf_mappings = fields
 
         # Remove the probe from the subject
-        self.subject.remove(probe) """
+        self.subject.remove(probe) 
 
+        self.subject.clean()
         return msg
 
     def _progress(self, i: int, msg : Message):

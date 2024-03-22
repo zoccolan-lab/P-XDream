@@ -62,7 +62,7 @@ def fit_bbox(
     bbox = []
     # Loop over the spatial coordinates
     for axis in axes:
-        bbox.extend((coords[axis].min(), coords[axis].max() + 1))
+        bbox.append((coords[axis].min(), coords[axis].max() + 1))
         
     return tuple(bbox)
 

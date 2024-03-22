@@ -286,8 +286,14 @@ class InfoProbe(SilicoProbe):
         curr = module.name
         
         if curr not in self._b_target: return
-
-        if isinstance(grad_inp, tuple): grad, *_ = grad_inp
+        
+        #NOTE: in the following line, once grad_in was used. 
+        #I changed it with grad_out because the dimensionalities of 
+        #layers were not correct.
+        #My interpretation is grad_in represents the gradient entering the
+        #layer of interest (i.e. the one from the layer below) and grad_out the
+        #gradient outputted by the layer of interest.
+        if isinstance(grad_out, tuple): grad, *_ = grad_out
         
         grad = grad.detach().abs().cpu().numpy() if grad is not None else None
         self._ingrad[(curr, self.source)].append(grad)
@@ -378,10 +384,26 @@ class InfoProbe(SilicoProbe):
                 #       attribute of this class
                 act.backward(retain_graph=True)
         
-        return {
-            k : [fit_bbox(grad) for grad in v]
-            for k, v in self._ingrad.items()
-        }
+        rf_dict=defaultdict(list)    
+        for k, v in self._ingrad.items():
+            for grad in v:
+                grad_mean = np.mean(grad, axis = 0)
+                if grad_mean.ndim == 1:
+                   grad_mean = np.expand_dims(grad_mean, axis=0)
+                   axes = tuple([-1])
+                else:
+                   axes = tuple(-i for i in range(len(grad_mean.shape),0, -1))
+                rf_dict[k].append(fit_bbox(grad_mean, axes = axes))
+        #TO DO: it seems that at each act.backward step all the gradients are backpropagated.
+        #therefore we end up with a dict that, for each key, has a replica of its entry n times,
+        #where n is equal to the number of layers onto which the mapping occurs.
+        #I did a quick fix (i.e. taking the 1st element of every value) that seems to work for now
+        
+        return {k: v[0] for k,v in rf_dict.items()}
+        #return {
+        #    k : [fit_bbox(np.mean(grad[0], axis = 0)) for grad in v]
+        #    for k, v in self._ingrad.items()
+        #}
     
     def clean(self) -> None:
         '''
@@ -513,6 +535,7 @@ class RecordingProbe(SilicoProbe):
         
         # Register the network activations in probe data storage
         self._data[module.name].append(targ_act)
+
         
     def clean(self) -> None:
         '''
