@@ -265,7 +265,7 @@ class MaximizeActivityExperiment(Experiment):
         #-- RF MAPPING --         
         #mock images for receptive field mapping (both forward and backward)
         self.nr_imgs4rf = 10
-        msg = Message(
+        mock_msg = Message(
             mask=np.ones(self.nr_imgs4rf, dtype=bool),
             label=[],    
         )
@@ -301,7 +301,7 @@ class MaximizeActivityExperiment(Experiment):
 
         # Expose the subject to the mock input to collect the set
         # of shapes of the underlying network
-        _ = self.subject((mock_inp, msg), raise_no_probe=False)
+        _ = self.subject((mock_inp, mock_msg), raise_no_probe=False)
 
         # Collect the receptive fields from the info probe
         #NOTE: if done for many units, it takes a lot of time and memory space
