@@ -17,7 +17,7 @@ from .utils.io_ import save_json, store_pickle
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
-from .utils.model import Codes, DisplayScreen, Mask, MaskGenerator, Stimuli, StimuliScore, SubjectState
+from .utils.model import Codes, DisplayScreen, Mask, MaskGenerator, RFBox, Stimuli, StimuliScore, SubjectState
 from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
@@ -40,15 +40,15 @@ class ExperimentState:
     #       the underlying datastructures consider an additional first dimension
     #       in the Arrays relative to the generations.
 
-    mask:       NDArray[np.bool_]              | None  # [generations x (n_gen + n_nat)]
-    labels:     NDArray[np.int32]              | None  # [generations x n_nat]
-    codes:      NDArray[np.float32]            | None  # [generations x n_gen x code_len] 
-    scores_gen: NDArray[np.float32]            | None  # [generations x n_gen]
-    scores_nat: NDArray[np.float32]            | None  # [generations x n_nat]
-    states:     Dict[str, NDArray[np.float32]] | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
-    rec_units:  Dict[str, NDArray[np.int32]]   | None  # layer_name: recorded units
-    scr_units:  Dict[str, NDArray[np.int32]]   | None  # layer_name: scores activation indexes
-
+    mask:       NDArray[np.bool_]                        | None  # [generations x (n_gen + n_nat)]
+    labels:     NDArray[np.int32]                        | None  # [generations x n_nat]
+    codes:      NDArray[np.float32]                      | None  # [generations x n_gen x code_len] 
+    scores_gen: NDArray[np.float32]                      | None  # [generations x n_gen]
+    scores_nat: NDArray[np.float32]                      | None  # [generations x n_nat]
+    states:     Dict[str, NDArray[np.float32]]           | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
+    rec_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: recorded units
+    scr_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: scores activation indexes
+    rf_maps:  Dict[Tuple[str, str], NDArray[np.int32]]   | None  # (layer mapped, layer of mapping units): receptive fields
     @classmethod
     def from_msg(cls, msg : Message) -> 'ExperimentState':
         
@@ -60,6 +60,7 @@ class ExperimentState:
         
         rec_units = {k: np.stack(v).T if v else np.array([]) for k, v in msg.rec_units.items()}
         scr_units = {k: np.array(v)                          for k, v in msg.scr_units.items()}
+        rf_maps   = {k: np.array(v, dtype=np.int32)          for k, v in msg.rf_maps.items()}
         
         return ExperimentState(
             mask       = np.stack(msg.masks_history),
@@ -70,6 +71,7 @@ class ExperimentState:
             scores_nat = np.stack(msg.scores_nat_history),
             rec_units  = rec_units,
             scr_units  = scr_units,
+            rf_maps    = rf_maps 
         )
 
     @classmethod
@@ -98,6 +100,7 @@ class ExperimentState:
             ('scores_nat', 'npy'),
             ('rec_units',  'npz'),
             ('scr_units',  'npz'),
+            ('rf_maps',    'npz'),
         ]
         loaded = dict()
 
@@ -132,10 +135,11 @@ class ExperimentState:
             scores_nat = loaded['scores_nat'],
             rec_units  = loaded['rec_units'],
             scr_units  = loaded['scr_units'],
+            rf_maps    = loaded['rf_maps']
         )
 
 
-    def dump(self, out_dir: str, logger: Logger | None = None):
+    def dump(self, out_dir: str, logger: Logger | None = None, store_states: bool = False):
         '''
         Dump experiment state to an output directory where it creates a proper `state` subfolder.
         Dumping the subject state is optional as typically memory demanding.
@@ -155,12 +159,16 @@ class ExperimentState:
             ('mask',       'npy'),
             ('labels',     'npy'),
             ('codes',      'npy'),
-            ('states',     'npz'),
             ('scores_gen', 'npy'),
             ('scores_nat', 'npy'),
             ('rec_units',  'npz'),
             ('scr_units',  'npz'),
+            ('rf_maps',  'npz'),
         ]
+        
+        if store_states:
+            to_load.append(('states','npz'))
+            
 
         logger.info(f'Dumping experiment to {out_dir}')
         os.makedirs(out_dir, exist_ok=True)
@@ -179,6 +187,7 @@ class ExperimentState:
             match name:
                 case 'labels': check_fn = lambda x : x.size
                 case 'states': check_fn = lambda x : all([v.size for v in x.values()])
+                case 'rf_maps': check_fn = lambda x : all([v.size for v in x.values()])
                 case 'scores_nat': check_fn = lambda x : x.size
                 case _: check_fn = lambda _ : True
                 
@@ -420,7 +429,11 @@ class Experiment(ABC):
         '''
         
         '''
-        return sbj_state
+        
+        state, msg = sbj_state
+        msg.states_history.append(state)
+        
+        return state, msg
     
     def _scr_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         '''
@@ -781,7 +794,7 @@ class MultiExperiment:
         #       experiment results. It will be stored as a .pickle file.
         self._data: Dict[str, Any] = dict()
 
-    def _progress(self, exp: Experiment, i: int):
+    def _progress(self, exp: Experiment, i: int, msg: Message):
         '''
         Method called after running a single experiment.
         In the default version it only logs the progress.
@@ -815,16 +828,16 @@ class MultiExperiment:
         Run the actual multi-run by executing all experiments in 
         the provided configurations.
         '''
-        plt.ioff()
         for i, conf in enumerate(self._search_config):
-            conf["display_plots"] = False
+            
             self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
             
             exp = self._Exp.from_config(conf=conf)
             
             msg = exp.run()
+            #return msg
             
-            self._progress(exp=exp, i=i)
+            self._progress(exp=exp, i=i, msg= msg)
 
     def run(self):
         '''
@@ -839,6 +852,8 @@ class MultiExperiment:
         start_time = time.time()
         
         self._run()
+        #msg = self._run()
+        #return msg
         
         end_time = time.time()
         

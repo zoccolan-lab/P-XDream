@@ -1,5 +1,6 @@
 # TODO Brief description of the experiment
 
+import gc
 import pandas as pd
 from script.MaximizeActivity.plots import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_cat
 from zdream.experiment import Experiment, MultiExperiment
@@ -261,7 +262,7 @@ class MaximizeActivityExperiment(Experiment):
         # Last seen labels
         if self._use_natural:
             self._labels: List[int] = []
-                  
+        #-- RF MAPPING --         
         #mock images for receptive field mapping (both forward and backward)
         self.nr_imgs4rf = 10
         msg = Message(
@@ -275,18 +276,13 @@ class MaximizeActivityExperiment(Experiment):
         rec_layers =  list(self.subject._target.keys()) + ['00_input_01']
         rec_layers = sorted(rec_layers, key=lambda x: int(x.split('_')[0]))
         #ASSUMPTION: i am assuming that all scored units are from the same layer 
-        # NOTE: Its critical that leading dimension is the channel!
-        #       Hence the ().T at the end of the extraction
-        
-        #scored_units = {k:np.expand_dims(np.array(v), axis = 0) 
-        #                if len(np.array(v).shape) ==1 else (np.array(v)).T
-        #                for k,v in self.scorer._trg_neurons.items()}
         
         rec_targets = self.subject.target
-        
+        #In case of conv layers, scored_units values will be a np.array of shape 3 x n, where 
+        #each row corresponds to the coordinates of the unit of interest (c x h x w)
         scored_units = {k:np.expand_dims(np.array(v), axis = 0) 
                         if int(k.split('_')[0])>15 
-                        else np.concatenate([rec_targets[k][i][v] for i in range(len(rec_targets[k]))])
+                        else np.row_stack([rec_targets[k][i][v] for i in range(len(rec_targets[k]))])
                         for k,v in self.scorer._trg_neurons.items()}
 
                 
@@ -308,14 +304,11 @@ class MaximizeActivityExperiment(Experiment):
         _ = self.subject((mock_inp, msg), raise_no_probe=False)
 
         # Collect the receptive fields from the info probe
-        fields = probe.rec_field
-        
-        self.rf_mappings = fields
-
+        #NOTE: if done for many units, it takes a lot of time and memory space
+        #TO DO: now it seems that rec_field works on cpu(). do it on GPU
+        msg.rf_maps = probe.rec_field
         # Remove the probe from the subject
         self.subject.remove(probe) 
-
-        self.subject.clean()
         return msg
 
     def _progress(self, i: int, msg : Message):
@@ -424,6 +417,8 @@ class MaximizeActivityExperiment(Experiment):
         
         self._logger.info(mess='')
         
+        return msg
+        
 
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
 
@@ -499,7 +494,7 @@ class NeuronScalingMultiExperiment(MultiExperiment):
 
     def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
 
-        super()._progress(exp, i)
+        super()._progress(exp, i, msg = msg)
 
         self._data['score']  .append(msg.stats_gen['best_score'])
         self._data['neurons'].append(exp.scorer.optimizing_units)
@@ -576,7 +571,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
     
     def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
 
-        super()._progress(exp, i)
+        super()._progress(exp, i, msg=msg)
 
         mock_template = exp._mask_generator(1)
         use_nat = mock_template is not None and sum(~mock_template) > 0
@@ -598,7 +593,12 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
         # Iterate over recorded layers to get statistics about non optimized sites
         non_scoring = self._get_non_scoring_units(exp=exp)
         
-        for layer, activations in exp.subject.states_history.items():
+        states_history = {
+            key: np.stack([state[key] for state in msg.states_history]) if msg.states_history else np.array([])
+            for key in msg.rec_layers
+        }
+        
+        for layer, activations in states_history.items():
 
             # Extract non score units for that layer
             non_scoring_units = non_scoring[layer]

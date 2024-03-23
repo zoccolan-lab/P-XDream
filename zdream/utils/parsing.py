@@ -360,15 +360,7 @@ def parse_scoring(
                     replace=False
                 )
             )
-
-            #      for i in range(len(rec_layer))])
-            
-            #if isinstance(rec_layer, tuple):
-            #    scoring[layer_name] = [tuple([rec_layer[i][scoring[layer_name][j]] 
-            #                           for i in range(len(rec_layer))])
-            #                           for j in range(len(scoring[layer_name]))]
-        
-    
+           
     else: 
     
         # In the deterministic case we use the same parsing as for the recording one
