@@ -169,7 +169,7 @@ def preprocess_image(image_fp: str, resize: Tuple[int, int] | None)  -> NDArray:
     
     return img_arr
 
-def concatenate_images(img_list: List[Tensor], nrow: int = 2) -> Image.Image:
+def concatenate_images(img_list: Tensor | List[Tensor], nrow: int = 2) -> Image.Image:
     ''' 
     Concatenate an input number of images as tensors into a single image
     with the specified number of rows.

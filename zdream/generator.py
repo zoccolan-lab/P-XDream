@@ -322,7 +322,7 @@ class Generator(ABC, nn.Module):
 
         # Mask sanity check
         mask = self._masking_sanity_check(mask=msg.mask, num_gen_img=num_gen_img)
-    
+
         # Get synthetic images form the _forward method
         # which is specific for each subclass architecture
         gen_img, msg = self._forward(data)

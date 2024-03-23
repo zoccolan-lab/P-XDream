@@ -422,7 +422,7 @@ class Experiment(ABC):
         '''
         return sbj_state
     
-    def _sbj_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+    def _scr_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -456,7 +456,12 @@ class Experiment(ABC):
         :rtype: Codes
         '''
         
-        codes, msg = self.optimizer.step(data=data)
+        scores, msg = data
+        
+        # Filter scores only for synthetic images
+        scores = scores[msg.mask]
+        
+        codes, msg = self.optimizer.step(data=(scores, msg))
     
         # Update the message codes history
         msg.codes_history.append(codes)
@@ -597,7 +602,7 @@ class Experiment(ABC):
             s_stimuli, msg = self._codes_to_stimuli      ((inp_codes, msg))
             sbj_state, msg = self._stimuli_to_sbj_state  ((s_stimuli, msg))
             scr_state, msg = self._sbj_state_to_scr_state((sbj_state, msg))
-            stm_score, msg = self._sbj_state_to_stm_score((scr_state, msg))
+            stm_score, msg = self._scr_state_to_stm_score((scr_state, msg))
             opt_codes, msg = self._stm_score_to_codes    ((stm_score, msg))
 
             self._progress(i=i, msg=msg)

@@ -1,11 +1,11 @@
 
 
-from os import path
 import os
-from einops import rearrange
-import numpy as np
 import torch
+import numpy as np
+from os import path
 from PIL import Image
+from einops import rearrange, reduce
 from torch.utils.data import DataLoader
 from typing import Any, Dict, List, Tuple, cast
 from torchvision.transforms.functional import to_pil_image
@@ -28,10 +28,10 @@ from numpy.typing import NDArray
 
 class AdversarialAttackExperiment(Experiment):
 
-    EXPERIMENT_TITLE = "MaximizeActivity"
+    EXPERIMENT_TITLE = "AdversarialAttack"
 
-    NAT_IMG_SCREEN = 'Best Natural Image'
-    GEN_IMG_SCREEN = 'Best Synthetic Image'
+    NAT_IMG_SCREEN = 'Best Natural Adversarial Example'
+    GEN_IMG_SCREEN = 'Best Synthetic Adversarial Example'
 
     @property
     def scorer(self)  -> WeightedPairSimilarityScorer: return cast(WeightedPairSimilarityScorer, self._scorer) 
@@ -155,22 +155,22 @@ class AdversarialAttackExperiment(Experiment):
 
                 # Add screen for synthetic images
                 logger.add_screen(
-                    screen=DisplayScreen(title=cls.GEN_IMG_SCREEN, display_size=(400, 400))
+                    screen=DisplayScreen(title=cls.GEN_IMG_SCREEN, display_size=(800, 400))
                 )
 
-                # Add screen fro natural images if used
+                # Add screen for natural images if used
                 if use_nat:
                     logger.add_screen(
-                        screen=DisplayScreen(title=cls.NAT_IMG_SCREEN, display_size=(400, 400))
+                        screen=DisplayScreen(title=cls.NAT_IMG_SCREEN, display_size=(800, 400))
                     )
 
         # --- DATA ---
         data = {
-            "dataset": dataset if use_nat else None,
+            "dataset"      : dataset if use_nat else None,
             'display_plots': conf['display_plots'],
-            'render': conf['render'],
-            'close_screen': conf.get('close_screen', False),
-            'n_group' : conf['n_group'],
+            'render'       : conf['render'],
+            'close_screen' : conf.get('close_screen', False),
+            'n_group'      : conf['n_group'],
         }
 
         # Experiment configuration
@@ -269,10 +269,6 @@ class AdversarialAttackExperiment(Experiment):
         # Set gif
         self._gif: List[Image.Image] = []
 
-        # Last seen labels
-        if self._use_natural:
-            self._labels: List[int] = []
-
         return msg
 
     def _progress(self, i: int, msg : Message):
@@ -281,10 +277,13 @@ class AdversarialAttackExperiment(Experiment):
 
         # Get best stimuli
         best_code = msg.solution
+        
+        best_code = rearrange(best_code, f'b g ... -> (b g) ...', g=self._n_group)
+        
         best_synthetic, _ = self.generator(
-            data=(best_code, Message(mask=np.array([True]))),
+            data=(best_code, Message(mask=np.array([True, True]))),
         )
-        best_synthetic_img = to_pil_image(best_synthetic[0])
+        best_synthetic_img = concatenate_images(best_synthetic)
 
         if self._use_natural:
             best_natural = self._best_nat_img
@@ -323,8 +322,11 @@ class AdversarialAttackExperiment(Experiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
+        
+        solution = rearrange(msg.solution, f'b g ... -> (b g) ...', g=self._n_group)
+        
         best_gen, _ = self.generator(
-            data=(msg.solution, Message(mask=np.array([True]))),
+            data=(solution, Message(mask=np.array([True, True]))),
         )
         best_gen = best_gen[0] # remove 1 batch size
 
@@ -384,37 +386,69 @@ class AdversarialAttackExperiment(Experiment):
         codes = rearrange(codes, f'b g ... -> (b g) ...', g=self._n_group)
     
         return codes, msg
-    
-    def _sbj_state_to_scr_state(self, sbj_state: Tuple[SubjectState, Message]) -> Tuple[SubjectState, Message]:
-        
-        state, msg = sbj_state
-        state = {k : rearrange(v, '(b g) ... -> b g ...', g=self._n_group) for k, v in state.items()}
-        
-        return state, msg
 
     def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
 
         # We save the last set of stimuli
-        self._stimuli, msg = data
-        if self._use_natural:
-            self._labels.extend(msg.label)
+        stimuli, msg = data
+
+        # self._gen_stimuli = stimuli.cpu().numpy()[ msg.mask]
+        # self._nat_stimuli = stimuli.cpu().numpy()[~msg.mask]
 
         return super()._stimuli_to_sbj_state(data)
+    
+    def _sbj_state_to_scr_state(self, sbj_state: Tuple[SubjectState, Message]) -> Tuple[SubjectState, Message]:
+        
+        states, msg = sbj_state
+        
+        # Here we sort synthetic from natural images such that grouping works as expected
+        # sort_m = np.concatenate([np.nonzero(msg.mask), np.nonzero(~msg.mask)])
+        states = {k : rearrange(v, '(b g) ... -> b g ...', g=self._n_group) for k, v in states.items()}
+        
+        # print({k : v.shape for k, v in states.items()})
+        
+        # Here we sort the mask array in descending order so that all the True come in front
+        # and is then easier to just disregard later the natural images scores
+        # msg.mask[::-1].sort()
+        
+        return states, msg
+
+    def _scr_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+        '''
+        The method evaluate the SubjectResponse in light of a Scorer logic.
+
+        :param data: Subject responses to visual stimuli and a Message
+        :type data: Tuple[SubjectState, Message]
+        :return: A score for each presented stimulus.
+        :rtype: Tuple[StimuliScore, Message]
+        '''
+        
+        scores, msg = self.scorer(data=data)
+        
+        # Return mask to appropriate dimension
+        msg.mask = reduce(msg.mask, '(b g) ... -> b ...', 'all', g=self._n_group)
+    
+        msg.scores_gen_history.append(scores[ msg.mask])
+        msg.scores_nat_history.append(scores[~msg.mask])
+        
+        return scores, msg
 
     def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
 
-        sub_score, msg = data
+        stm_score, msg = data
+        
 
         # We inspect if the new set of stimuli (both synthetic and natural)
         # achieved an higher score than previous ones.
         # In the case we both store the new highest value and the associated stimuli
         if self._use_natural:
 
-            max_, argmax = tuple(f_func(sub_score[~msg.mask]) for f_func in [np.amax, np.argmax])
+            curr_nat_scr = stm_score[~msg.mask]
+            max_, argmax = tuple(f_func(curr_nat_scr) for f_func in [np.amax, np.argmax])
 
             if max_ > self._best_nat_scr:
                 self._best_nat_scr = max_
-                self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
+                self._best_nat_img = self._nat_stimuli[argmax]
 
-        return super()._stm_score_to_codes((sub_score, msg))
+        return super()._stm_score_to_codes((stm_score, msg))
 

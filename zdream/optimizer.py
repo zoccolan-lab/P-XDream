@@ -266,7 +266,6 @@ class GeneticOptimizer(Optimizer):
         scores, msg = data
         
         # Optimization parameter
-        scores      = scores[msg.mask]                         # Use only synthetic images
         pop_size    = default(out_pop_size, self.n_states)     # Use previous number of states as default
         temperature = default(temperature, self._temperature)  # Use optimizer temperature as default
 
