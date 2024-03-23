@@ -5,10 +5,12 @@ from typing import Tuple, cast
 import numpy as np
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.hooks import RemovableHandle
 from torchvision.models import get_model
 from torchvision.models import get_model_weights
+
+from zdream.utils.io_ import read_txt
 
 from .utils.model import RecordingUnit
 from .utils.model import Stimuli
@@ -338,3 +340,77 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         shapes = self.layer_shapes
         
         return {k : v for k, v in zip(names, shapes)}
+
+# NOTE: Download ImageNet labels from https://github.com/bpinaya/AlexNetRT/blob/master/data/alexnet/imagenet-labels.txt
+class ClassifierNetworkSubject(NetworkSubject):
+    '''
+    Specific case of NetworkSubject used for image classification
+    The main extra feature of the subclass is to perform image classification
+    with the support of an external file containing labels
+    '''
+    
+    def __init__(
+        self,
+        network_name: str,
+        labels_path: str,
+        pretrained: bool = True,
+        inp_shape: Tuple[int, ...] = (1, 3, 224, 224),
+        device: str | torch.device = device
+    ) -> None:
+        '''
+        Initialize an Alexnet artificial network architecture capable of a visual task.
+        :param network_name: Nme of the visual architecture to use
+            for the subject. This should be one of the supported
+            torchvision models (see torchvision.models for a list)
+        :type network_name: string
+        :param labels_path: Path to labels .TXT file
+        :type network_name: string
+        :param pretrained: Flag to signal whether network should
+            be initialized as pretrained (usually on ImageNet)
+            (Default: True)
+        :type pretrained: bool
+        :param inp_shape: Shape of input tensor to the network,
+            usual semantic is [B, C, H, W]. (Default: (1, 3, 224, 224))
+        :type inp_shape: Tuple of ints
+        :param device: Torch device where to host the module
+            (Default: cuda)
+        :type device: string or torch.device
+        '''
+        
+        super().__init__(
+            network_name=network_name,
+            pretrained=pretrained,
+            inp_shape=inp_shape,
+            device=device
+        )
+        
+        self._labels: List[str] = read_txt(labels_path)
+        
+        # Check match with output units
+        output_dim = [
+            shape for layer, shape in self.layer_info.items()
+            if 'linear' in layer
+        ][-1]
+        
+        if len(self._labels) != output_dim[1]:
+            err_msg = f'Network has {output_dim} units but {len(self._labels)} were provided.'
+            raise ValueError(err_msg)
+        
+    def classify(self, img: Tensor) -> List[str]:
+        '''
+        Perform classification task on a image
+
+        :param img: Image to be classified
+        :type img: Tensor
+        :return: Image label
+        :rtype: str
+        '''
+        
+        activation = self._network(img)
+        
+        print(activation.shape)
+        
+        label_idx = torch.argmax(activation, dim=1)
+
+        return [self._labels[idx] for idx in label_idx]
+        

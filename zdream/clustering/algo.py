@@ -98,8 +98,7 @@ class DSClustering(ABC):
             x: NDArray | None = None, # type: ignore
             alpha: float = 0.,
             max_iter: int = 1000,
-            delta_eps: float = 1e-8,
-            zero_eps: float = 1e-12,
+            delta_eps: float = 1e-8
         ) -> Tuple[NDArray, np.float32, bool]:
             '''
             Perform one-step replicator dynamics on the given affinity matrix.
@@ -118,8 +117,6 @@ class DSClustering(ABC):
             :param delta_eps: Convergence threshold for the replicator dynamics.
                             Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
             :type delta_eps: float, optional
-            :param zero_eps: Approximation bound for probabilities zero flattening, defaults to 1e-12.
-            :type zero_eps: float, optional
             :return: Tuple containing the final distribution of cluster memberships, their coherence and 
                      a boolean indicating if the process converged.
             '''
@@ -205,7 +202,6 @@ class BaseDSClustering(DSClustering):
         x: NDArray | None = None, # type: ignore
         max_iter: int = 1000,
         delta_eps: float = 1e-8,
-        zero_eps: float = 1e-12
     ) -> Tuple[NDArray, np.float32, bool]:
 
         # NOTE: The best-practice solution should be to implement a STUB
@@ -332,3 +328,20 @@ class BaseDSClustering(DSClustering):
         if self._min_elements == 1:
             for singleton in DSCluster.extract_singletons(aff_mat=aff_mat):
                 self._clusters.add(cluster=singleton)
+                
+class HierarchicalDSClustering(DSClustering):
+    
+    def __init__(
+        self, 
+        aff_mat: AffinityMatrix, 
+        min_elements: int = 1, 
+        max_iter: int = 1000, 
+        delta_eps: float = 1e-8,
+        zero_eps: float = 1e-12, 
+        logger: Logger | None = None
+    ) -> None:
+        super().__init__(aff_mat, min_elements, max_iter, delta_eps, zero_eps, logger)
+        
+    
+    def run(self):
+        print("Hello")

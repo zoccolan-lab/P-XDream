@@ -212,6 +212,44 @@ def SEM(
     return sem
 
 
+def harmonic_mean(a: float, b: float) -> float:
+    '''
+    Compute the harmonic mean of two given numbers.
+
+    :param a: First number
+    :type a: float
+    :param b: Second number
+    :type b: float
+    :return: Harmonic mean of the two numbers.
+    :rtype: float
+    '''
+    
+    
+    return  2 / (1 / a + 1 / b) 
+
+
+def growth_scale(start=0, step=0.05, growth_factor=1.5):
+    '''
+    Generate an infinite scale of growth sequence using a generator.
+
+    :param start: Starting value of the sequence, defaults to 0.
+    :type start: float, optional
+    :param step: Step size between terms, defaults to 0.05.
+    :type step: float, optional
+    :param growth_factor: Growth factor between terms, defaults to 1.5.
+    :type growth_factor: float, optional
+    :yield: Next value in the growth scale sequence.
+    :rtype: float
+    '''
+    
+    current_value = start
+    yield current_value
+    while True:
+        current_value += step
+        step *= growth_factor
+        yield current_value
+
+
 # --- TIME ---
 
 def stringfy_time(sec: int | float) -> str:

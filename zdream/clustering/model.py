@@ -11,7 +11,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from zdream.logger import Logger, MutedLogger
 from zdream.subject import InSilicoSubject
 from zdream.utils.misc import default, device
-from zdream.utils.model import Message
+from zdream.message import Message
 
 # --- TYPE ALIAS ---
 
@@ -98,7 +98,10 @@ class AffinityMatrix:
 
     @property
     def shape(self) -> Tuple[int, ...]: return self.A.shape
-
+    
+    @property
+    def max_eigenvalue(self) -> float: return float(np.max(np.linalg.eigvals(self.A))
+)
     # --- UTILITIES ---
 
     def delete_objects(self, ids: NDArray[np.int32], inplace: bool = False) -> AffinityMatrix | None:
