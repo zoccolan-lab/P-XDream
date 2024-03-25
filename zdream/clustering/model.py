@@ -24,7 +24,7 @@ Labels associated to objects in an affinity matrix.
 Array length has the same size of matrix side.
 '''
 
-Recording = NDArray
+Recording = NDArray[np.float32]
 '''
 Two dimensional array of dimension NEURONS x STIMULI
 The element (i, j) indicates that the neuron i produced
@@ -239,7 +239,7 @@ class NeuronalRecording:
         self._logger        = logger
         self._image_ids     = image_ids if image_ids else list(range(len(dataset))) # type: ignore
         
-        self._recording: NDArray = np.array([])
+        self._recording: Recording = np.array([], dtype=np.float32)
         
     def __str__(self) -> str:
         return f'NeuralRecording[subject: {self._subject}; n-stimuli: {len(self._image_ids)}]'\
@@ -327,7 +327,7 @@ class PairwiseSimilarity:
         :type logger: Logger | None, optional
         '''
         
-        self._recordings: NDArray = recordings
+        self._recordings = recordings
         
     def __len__(self) -> int:
         return self._recordings.shape[0]

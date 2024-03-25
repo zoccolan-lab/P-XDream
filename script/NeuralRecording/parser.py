@@ -32,7 +32,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     # Set paths as defaults
     out_dir  = script_settings['out_dir']
     inet_dir = script_settings['mini_inet']
-    config_path  = script_settings['neural_recording_config']
+    config_path  = path.join(script_settings['config'], 'neural_recording.json')
 
     parser = ArgumentParser()
     

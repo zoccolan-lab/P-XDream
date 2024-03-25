@@ -36,7 +36,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     gen_weights  = script_settings['gen_weights']
     out_dir      = script_settings['out_dir']
     target_path  = script_settings['target_image']
-    config_path  = script_settings['target_recovery_config']
+    config_path  = path.join(script_settings['config'], 'target_recovery.json')
 
     parser = ArgumentParser()
     

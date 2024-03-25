@@ -17,7 +17,7 @@ class Logger:
 	- organize target directory for saving results.
 	'''
 
-	def __init__(self, conf: Dict[str, str] | None = None) -> None:
+	def __init__(self, conf: Dict[str, str] | str  = '') -> None:
 		'''
 		Initialize the logger with a possible specific target directory.
 
@@ -28,7 +28,7 @@ class Logger:
 		'''
 
 		# Set target directory if specified
-		self._target_dir: str = self._get_target_dir(conf=conf) if conf else ''
+		self._target_dir: str = self._get_target_dir(conf=conf) if isinstance(conf, dict) else conf
 		
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
@@ -234,7 +234,7 @@ class LoguruLogger(Logger):
 	#       checking the logger-id.
 	_factory_id = 0
 
-	def __init__(self, conf: Dict[str, str] | None = None, on_file: bool = True) -> None:
+	def __init__(self, conf: Dict[str, str] | str = '', on_file: bool = True) -> None:
 		'''
 		Initialize the logger with a possible specific target directory.
 		In the case the target directory is specified and the `on_file` flag is active,
@@ -282,7 +282,7 @@ class MutedLogger(Logger):
 
 		# NOTE: Parameter `conf` in input is used to support a common
 		#       signature with other `Logger` classes but it's basically ignored.
-		super().__init__(conf=None)
+		super().__init__()
 	
 	# Override for no logging
 	def _info(self, mess: str): pass

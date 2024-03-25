@@ -36,7 +36,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     gen_weights  = script_settings['gen_weights']
     out_dir      = script_settings['out_dir']
     mini_inet    = script_settings['mini_inet']
-    config_path  = script_settings['maximize_activity_config']
+    config_path  = path.join(script_settings['config'], 'maximize_activity.json')
 
     parser = ArgumentParser()
     

@@ -1,11 +1,13 @@
 from argparse import ArgumentParser
 from os import path
+import time
 from typing import Any, Dict, List, cast
 
 from zdream.clustering.model import NeuronalRecording, PairwiseSimilarity
 from zdream.experiment import Experiment
 from zdream.generator import Generator
 from zdream.logger import Logger, LoguruLogger
+from zdream.message import Message
 from zdream.optimizer import Optimizer
 from zdream.scorer import Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
@@ -99,13 +101,8 @@ class NeuralRecordingExperiment(Experiment):
             logger=logger,
             data=data
         )
-        
-    def _init(self):
-        '''
-        The method is called before running the actual experiment.
-        The default version logs the attributes of the components.
-        It is supposed to contain all preliminary operations such as initialization.
-        '''
+    
+    def _init(self) -> Message:
 
         # Create experiment directory
         self._logger.create_target_dir()
@@ -135,16 +132,27 @@ class NeuralRecordingExperiment(Experiment):
         self._logger.info(f"")
         self._logger.info(f"Components:")
         self._logger.info(mess=f'Recording: {self._neuronal_recording}')
+        self._logger.info(mess=f'Scorer:    {self.scorer}')
         self._logger.info(f"")
+        
+                
+        # We generate an initial message containing the start time
+        msg = Message(
+            start_time = time.time()
+        )
+        
+        return msg
     
-    def _run(self):
+    def _run(self, msg: Message) -> Message:
         
         self._neuronal_recording.record(log_chk=self._log_chk)
+
+        return msg
     
-    def _finish(self):
+    def _finish(self, msg : Message) -> Message:
         
         # Log total elapsed time
-        str_time = stringfy_time(sec=self._elapsed_time)
+        str_time = stringfy_time(sec=msg.elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
         self._logger.info(mess="")
         
@@ -154,6 +162,8 @@ class NeuralRecordingExperiment(Experiment):
         # Save similarities
         pw = PairwiseSimilarity(recordings=self._neuronal_recording.recordings)
         pw.cosine_similarity.save(out_dir=self.target_dir, logger=self._logger)
+
+        return msg
 
 
 
