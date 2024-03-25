@@ -46,11 +46,13 @@ the form of a one-dimensional array of size
 equal to the batch size.
 '''
 
-RFBox = Tuple[int, ...]
+RFBox = Tuple[Tuple[int, int]]
 '''
-Receptive Field bounding box, usually expected in
-the form (x0, x1, y0, y1) but generalizable to
-arbitrary number of dimensions.
+Receptive Field bounding box. Each tuple contains the extremes of 
+the bounding box (each subtuple = vertices (2) in that dimension)
+e.g. bounding box in a 3 channel image ((0,3),(134,145),(198,209))
+the box covers all 3 color channels, and is a rectangle between 134 and 145 (h)
+and 198 and 209 (w).
 '''
 
 ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]

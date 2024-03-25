@@ -305,8 +305,30 @@ class MaximizeActivityExperiment(Experiment):
 
         # Collect the receptive fields from the info probe
         #NOTE: if done for many units, it takes a lot of time and memory space
+        #issue with garbage collecting gradients
         #TO DO: now it seems that rec_field works on cpu(). do it on GPU
         msg.rf_maps = probe.rec_field
+        
+        #get rf perimeter on the input (NOTE: they are computed on network input size, that can differ
+        # from  the outputted generated images. Therefore, a resizing of rfs is implemented)
+        rf_on_input = msg.rf_maps[('00_input_01',msg.scr_layers[-1])]
+        #rf_2p_mask will include the perimeters of the rfs
+        rf_2p_mask = [np.zeros(self.generator.output_dim[-2:], dtype=bool) for _ in range(len(rf_on_input))]
+        img_side_gen = self.generator.output_dim[-1]; img_side_net_input= self.subject._inp_shape[-1]
+        rescale_factor = img_side_gen / img_side_net_input
+        for i,rf in enumerate(rf_on_input):
+            #rescale to output size from actual alexnet input (224,224) -> (256,256)
+            rf_rescaled = [tuple(round(c * rescale_factor) if round(c * rescale_factor)<img_side_gen else (img_side_gen-1) 
+                                 for c in coord) 
+                           if (idx == 1 or idx == 2) else coord
+                           for idx, coord in enumerate(rf)]
+            #get the borders of rfs        
+            rf_2p_mask[i][rf_rescaled[1][0]:rf_rescaled[1][-1]+1, rf_rescaled[2][0]] = True
+            rf_2p_mask[i][rf_rescaled[1][0]:rf_rescaled[1][-1]+1, rf_rescaled[2][-1]] = True
+            rf_2p_mask[i][rf_rescaled[1][0],                      rf_rescaled[2][0]:rf_rescaled[2][-1]+1] = True
+            rf_2p_mask[i][rf_rescaled[1][-1],                     rf_rescaled[2][0]:rf_rescaled[2][-1]+1] = True
+        self._rf_2p_mask = rf_2p_mask
+        
         # Remove the probe from the subject
         self.subject.remove(probe) 
         return msg
@@ -318,8 +340,12 @@ class MaximizeActivityExperiment(Experiment):
         # Get best stimuli
         best_code = msg.solution
         best_synthetic, _ = self.generator(data=(best_code, Message(mask=np.array([True]))))
+        #evidence the rf of conv layers only
+        if 'conv' in msg.scr_layers[-1]:
+            for rf_mask in self._rf_2p_mask:
+                best_synthetic[:,:,rf_mask] = np.inf
         best_synthetic_img = to_pil_image(best_synthetic[0])
-
+        
         if self._use_natural:
             best_natural = self._best_nat_img
             
@@ -359,11 +385,21 @@ class MaximizeActivityExperiment(Experiment):
         # and we use the generator to retrieve the best image
         best_gen, _ = self.generator(data=(msg.solution, Message(mask=np.array([True]))))
         best_gen = best_gen[0] # remove 1 batch size
+        
+
 
         # We retrieve the stored best natural image
         if self._use_natural:
             best_nat = self._best_nat_img
-
+            
+        
+        #get rf perimeter
+        if 'conv' in msg.scr_layers[-1]:
+            for rf_mask in self._rf_2p_mask:
+                best_gen[:,rf_mask] = np.inf
+                if self._use_natural:
+                    best_nat[:,rf_mask] = np.inf
+        
         # Saving images
         for img, label in [
             (to_pil_image(best_gen), 'best synthetic'),

@@ -397,9 +397,10 @@ class InfoProbe(SilicoProbe):
         #TO DO: it seems that at each act.backward step all the gradients are backpropagated.
         #therefore we end up with a dict that, for each key, has a replica of its entry n times,
         #where n is equal to the number of layers onto which the mapping occurs.
-        #I did a quick fix (i.e. taking the 1st element of every value) that seems to work for now
+        #I did a quick fix (i.e. taking the first n element of every value, where n is the number of units
+        # considered) that seems to work for now
         
-        return {k: v[0] for k,v in rf_dict.items()}
+        return {k: v[:int(targ_act.size(0))] for k,v in rf_dict.items()}
         #return {
         #    k : [fit_bbox(np.mean(grad[0], axis = 0)) for grad in v]
         #    for k, v in self._ingrad.items()
