@@ -17,7 +17,7 @@ class Logger:
 	- organize target directory for saving results.
 	'''
 
-	def __init__(self, conf: Dict[str, str] | str  = '') -> None:
+	def __init__(self, conf: Dict[str, str] | str  = '.') -> None:
 		'''
 		Initialize the logger with a possible specific target directory.
 
@@ -234,7 +234,7 @@ class LoguruLogger(Logger):
 	#       checking the logger-id.
 	_factory_id = 0
 
-	def __init__(self, conf: Dict[str, str] | str = '', on_file: bool = True) -> None:
+	def __init__(self, conf: Dict[str, str] | str = '.', on_file: bool = True) -> None:
 		'''
 		Initialize the logger with a possible specific target directory.
 		In the case the target directory is specified and the `on_file` flag is active,
@@ -257,16 +257,13 @@ class LoguruLogger(Logger):
 		self._logger = loguru.logger.bind(id=self._id)
 		
 		# File logging
-		if on_file and conf:
+		if on_file:
 
 			log_file = path.join(self.target_dir, 'info.log')
 			self._logger.add(
 				log_file, level=0, enqueue=True, 
 				filter=lambda x: x['extra']['id'] == self._id
 			)
-		
-		elif on_file:
-			self.warn('The `on_file` flag was activated but no target directory was specified')
 	
 	# Overriding logging methods with `loguru` specific ones
 	def _info(self, mess: str): self._logger.info(mess)

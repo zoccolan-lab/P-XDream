@@ -15,6 +15,8 @@ from zdream.utils.misc import default
 
 from functools import cache
 
+from zdream.utils.model import AggregateFunction, StimuliScore, SubjectState
+
 class DS:
     '''
     Class for the computation of DominantSet formulas
@@ -171,6 +173,16 @@ class DSCluster:
     def objects(self) -> List[DSObject]: return self._objects
     
     # --- UTILS ---
+
+    # This has type AggregationFunction
+    def aggregate_fun(self, state: SubjectState) -> Dict[str, StimuliScore]:
+
+        weights = [obj.weight for obj in self] # type: ignore
+
+        return {
+            layer: np.sum([w * act for w, act in zip(weights, activations)])
+            for layer, activations in state.items()
+        }
     
     @staticmethod
     def extract_singletons(aff_mat: AffinityMatrix) -> List[DSCluster]:
@@ -287,7 +299,7 @@ class DSClusters:
         out_dict = {
             f'DS_{i}': {
                 'objects': [obj_to_dict(obj) for obj in cluster],
-                "W": cluster.W.tolist()
+                "W": cluster.W
             }
             for i, cluster in enumerate(self) # type: ignore
         } 

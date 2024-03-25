@@ -132,7 +132,6 @@ class NeuralRecordingExperiment(Experiment):
         self._logger.info(f"")
         self._logger.info(f"Components:")
         self._logger.info(mess=f'Recording: {self._neuronal_recording}')
-        self._logger.info(mess=f'Scorer:    {self.scorer}')
         self._logger.info(f"")
         
                 

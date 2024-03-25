@@ -16,7 +16,8 @@
     },
     "scorer": {
         "scr_layers": "21=[]",
-        "aggregation": "mean"
+        "aggregation": "mean",
+        "reduction": "mean"
     },
     "optimizer": {
         "pop_size": 20,
@@ -24,6 +25,7 @@
         "mutation_size": 0.3,
         "num_parents": 3,
         "temperature": 1.0,
+        "topk": 2,
         "random_distr": "normal"
     },
     "logger": {
@@ -32,7 +34,6 @@
         "version": 0
     },
     "iter": 100,
-    "display_plots": false,
     "random_seed": 123,
     "render": true
 }

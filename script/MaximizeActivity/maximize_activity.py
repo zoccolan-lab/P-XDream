@@ -14,7 +14,7 @@ from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, StimuliScore, SubjectState, mask_generator_from_template
-from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, aggregating_functions
+from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, aggregating_functions, numpy_functions
 from zdream.message import Message
 
 import numpy as np
@@ -113,7 +113,8 @@ class MaximizeActivityExperiment(Experiment):
 
         scorer = MaxActivityScorer(
             trg_neurons=scoring_units,
-            aggregate=aggregating_functions[scr_conf['aggregation']]
+            aggregate=aggregating_functions[scr_conf['aggregation']],
+            reduction=numpy_functions[scr_conf['reduction']]
         )
 
         # --- OPTIMIZER ---
@@ -126,7 +127,8 @@ class MaximizeActivityExperiment(Experiment):
             mutation_size  = opt_conf['mutation_size'],
             population_size= opt_conf['pop_size'],
             temperature    = opt_conf['temperature'],
-            num_parents    = opt_conf['num_parents']
+            num_parents    = opt_conf['num_parents'],
+            topk           = opt_conf['topk']
         )
 
         #  --- LOGGER --- 

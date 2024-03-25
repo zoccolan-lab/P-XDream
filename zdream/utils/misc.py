@@ -1,5 +1,6 @@
 from copy import deepcopy
 import re
+from subprocess import PIPE, Popen
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
 
 import numpy as np
@@ -312,3 +313,34 @@ def flatten_dict(d: Dict)-> Dict:
         else:
             flattened_dict[k] = v
     return flattened_dict
+
+# --- EXECUTION ---
+
+# NOTE: This requires `sudo apt install xsel`
+def copy_on_clipboard(command: str):
+    ''' Copies input string to clipboard '''
+
+    # Byte conversion
+    cmd_ =  bytes(command, encoding='utf-8')
+    
+    # Copy
+    p = Popen(['xsel', '-bi'], stdin=PIPE)
+    p.communicate(input=cmd_)
+
+
+def copy_exec(
+        file: str,
+        program: str = 'python',
+        args: Dict[str, str] = dict()
+    ) -> str:
+    ''' 
+    Copies a program execution command line to clipboard given 
+    program name, file name and the list of name-value arguments in dictionary form
+    It returns the command string
+    '''
+    
+    cmd = f'{program} {file} ' + " ".join(f'--{k} {v}' for k, v in args.items())
+
+    copy_on_clipboard(cmd)
+
+    return cmd

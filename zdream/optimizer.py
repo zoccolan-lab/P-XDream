@@ -174,6 +174,7 @@ class GeneticOptimizer(Optimizer):
         population_size : int = 50,
         temperature : float = 1.,
         num_parents : int = 2,
+        topk: int = 2
     ) -> None:
         '''
         Initialize a new GeneticOptimizer
@@ -217,6 +218,7 @@ class GeneticOptimizer(Optimizer):
         self._mutation_size = mutation_size
         self._mutation_rate = mutation_rate
         self._init_pop_size = population_size
+        self._topk          = topk
         
     def __str__(self) -> str:
         ''' Return a string representation of the object for logging'''
@@ -238,7 +240,7 @@ class GeneticOptimizer(Optimizer):
         data : Tuple[StimuliScore, Message],
         out_pop_size: int   | None = None,
         temperature : float | None = None, 
-        save_topk : int = 2,   
+        save_topk : int     | None = None,   
     ) -> Tuple[Codes, Message]:
         '''
         Optimizer step function that uses an associated score
@@ -266,8 +268,9 @@ class GeneticOptimizer(Optimizer):
         scores, msg = data
         
         # Optimization parameter
-        pop_size    = default(out_pop_size, self.n_states)     # Use previous number of states as default
-        temperature = default(temperature, self._temperature)  # Use optimizer temperature as default
+        pop_size    = default(out_pop_size, self.n_states)      # Use previous number of states as default
+        temperature = default(temperature,  self._temperature)  # Use optimizer temperature as default
+        save_topk   = default(save_topk,    self._topk)         # Use topk as default
 
         # Prepare data structure for the optimized codes
         codes_new = np.empty(shape=(pop_size, *self._shape), dtype=np.float32)

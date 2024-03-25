@@ -41,17 +41,6 @@ def main(args):
 
 
 if __name__ == '__main__':
-    
-    # Loading custom local settings
-    local_folder       = path.dirname(path.abspath(__file__))
-    script_settings_fp = path.join(local_folder, LOCAL_SETTINGS)
-    script_settings    = read_json(path=script_settings_fp)
-    
-    # Set as defaults
-    gen_weights  = script_settings['gen_weights']
-    out_dir      = script_settings['out_dir']
-    mini_inet    = script_settings['mini_inet']
-    config_path  = script_settings['maximize_activity_config']
 
     parser = get_parser()
     

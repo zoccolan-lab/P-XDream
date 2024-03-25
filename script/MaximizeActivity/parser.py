@@ -60,12 +60,14 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     # Scorer
     parser.add_argument('--scr_layers',     type=def_type(str),   help=f'Target scoring layers and neurons with specification\n{LAYERS_NEURONS_SPECIFICATION}')
     parser.add_argument('--aggregation',    type=def_type(str),   help='Name of scoring aggregation function between layers')
+    parser.add_argument('--reduction',      type=def_type(str),   help='Name of scoring aggregation function across layers')
     
     # Optimizer
     parser.add_argument('--pop_size',       type=def_type(int),   help='Starting number of the population')
     parser.add_argument('--mutation_rate',  type=def_type(float), help='Mutation rate for the optimizer')
     parser.add_argument('--mutation_size',  type=def_type(float), help='Mutation size for the optimizer')
     parser.add_argument('--num_parents',    type=def_type(int),   help='Number of parents for the optimizer')
+    parser.add_argument('--topk',           type=def_type(int),   help='Number of codes of previous generation to keep')
     parser.add_argument('--temperature',    type=def_type(float), help='Temperature for the optimizer')
     
     # Logger
