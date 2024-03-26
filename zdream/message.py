@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from zdream.utils.misc import SEM
-from zdream.utils.model import Codes, Mask, RFBox, RecordingUnit, ScoringUnit, StimuliScore, SubjectState
+from zdream.utils.model import Codes, Mask, RFBox, RecordingUnit, ScoringUnit, Score, State
 
 
 @dataclass
@@ -45,9 +45,9 @@ class Message:
     masks_history      : List[Mask]                 = field(default_factory=list)
     codes_history      : List[Codes]                = field(default_factory=list)
     labels_history     : List[List[int]]            = field(default_factory=list)
-    states_history     : List[SubjectState]         = field(default_factory=list)
-    scores_gen_history : List[StimuliScore]         = field(default_factory=list)
-    scores_nat_history : List[StimuliScore]         = field(default_factory=list)
+    states_history     : List[State]         = field(default_factory=list)
+    scores_gen_history : List[Score]         = field(default_factory=list)
+    scores_nat_history : List[Score]         = field(default_factory=list)
     rec_units : Dict[str, RecordingUnit]            = field(default_factory=dict)
     scr_units : Dict[str, ScoringUnit]              = field(default_factory=dict)
     rf_maps   : Dict[Tuple[str, str], List[RFBox]]  = field(default_factory=dict)

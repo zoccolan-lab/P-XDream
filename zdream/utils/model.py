@@ -32,14 +32,14 @@ The representation is a 4-dimensional tensor,
 the first dimension is the batch size.
 '''
 
-SubjectState = Dict[str, NDArray]
+State = Dict[str, NDArray]
 '''
 Set of subject responses to a visual stimuli.
 The subject state can refer to multiple layers, whose name 
 is mapped to its specific activations in the form of a batched array.
 '''
 
-StimuliScore = NDArray[np.float32] 
+Score = NDArray[np.float32] 
 '''
 Set of scores associated to each stimuli in
 the form of a one-dimensional array of size
@@ -55,16 +55,19 @@ the box covers all 3 color channels, and is a rectangle between 134 and 145 (h)
 and 198 and 209 (w).
 '''
 
-ScoringFunction   = Callable[[SubjectState], Dict[str, StimuliScore]]
+UnitsMapping = Callable[[NDArray], NDArray]
 '''
-Function evaluating the StimuliScore for each layer-specific activations
-in a SubjectState.
+Mapping transformation for activations units
 '''
 
-AggregateFunction = Callable[[Dict[str, StimuliScore]], StimuliScore]
+UnitsReduction = Callable[[State], Dict[str, Score]]
 '''
-Function aggregating the StimuliScore for different layer into
-a single StimuliScore.
+Reducing function across units of the same layer
+'''
+
+LayerReduction = Callable[[Dict[str, Score]], Score]
+'''
+Reducing function across units of the same layer
 '''
 
 MaskGenerator = Callable[[int], Mask]

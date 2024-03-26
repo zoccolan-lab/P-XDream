@@ -3,28 +3,12 @@ from itertools import product, starmap
 from typing import Dict, List, Tuple, Callable
 import warnings
 
-from .model import RecordingUnit, ScoringUnit, ScoringFunction, AggregateFunction
+from .model import RecordingUnit, ScoringUnit
 from .io_ import neurons_from_file
 
 import numpy as np
 
 # --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
-
-scoring_functions: Dict[str, ScoringFunction] = {
-
-}
-
-aggregating_functions: Dict[str, AggregateFunction] = {
-	'mean'  : lambda x: np.mean  (np.stack(list(x.values())), axis=0),
-	'sum'   : lambda x: np.sum   (np.stack(list(x.values())), axis=0),
-	'median': lambda x: np.median(np.stack(list(x.values())), axis=0),
-}
-
-numpy_functions : Dict[str, Callable] = {
-	'mean'   : np.mean,
-	'sum'    : np.sum,
-	'median' : np.median,
-}
 
 def parse_boolean_string(boolean_str: str) -> List[bool]:
     ''' Converts a boolean string of T and F characters in a boolean list'''

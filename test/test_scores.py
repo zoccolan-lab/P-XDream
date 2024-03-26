@@ -6,10 +6,10 @@ import unittest
 import numpy as np
 
 from itertools import combinations
-from zdream.utils.model import SubjectState
+from zdream.utils.model import State
 
 from zdream.utils.model import Message
-from zdream.scorer import MSEScorer, WeightedPairSimilarityScorer, MaxActivityScorer
+from zdream.scorer import MSEScorer, WeightedPairSimilarityScorer, ActivityScorer
 
 class MSEScorerTest(unittest.TestCase):
     
@@ -147,12 +147,12 @@ class MaxActivityScorerTest(unittest.TestCase):
         
     def test_score_format(self):
         
-        scorer = MaxActivityScorer(
-            trg_neurons={'one': [4, 100], 'two': [45, 78], 'three': [1]},
+        scorer = ActivityScorer(
+            scoring_units={'one': [4, 100], 'two': [45, 78], 'three': [1]},
             aggregate=lambda x: np.sum(np.stack(list(x.values())), axis=0).astype(np.float32)
         )
         
-        mock_activations: SubjectState = {
+        mock_activations: State = {
             'one': np.random.randn(self.num_imgs, 200),
             'two': np.random.randn(self.num_imgs, 200),
             'three': np.random.randn(self.num_imgs, 200),

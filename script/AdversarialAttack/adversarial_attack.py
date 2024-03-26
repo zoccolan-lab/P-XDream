@@ -21,7 +21,7 @@ from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
-from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, StimuliScore, SubjectState, mask_generator_from_template
+from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, Score, State, mask_generator_from_template
 from zdream.message import Message
 
 from numpy.typing import NDArray
@@ -387,7 +387,7 @@ class AdversarialAttackExperiment(Experiment):
     
         return codes, msg
 
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
+    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
 
         # We save the last set of stimuli
         stimuli, msg = data
@@ -397,7 +397,7 @@ class AdversarialAttackExperiment(Experiment):
 
         return super()._stimuli_to_sbj_state(data)
     
-    def _sbj_state_to_scr_state(self, sbj_state: Tuple[SubjectState, Message]) -> Tuple[SubjectState, Message]:
+    def _sbj_state_to_scr_state(self, sbj_state: Tuple[State, Message]) -> Tuple[State, Message]:
         
         states, msg = sbj_state
         
@@ -413,14 +413,14 @@ class AdversarialAttackExperiment(Experiment):
         
         return states, msg
 
-    def _scr_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+    def _scr_state_to_stm_score(self, data: Tuple[State, Message]) -> Tuple[Score, Message]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
         :param data: Subject responses to visual stimuli and a Message
-        :type data: Tuple[SubjectState, Message]
+        :type data: Tuple[State, Message]
         :return: A score for each presented stimulus.
-        :rtype: Tuple[StimuliScore, Message]
+        :rtype: Tuple[Score, Message]
         '''
         
         scores, msg = self.scorer(data=data)
@@ -433,7 +433,7 @@ class AdversarialAttackExperiment(Experiment):
         
         return scores, msg
 
-    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
+    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
 
         stm_score, msg = data
         

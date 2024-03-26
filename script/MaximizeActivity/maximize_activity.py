@@ -8,13 +8,13 @@ from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.probe import InfoProbe, RecordingProbe
-from zdream.scorer import MaxActivityScorer, Scorer
+from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
-from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, StimuliScore, SubjectState, mask_generator_from_template
-from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, aggregating_functions, numpy_functions
+from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, Score, State, mask_generator_from_template
+from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
 from zdream.message import Message
 
 import numpy as np
@@ -38,7 +38,7 @@ class MaximizeActivityExperiment(Experiment):
     GEN_IMG_SCREEN = 'Best Synthetic Image'
 
     @property
-    def scorer(self)  -> MaxActivityScorer: return cast(MaxActivityScorer, self._scorer) 
+    def scorer(self)  -> ActivityScorer: return cast(ActivityScorer, self._scorer) 
 
     @property
     def subject(self) -> NetworkSubject:    return cast(NetworkSubject, self._subject) 
@@ -111,10 +111,10 @@ class MaximizeActivityExperiment(Experiment):
             rec_info=record_target
         )
 
-        scorer = MaxActivityScorer(
-            trg_neurons=scoring_units,
-            aggregate=aggregating_functions[scr_conf['aggregation']],
-            reduction=numpy_functions[scr_conf['reduction']]
+        scorer = ActivityScorer(
+            scoring_units=scoring_units,
+            units_reduction=scr_conf['units_reduction'],
+            layer_reduction=scr_conf['layer_reduction'],
         )
 
         # --- OPTIMIZER ---
@@ -264,6 +264,8 @@ class MaximizeActivityExperiment(Experiment):
         # Last seen labels
         if self._use_natural:
             self._labels: List[int] = []
+
+        """
         #-- RF MAPPING --         
         #mock images for receptive field mapping (both forward and backward)
         self.nr_imgs4rf = 10
@@ -285,7 +287,7 @@ class MaximizeActivityExperiment(Experiment):
         scored_units = {k:np.expand_dims(np.array(v), axis = 0) 
                         if int(k.split('_')[0])>15 
                         else np.row_stack([rec_targets[k][i][v] for i in range(len(rec_targets[k]))])
-                        for k,v in self.scorer._trg_neurons.items()}
+                        for k,v in self.scorer._scoring_units.items()}
 
                 
         mapped_layers = list(set(rec_layers) - set(scored_units.keys()))
@@ -304,7 +306,7 @@ class MaximizeActivityExperiment(Experiment):
         # Expose the subject to the mock input to collect the set
         # of shapes of the underlying network
         _ = self.subject((mock_inp, mock_msg), raise_no_probe=False, with_grad=True)
-
+        
         # Collect the receptive fields from the info probe
         #NOTE: if done for many units, it takes a lot of time and memory space
         #issue with garbage collecting gradients
@@ -332,7 +334,7 @@ class MaximizeActivityExperiment(Experiment):
         self._rf_2p_mask = rf_2p_mask
         
         # Remove the probe from the subject
-        self.subject.remove(probe) 
+        self.subject.remove(probe) """
         return msg
 
     def _progress(self, i: int, msg : Message):
@@ -342,10 +344,11 @@ class MaximizeActivityExperiment(Experiment):
         # Get best stimuli
         best_code = msg.solution
         best_synthetic, _ = self.generator(data=(best_code, Message(mask=np.array([True]))))
-        #evidence the rf of conv layers only
+        
+        """#evidence the rf of conv layers only
         if 'conv' in msg.scr_layers[-1]:
             for rf_mask in self._rf_2p_mask:
-                best_synthetic[:,:,rf_mask] = np.inf
+                best_synthetic[:,:,rf_mask] = np.inf"""
         best_synthetic_img = to_pil_image(best_synthetic[0])
         
         if self._use_natural:
@@ -458,7 +461,7 @@ class MaximizeActivityExperiment(Experiment):
         return msg
         
 
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
+    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
 
         # We save the last set of stimuli
         self._stimuli, msg = data
@@ -467,7 +470,7 @@ class MaximizeActivityExperiment(Experiment):
 
         return super()._stimuli_to_sbj_state(data)
 
-    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
+    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
 
         sub_score, msg = data
 
@@ -535,8 +538,8 @@ class NeuronScalingMultiExperiment(MultiExperiment):
         super()._progress(exp, i, msg = msg)
 
         self._data['score']  .append(msg.stats_gen['best_score'])
-        self._data['neurons'].append(exp.scorer.optimizing_units)
-        self._data['layer']  .append(list(exp.scorer._trg_neurons.keys()))
+        self._data['neurons'].append(exp.scorer.n_scoring_units)
+        self._data['layer']  .append(list(exp.scorer._scoring_units.keys()))
         self._data['iter']   .append(exp._iteration) # TODO make public property        
 
     def _finish(self):
@@ -616,7 +619,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
         # Update score and parameters
         self._data['score']    .append(msg.stats_gen['best_score'])
         self._data['score_nat'].append(msg.stats_nat['best_score'] if use_nat else np.nan)
-        self._data['neurons']  .append(exp.scorer.optimizing_units)
+        self._data['neurons']  .append(exp.scorer.n_scoring_units)
         self._data['layer']    .append(msg.scr_layers)
         self._data['iter']     .append(exp._iteration) # TODO make public property
         
@@ -789,7 +792,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
             
             # Compute the non recorded units
             try:
-                scoring = exp.scorer.target[layer]
+                scoring = exp.scorer.scoring_units[layer]
             except KeyError:
                 scoring = []
             

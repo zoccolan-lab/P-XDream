@@ -17,7 +17,7 @@ from .utils.io_ import save_json, store_pickle
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
-from .utils.model import Codes, DisplayScreen, Mask, MaskGenerator, RFBox, Stimuli, StimuliScore, SubjectState
+from .utils.model import Codes, DisplayScreen, Mask, MaskGenerator, RFBox, Stimuli, Score, State
 from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
@@ -35,7 +35,7 @@ class ExperimentState:
     or by a folder path containing dumped states.
     '''
 
-    # NOTE: We don't use the defined type aliases `Codes`, `SubjectState`, ...
+    # NOTE: We don't use the defined type aliases `Codes`, `State`, ...
     #       as they refer to a single step in the optimization process, while
     #       the underlying datastructures consider an additional first dimension
     #       in the Arrays relative to the generations.
@@ -356,7 +356,7 @@ class Experiment(ABC):
     
     # The following methods implements the main experiment data pipeline:
     #
-    # Codes --Generator--> Stimuli --Subject--> SubjectState --Scorer--> StimuliScore --Optimizer--> Codes
+    # Codes --Generator--> Stimuli --Subject--> State --Scorer--> Score --Optimizer--> Codes
     #
     # Along with component-specific data, a Message travels all along the pipeline. 
     # It allows for a generic data passing between components to communicate an information 
@@ -411,21 +411,21 @@ class Experiment(ABC):
         
         return self.generator(data)
     
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[SubjectState, Message]:
+    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
         '''
         The method collects the Subject responses to a presented set of stimuli.
 
         :param data: Set of visual stimuli and a Message
         :type data: Tuple[Stimuli, Message]
         :return: Subject responses to the presented Stimuli and a Message.
-        :rtype: Tuple[SubjectState, Message]
+        :rtype: Tuple[State, Message]
         '''
         
         states, msg = self.subject(data=data)
     
         return states, msg
     
-    def _sbj_state_to_scr_state(self, sbj_state : Tuple[SubjectState, Message]) -> Tuple[SubjectState, Message]:
+    def _sbj_state_to_scr_state(self, sbj_state : Tuple[State, Message]) -> Tuple[State, Message]:
         '''
         
         '''
@@ -435,14 +435,14 @@ class Experiment(ABC):
         
         return state, msg
     
-    def _scr_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+    def _scr_state_to_stm_score(self, data: Tuple[State, Message]) -> Tuple[Score, Message]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
         :param data: Subject responses to visual stimuli and a Message
-        :type data: Tuple[SubjectState, Message]
+        :type data: Tuple[State, Message]
         :return: A score for each presented stimulus.
-        :rtype: Tuple[StimuliScore, Message]
+        :rtype: Tuple[Score, Message]
         '''
         
         scores, msg = self.scorer(data=data)
@@ -452,7 +452,7 @@ class Experiment(ABC):
         
         return scores, msg
     
-    def _stm_score_to_codes(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
+    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
         '''
         The method uses the scores for each stimulus to optimize the images
         in the latent coded space, resulting in a new set of codes.
@@ -464,7 +464,7 @@ class Experiment(ABC):
               codes at each iteration is possibly varying.
 
         :param data: Score associated to the score and a Message 
-        :type data: Tuple[StimuliScore, Message]
+        :type data: Tuple[Score, Message]
         :return: New optimized set of codes.
         :rtype: Codes
         '''
@@ -535,7 +535,7 @@ class Experiment(ABC):
         msg = Message(
             start_time = time.time(),
             rec_units  = self.subject.target,
-            scr_units  = self.scorer.target,
+            scr_units  = self.scorer.scoring_units,
         )
         
         return msg

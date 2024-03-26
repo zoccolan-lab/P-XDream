@@ -15,7 +15,7 @@ from zdream.utils.misc import default
 
 from functools import cache
 
-from zdream.utils.model import AggregateFunction, StimuliScore, SubjectState
+from zdream.utils.model import LayerReduction, Score, State
 
 class DS:
     '''
@@ -174,8 +174,8 @@ class DSCluster:
     
     # --- UTILS ---
 
-    # This has type AggregationFunction
-    def aggregate_fun(self, state: SubjectState) -> Dict[str, StimuliScore]:
+    # This has type ScoringMapping
+    def aggregate_fun(self, state: State) -> Dict[str, Score]:
 
         weights = [obj.weight for obj in self] # type: ignore
 

@@ -59,8 +59,8 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
 
     # Scorer
     parser.add_argument('--scr_layers',     type=def_type(str),   help=f'Target scoring layers and neurons with specification\n{LAYERS_NEURONS_SPECIFICATION}')
-    parser.add_argument('--aggregation',    type=def_type(str),   help='Name of scoring aggregation function between layers')
-    parser.add_argument('--reduction',      type=def_type(str),   help='Name of scoring aggregation function across layers')
+    parser.add_argument('--units_reduction', type=def_type(str),   help='Name of reducing function across units')
+    parser.add_argument('--layer_reduction',      type=def_type(str),   help='Name of reducing function across layers')
     
     # Optimizer
     parser.add_argument('--pop_size',       type=def_type(int),   help='Starting number of the population')

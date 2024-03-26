@@ -10,9 +10,9 @@ from zdream.logger import Logger, LoguruLogger
 from zdream.experiment import Experiment
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, preprocess_image
-from zdream.utils.model import DisplayScreen, MaskGenerator, Message, RecordingUnit, Stimuli, StimuliScore
+from zdream.utils.model import DisplayScreen, MaskGenerator, Message, RecordingUnit, Stimuli, Score
 
-from zdream.utils.model import SubjectState
+from zdream.utils.model import State
 from zdream.utils.misc import device
 
 from zdream.scorer import MSEScorer, Scorer
@@ -35,7 +35,7 @@ class _TrivialSubject(InSilicoSubject):
     def __call__(
         self,
         data : Tuple[Stimuli, Message]
-    ) -> Tuple[SubjectState, Message]:
+    ) -> Tuple[State, Message]:
         
         img, msg = data
 
@@ -165,14 +165,14 @@ class _TargetRecoveryExperiment(Experiment):
     @property
     def scorer(self) -> MSEScorer: return cast(MSEScorer, self._scorer)
     
-    def _sbj_state_to_stm_score(self, data: Tuple[SubjectState, Message]) -> Tuple[StimuliScore, Message]:
+    def _sbj_state_to_stm_score(self, data: Tuple[State, Message]) -> Tuple[Score, Message]:
         
         self._state, _ = data
         return self.scorer(data=data)
             
     def _progress_info(self, i: int) -> str:
 
-        trg_img = self.scorer.template['image']
+        trg_img = self.scorer.target['image']
 
         mse = min([
             float(MSEScorer.mse(
@@ -228,7 +228,7 @@ class _TargetRecoveryExperiment(Experiment):
         best_state = self.optimizer.solution
         best_image, _ = self.generator(codes=best_state, pipeline=False)
 
-        trg_img = torch.tensor(self.scorer.template['image'])
+        trg_img = torch.tensor(self.scorer.target['image'])
         concatenated = concatenate_images(img_list=[best_image[0], trg_img[0]])
         
         img_dir = path.join(self.target_dir, 'images')

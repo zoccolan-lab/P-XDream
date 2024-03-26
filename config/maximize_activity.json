@@ -16,8 +16,8 @@
     },
     "scorer": {
         "scr_layers": "21=[]",
-        "aggregation": "mean",
-        "reduction": "mean"
+        "units_reduction": "mean",
+        "layer_reduction": "mean"
     },
     "optimizer": {
         "pop_size": 20,

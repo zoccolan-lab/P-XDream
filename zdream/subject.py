@@ -14,7 +14,7 @@ from zdream.utils.io_ import read_txt
 
 from .utils.model import RecordingUnit
 from .utils.model import Stimuli
-from .utils.model import SubjectState
+from .utils.model import State
 from .probe import SetterProbe
 from .probe import RecordingProbe
 from .probe import SilicoProbe
@@ -48,7 +48,7 @@ class InSilicoSubject(Subject):
     def __call__(
         self,
         data : Tuple[Stimuli, Message]
-    ) -> Tuple[SubjectState, Message]:
+    ) -> Tuple[State, Message]:
         
         raise NotImplementedError("Cannot instantiate a InSilicoSubject")
     
@@ -158,11 +158,11 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         auto_clean : bool = True,
         raise_no_probe : bool = True,
         with_grad: bool = False,
-    ) -> Tuple[SubjectState, Message]:
+    ) -> Tuple[State, Message]:
         warn_msg = \
             '''
             Calling subject forward while no recording probe has been registered.
-            This will result in subject forward output to have an empty SubjectState
+            This will result in subject forward output to have an empty State
             which may lead in downstream failure. Please be mindful or the consequences
             or register a recording probe via the `register` method of the NetworkSubject
             class. 
@@ -192,7 +192,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         probe : RecordingProbe | None = None,
         auto_clean : bool = True,
         with_grad: bool = False
-    ) -> Tuple[SubjectState, Message]:
+    ) -> Tuple[State, Message]:
         '''
         Expose NetworkSubject to a (visual input) and return the
         measured (hidden) activations. If no recording probe was
@@ -206,7 +206,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
             method after recording has taken place (Default: True)
         :type auto_clean: bool
         :returns: The measured subject state
-        :rtype: SubjectState
+        :rtype: State
         '''
         
 
@@ -267,7 +267,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
     def clean(self) -> None:
         """clean subject states and probe content
         """
-        self._states : List[SubjectState] = []
+        self._states : List[State] = []
         
         if self.recorder is not None:
             self.recorder.clean() 

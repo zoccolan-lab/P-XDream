@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 
 from zdream.utils.model import Message
-from zdream.utils.model import SubjectState
+from zdream.utils.model import State
 from zdream.probe import RecordingProbe
 from zdream.subject import NetworkSubject
 
@@ -57,7 +57,7 @@ class NetworkSubjectTest(unittest.TestCase):
         mock_inp = torch.randn(self.num_imgs, *self.img_shape, device=subject.device)
 
         # We expect to see an assertion error raised here
-        feat : SubjectState
+        feat : State
         msg : Message
         feat, msg = subject((mock_inp, self.msg))
 

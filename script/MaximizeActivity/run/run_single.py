@@ -3,9 +3,7 @@ TODO Experiment description
 """
 
 from os import path
-from argparse import ArgumentParser
 import matplotlib
-import tkinter as tk
 
 from script.MaximizeActivity.maximize_activity import MaximizeActivityExperiment
 from script.MaximizeActivity.parser import get_parser

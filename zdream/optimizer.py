@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.special import softmax
 
-from .utils.model import Codes, StimuliScore
+from .utils.model import Codes, Score
 from .utils.misc import default, lazydefault
 from .message import Message
 
@@ -76,7 +76,7 @@ class Optimizer(ABC):
     '''
     
     @abstractmethod
-    def step(self, data: Tuple[StimuliScore, Message]) -> Tuple[Codes, Message]:
+    def step(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the
@@ -86,7 +86,7 @@ class Optimizer(ABC):
         :param data: Tuple containing a score associated to each old code and
                      a message containing a masking information about some natural
                      images to be filtered out.
-        :type data: Tuple[StimuliScore, Message]
+        :type data: Tuple[Score, Message]
         :return: Set of new codes to be used to improve future states scores
         :rtype: Codes
         '''        
@@ -237,7 +237,7 @@ class GeneticOptimizer(Optimizer):
     
     def step(
         self,
-        data : Tuple[StimuliScore, Message],
+        data : Tuple[Score, Message],
         out_pop_size: int   | None = None,
         temperature : float | None = None, 
         save_topk : int     | None = None,   
@@ -248,7 +248,7 @@ class GeneticOptimizer(Optimizer):
 
         :param data: Scores associated to each code and message containing masking
                      information for natural images filtering.
-        :type data: Tuple[StimuliScore, Message]
+        :type data: Tuple[Score, Message]
         :param out_pop_size: Population size for the next generation. 
                              If not given the old one is used.
         :type out_pop_size: int | None, optional

@@ -18,7 +18,7 @@ from .utils.misc import fit_bbox
 from .utils.model import InputLayer
 from .utils.model import RFBox
 from .utils.model import RecordingUnit
-from .utils.model import SubjectState
+from .utils.model import State
 
 class SilicoProbe(ABC):
     '''
@@ -464,7 +464,7 @@ class RecordingProbe(SilicoProbe):
     def target(self) -> Dict[str, RecordingUnit]: return self._target
         
     @property
-    def features(self) -> SubjectState:
+    def features(self) -> State:
         '''
         Returns a dictionary of probe activations indexed by
         layer name. The activation is a tensor with first dimension
