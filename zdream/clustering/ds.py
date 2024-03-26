@@ -15,7 +15,7 @@ from zdream.utils.misc import default
 
 from functools import cache
 
-from zdream.utils.model import LayerReduction, Score, State
+from zdream.utils.model import LayerReduction, Score, ScoringUnit, State, UnitsMapping
 
 class DS:
     '''
@@ -171,18 +171,45 @@ class DSCluster:
     
     @property
     def objects(self) -> List[DSObject]: return self._objects
+
+    @property
+    def labels(self) -> Labels: 
+        return np.array([obj.label for obj in self]) # type: ignore
+
+    @property
+    def ranks(self) -> NDArray[np.float32]: 
+        return np.array([obj.rank  for obj in self]) # type: ignore
+
+    @property
+    def scoring_units(self) -> ScoringUnit: return list(self.labels) 
     
     # --- UTILS ---
 
-    # This has type ScoringMapping
-    def aggregate_fun(self, state: State) -> Dict[str, Score]:
+    def units_mapping(self, arr: NDArray, weighted: bool = True) -> NDArray:
+        '''
+        Return the units activation mapping for clusters units.
 
-        weights = [obj.weight for obj in self] # type: ignore
+        :param arr: Array with units to map
+        :type arr: NDArray
+        :param weighted: If to use cluster weights, defaults to True
+                         If no uses, an uniform distribution is used.
+        :type weighted: bool, optional
+        :return: _description_
+        :rtype: UnitsMapping
+        '''
+        
+        # Weighted mean
+        if weighted:
+            weights = self.ranks
+        
+        # Arithmetic mean
+        else:
+            weights = np.ones(len(self)) / len(self)
 
-        return {
-            layer: np.sum([w * act for w, act in zip(weights, activations)])
-            for layer, activations in state.items()
-        }
+        # Remap units
+        arr[:, self.labels] *= weights # type: ignore
+
+        return arr
     
     @staticmethod
     def extract_singletons(aff_mat: AffinityMatrix) -> List[DSCluster]:
@@ -225,7 +252,7 @@ class DSClusters:
     # --- MAGIC METHODS ---   
     
     def __str__ (self) -> str:                 return   f'DSClusters[n-clusters: {len(self)}, '\
-                                                        f'avg per cluster: {round(self.avg_count, 3)}]'
+                                                        f'avg per cluster: {round(self.obj_avg_count, 3)}]'
     def __repr__(self) -> str:                 return str(self)
     def __len__ (self) -> int:                 return len (self.clusters)
     def __iter__(self) -> Iterable[DSCluster]: return iter(self.clusters)
@@ -251,7 +278,7 @@ class DSClusters:
         return dict(Counter(lens))
     
     @property
-    def avg_count(self) -> float:
+    def obj_avg_count(self) -> float:
         '''
         Return the average number of elements in 
         the cluster collection
@@ -261,6 +288,17 @@ class DSClusters:
         '''
         
         return sum([elements * count for elements, count in self.clusters_counts.items()]) / len(self)
+
+    @property
+    def obj_tot_count(self) -> int:
+        '''
+        Return the total number of element in the cluster collection
+
+        :return: Cluster cardinality mapping.
+        :rtype: Dict[int, int]
+        '''
+        
+        return sum([count for count in self.clusters_counts.values()])
     
     # --- UTILITIES ---
     

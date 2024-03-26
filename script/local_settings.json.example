@@ -3,5 +3,6 @@
     "mini_inet": "path/to/your/root",
     "out_dir": "path/to/output/directory",
     "test_image": "path/to/your/image",
-    "config": "path/to/your/config/directory"
+    "config": "path/to/your/config/directory",
+    "clustering": "path/to/your/clustering/file"
 }
