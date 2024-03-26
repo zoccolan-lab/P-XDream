@@ -157,6 +157,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         probe : RecordingProbe | None = None,
         auto_clean : bool = True,
         raise_no_probe : bool = True,
+        with_grad: bool = False,
     ) -> Tuple[SubjectState, Message]:
         warn_msg = \
             '''
@@ -178,7 +179,8 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         state, msg =  self.forward(
             data=data,
             probe=probe,
-            auto_clean=auto_clean
+            auto_clean=auto_clean,
+            with_grad = with_grad
         )
 
         return state, msg
@@ -189,6 +191,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         data : Tuple[Stimuli, Message],
         probe : RecordingProbe | None = None,
         auto_clean : bool = True,
+        with_grad: bool = False
     ) -> Tuple[SubjectState, Message]:
         '''
         Expose NetworkSubject to a (visual input) and return the
@@ -205,13 +208,17 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         :returns: The measured subject state
         :rtype: SubjectState
         '''
+        
 
         stimuli, msg = data
         
         pipe = self._weights.transforms() if self._weights else lambda x : x
         stimuli = pipe(stimuli)
-
-        _ = self._network(stimuli)
+        if with_grad:
+            _ = self._network(stimuli)
+        else:
+            with torch.no_grad():
+                _ = self._network(stimuli)
     
         out = probe.features if probe else {}  
     
@@ -292,8 +299,7 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         '''
         for layer in unpack(self._network):
             if layer_name == layer.name: return layer
-
-        return None
+            
     
     @property
     def recorder(self) -> RecordingProbe | None:

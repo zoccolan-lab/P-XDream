@@ -303,7 +303,7 @@ class MaximizeActivityExperiment(Experiment):
 
         # Expose the subject to the mock input to collect the set
         # of shapes of the underlying network
-        _ = self.subject((mock_inp, mock_msg), raise_no_probe=False)
+        _ = self.subject((mock_inp, mock_msg), raise_no_probe=False, with_grad=True)
 
         # Collect the receptive fields from the info probe
         #NOTE: if done for many units, it takes a lot of time and memory space
@@ -321,9 +321,9 @@ class MaximizeActivityExperiment(Experiment):
         for i,rf in enumerate(rf_on_input):
             #rescale to output size from actual alexnet input (224,224) -> (256,256)
             rf_rescaled = [tuple(round(c * rescale_factor) if round(c * rescale_factor)<img_side_gen else (img_side_gen-1) 
-                                 for c in coord) 
-                           if (idx == 1 or idx == 2) else coord
-                           for idx, coord in enumerate(rf)]
+                            for c in coord) 
+                            if (idx == 1 or idx == 2) else coord
+                            for idx, coord in enumerate(rf)]
             #get the borders of rfs        
             rf_2p_mask[i][rf_rescaled[1][0]:rf_rescaled[1][-1]+1, rf_rescaled[2][0]] = True
             rf_2p_mask[i][rf_rescaled[1][0]:rf_rescaled[1][-1]+1, rf_rescaled[2][-1]] = True
@@ -354,7 +354,7 @@ class MaximizeActivityExperiment(Experiment):
         if not self._gif or self._gif[-1] != best_synthetic_img:
             self._gif.append(
                 best_synthetic_img
-            )
+            )          
             
         if self._render:
 
@@ -610,7 +610,6 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
     def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
 
         super()._progress(exp, i, msg=msg)
-
         mock_template = exp._mask_generator(1)
         use_nat = mock_template is not None and sum(~mock_template) > 0
 

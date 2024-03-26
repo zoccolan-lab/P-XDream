@@ -25,7 +25,6 @@ def plot_scores(
     },
     num_bins: int  = 25, 
     out_dir: str | None = None,
-    display_plots: bool = False,
     logger: Logger | None = None
 ):
     '''
@@ -47,8 +46,6 @@ def plot_scores(
     :type num_bins: int
     :param out_dir: Directory where to save output plots, default is None indicating not to save.
     :type out_dir: str | None
-    :param display_plots: If to display plots, default to False.
-    :type out_dir: bool
     :param logger: Logger to log information relative to plot saving paths.
                    Defaults to None indicating no logging.
     :type logger: Logger | None
@@ -108,8 +105,6 @@ def plot_scores(
         out_fp = path.join(out_dir, 'scores_trend.png')
         logger.info(f'Saving score trend plot to {out_fp}')
         fig_trend.savefig(out_fp, bbox_inches="tight")
-    if display_plots:
-        plt.show()
     
     # PLOT 2. SCORES HISTOGRAM 
     fig_hist, ax = plt.subplots(1) 
@@ -188,8 +183,6 @@ def plot_scores(
         out_fp = path.join(out_dir, 'scores_histo.png')
         logger.info(f'Saving score histogram plot to {out_fp}')
         fig_hist.savefig(out_fp, bbox_inches="tight")
-    if display_plots:
-        plt.show()
 
 
 def plot_scores_by_cat(
@@ -199,7 +192,6 @@ def plot_scores_by_cat(
     k: int = 3, 
     gens_window: int = 5,
     out_dir: str | None = None,
-    display_plots: bool = False,
     logger: Logger | None = None
 ):
     '''
@@ -221,8 +213,6 @@ def plot_scores_by_cat(
     :type n_gens_considered: int
     :param out_dir: Directory where to save output plots, default is None indicating not to save.
     :type out_dir: str | None
-    :param display_plots: If to display plots, default to False.
-    :type out_dir: bool
     :param logger: Logger to log information relative to plot saving paths.
                    Defaults to None indicating no logging.
     :type logger: Logger | None
@@ -338,14 +328,11 @@ def plot_scores_by_cat(
         out_fp = path.join(out_dir, 'scores_labels.png')
         logger.info(f'Saving score labels plot to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
-    if display_plots:
-        plt.show()
 
 
 def plot_optimizing_units(
     multiexp_data: Dict[str, Any],
     out_dir: str | None = None,
-    display_plots: bool = False,
     logger: Logger | None = None
 ):
     #OBSOLETE: multiexp_lineplot is a generalized version of plot_optimizing_units
@@ -358,8 +345,6 @@ def plot_optimizing_units(
                           layers and optimization steps.
     :param out_dir: Directory where to save output plots, default is None indicating not to save.
     :type out_dir: str | None
-    :param display_plots: If to display plots, default to False.
-    :type out_dir: bool
     :param logger: Logger to log information relative to plot saving paths.
                    Defaults to None indicating no logging.
     :type logger: Logger | None
@@ -444,8 +429,6 @@ def plot_optimizing_units(
         out_fp = path.join(out_dir, 'neurons_optimization.png')
         logger.info(f'Saving score histogram plot to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
-    if display_plots:
-        plt.show()
         
         
 def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None, 
@@ -453,7 +436,6 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
                       gr_vars: str|list[str] = ['layers', 'neurons'], 
                       y_var: str = 'scores', 
                       metrics: str|list[str] = ['mean', 'sem'],
-                      display_plots: bool = False,
                       logger: Logger | None = None):
     
     """Plot the final trend of a specific metric 
@@ -494,6 +476,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
         if 'mean' in metrics and 'sem' in metrics:     
             ax.errorbar(layer.index.get_level_values('neurons'), layer[(y_var, 'mean')],
                 yerr=layer[(y_var, 'sem')], label=l, color = colors[i])
+
             #TODO: think to other metrics to plot
       
     ax.set_xlabel('Neurons')
@@ -507,5 +490,3 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
         out_fp = path.join(out_dir, fn)
         logger.info(f'Saving {fn} to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
-    if display_plots:
-        plt.show()

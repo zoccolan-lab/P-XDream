@@ -187,6 +187,9 @@ class InfoProbe(SilicoProbe):
         self._f_target = forward_target
         self._b_target = backward_target
         
+        
+        self._rf_dict=defaultdict(list)    
+        
         self._output : Dict[Tuple[str, str], Tensor] = {} 
         self._shapes : Dict[str, Tuple[int, ...]] = {'input' : inp_shape}
         self._ingrad : Dict[Tuple[str, str], List[NDArray | None]] = defaultdict(list)
@@ -296,8 +299,18 @@ class InfoProbe(SilicoProbe):
         if isinstance(grad_out, tuple): grad, *_ = grad_out
         
         grad = grad.detach().abs().cpu().numpy() if grad is not None else None
-        self._ingrad[(curr, self.source)].append(grad)
+        
+        if grad is None: return #Leave this here?
+        
+        grad_mean = np.mean(grad, axis = 0)
+        if grad_mean.ndim == 1:
+            grad_mean = np.expand_dims(grad_mean, axis=0)
+            axes = tuple([-1])
+        else:
+            axes = tuple(-i for i in range(len(grad_mean.shape),0, -1))
+        self._rf_dict[(curr, self.source)].append(fit_bbox(grad_mean, axes = axes))
 
+        
     def _sanitize(self, var : int | str | Tuple) -> int:
         if isinstance(var, (tuple, list)):
             assert (len(var) == 2 and var[0] == var[1]) or\
@@ -377,30 +390,21 @@ class InfoProbe(SilicoProbe):
     ) -> Dict[Tuple[str, str], List[RFBox]]:
         # raise NotImplementedError()
         # TODO: Figure out how to implement this!
-        for (self.ref, self.source), targ_act in self._output.items():
-            for act in targ_act:                
+        I = len(self._output)
+        for i, ((self.ref, self.source), targ_act) in enumerate(self._output.items()):
+            for j, act in enumerate(targ_act[:-1]):                
                 # * This is where we trigger the backward hook
                 # NOTE: This call should populate the self._ingrad
                 #       attribute of this class
                 act.backward(retain_graph=True)
-        
-        rf_dict=defaultdict(list)    
-        for k, v in self._ingrad.items():
-            for grad in v:
-                grad_mean = np.mean(grad, axis = 0)
-                if grad_mean.ndim == 1:
-                   grad_mean = np.expand_dims(grad_mean, axis=0)
-                   axes = tuple([-1])
-                else:
-                   axes = tuple(-i for i in range(len(grad_mean.shape),0, -1))
-                rf_dict[k].append(fit_bbox(grad_mean, axes = axes))
+            targ_act[-1].backward(retain_graph=False) if i==(I-1) else targ_act[-1].backward(retain_graph=True)
+                
         #TO DO: it seems that at each act.backward step all the gradients are backpropagated.
         #therefore we end up with a dict that, for each key, has a replica of its entry n times,
         #where n is equal to the number of layers onto which the mapping occurs.
         #I did a quick fix (i.e. taking the first n element of every value, where n is the number of units
         # considered) that seems to work for now
-        
-        return {k: v[:int(targ_act.size(0))] for k,v in rf_dict.items()}
+        return {k: v[:int(targ_act.size(0))] for k,v in self._rf_dict.items()}
         #return {
         #    k : [fit_bbox(np.mean(grad[0], axis = 0)) for grad in v]
         #    for k, v in self._ingrad.items()
