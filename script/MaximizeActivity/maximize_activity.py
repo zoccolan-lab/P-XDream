@@ -607,7 +607,10 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
                 for config in self._search_config:
                     config['subject']['rec_layers'] = config['subject']['rec_layers'].replace(rl, neurons_str)
         
-        scored_units_dict = {}
+        #get all the unique score layers in the multiexperiment
+        all_score_layers = [(conf['scorer']['scr_layers']).split(',') for conf in self._search_config]
+        unique_score_layers = list({layer_names[int(string.split('=')[0])] for sublist in all_score_layers for string in sublist})
+        scored_units_dict = {k:[] for k in unique_score_layers}
         
         for config in self._search_config:
             #NOTE: we assume that in maximize activity multiexp you score from
@@ -651,7 +654,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
                             scored_units[i] = scored_units[i]+ ')'
                             
             config['scorer']['scr_layers'] = '='.join([layer_idx,str(scored_units).replace("'", "").replace(",", "")])
-
+            scored_units_dict[layer_names[int(layer_idx)]].append(config['scorer']['scr_layers'].split('=')[1])
         # Add the close screen flag to the last configuration
         self._search_config[-1]['close_screen'] = True
 
