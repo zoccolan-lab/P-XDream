@@ -65,7 +65,7 @@ class Scorer(ABC):
         '''
 
         self._units_map    : UnitsMapping   = units_map
-        self._layer_reduce : LayerReduction  = layer_reduce
+        self._layer_reduce : LayerReduction = layer_reduce
         self._units_reduce : UnitsReduction = units_reduce
 
 
@@ -84,7 +84,7 @@ class Scorer(ABC):
 
         # 1. Mapping activations
         state_mapped: State  = {
-            layer: self._units_map(act) 
+            layer: self._units_map(act.copy())
             for layer, act in state.items()
         }
         

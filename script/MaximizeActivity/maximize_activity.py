@@ -486,6 +486,16 @@ class MaximizeActivityExperiment(Experiment):
                 self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
 
         return super()._stm_score_to_codes((sub_score, msg))
+    
+    def _sbj_state_to_scr_state(self, sbj_state : Tuple[State, Message]) -> Tuple[State, Message]:
+        '''
+        
+        '''
+        
+        state, msg = sbj_state
+        msg.states_history.append(state)
+        
+        return super()._sbj_state_to_scr_state(sbj_state=sbj_state)
 
 
 # --- MULTI EXPERIMENT ---

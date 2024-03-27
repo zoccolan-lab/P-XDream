@@ -49,6 +49,7 @@ class ExperimentState:
     rec_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: recorded units
     scr_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: scores activation indexes
     rf_maps:  Dict[Tuple[str, str], NDArray[np.int32]]   | None  # (layer mapped, layer of mapping units): receptive fields
+    
     @classmethod
     def from_msg(cls, msg : Message) -> 'ExperimentState':
         
@@ -114,7 +115,7 @@ class ExperimentState:
             # Loading function depending on file extension
             match ext:
                 case 'npy': load_fun = np.load
-                case 'npz': load_fun = lambda x: dict(np.load(x, allow_pickle=True))
+                case 'npz': load_fun = lambda x: dict(np.load(x))
 
             # Loading state
             if path.exists(fp):
@@ -163,7 +164,7 @@ class ExperimentState:
             ('scores_nat', 'npy'),
             ('rec_units',  'npz'),
             ('scr_units',  'npz'),
-            ('rf_maps',  'npz'),
+            ('rf_maps',    'npz'),
         ]
         
         if store_states:
@@ -181,15 +182,14 @@ class ExperimentState:
             # Saving function depending on file extension
             match ext:
                 case 'npy': save_fun = np.save
-                case 'npz': save_fun = np.savez
+                case 'npz': save_fun = lambda file, x: np.savez(file, **x)
 
             # Saving state
             match name:
-                case 'labels': check_fn = lambda x : x.size
-                case 'states': check_fn = lambda x : all([v.size for v in x.values()])
-                case 'rf_maps': check_fn = lambda x : all([v.size for v in x.values()])
-                case 'scores_nat': check_fn = lambda x : x.size
-                case _: check_fn = lambda _ : True
+                case 'labels' | 'scores_nat':  check_fn = lambda x : x.size
+                case 'rf_maps':                check_fn = lambda x : len(x)
+                case 'states':                 check_fn = lambda x : all([v.size for v in x.values()])
+                case _:                        check_fn = lambda _ : True
                 
             state = self.__getattribute__(name)
             
@@ -197,7 +197,7 @@ class ExperimentState:
                 logger.info(f"> Saving {name} history from {fp}")
                 save_fun(fp, state)
             else:
-                logger.warn(f'> Attempting dump of {name} but was empty')
+                logger.warn(f'> Attempting to dump {name}, but empty')
         
         logger.info(f'')
 
@@ -430,10 +430,7 @@ class Experiment(ABC):
         
         '''
         
-        state, msg = sbj_state
-        msg.states_history.append(state)
-        
-        return state, msg
+        return sbj_state
     
     def _scr_state_to_stm_score(self, data: Tuple[State, Message]) -> Tuple[Score, Message]:
         '''

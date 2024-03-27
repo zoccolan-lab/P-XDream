@@ -251,8 +251,7 @@ class DSClusters:
     
     # --- MAGIC METHODS ---   
     
-    def __str__ (self) -> str:                 return   f'DSClusters[n-clusters: {len(self)}, '\
-                                                        f'avg per cluster: {round(self.obj_avg_count, 3)}]'
+    def __str__ (self) -> str:                 return f'DSClusters[n-clusters: {len(self)}]'
     def __repr__(self) -> str:                 return str(self)
     def __len__ (self) -> int:                 return len (self.clusters)
     def __iter__(self) -> Iterable[DSCluster]: return iter(self.clusters)
@@ -278,18 +277,6 @@ class DSClusters:
         return dict(Counter(lens))
     
     @property
-    def obj_avg_count(self) -> float:
-        '''
-        Return the average number of elements in 
-        the cluster collection
-
-        :return: Cluster cardinality mapping.
-        :rtype: Dict[int, int]
-        '''
-        
-        return sum([elements * count for elements, count in self.clusters_counts.items()]) / len(self)
-
-    @property
     def obj_tot_count(self) -> int:
         '''
         Return the total number of element in the cluster collection
@@ -298,7 +285,7 @@ class DSClusters:
         :rtype: Dict[int, int]
         '''
         
-        return sum([count for count in self.clusters_counts.values()])
+        return sum([element * count for element, count in self.clusters_counts.items()])
     
     # --- UTILITIES ---
     

@@ -60,38 +60,52 @@ class ClusteringOptimizationExperiment(Experiment):
         clusters: DSClusters = DSClusters.from_file(clu_conf['cluster_file'])
         cluster:  DSCluster  = clusters[clu_conf['cluster_idx']]
 
-        # Get units mapping for the weighted sum
-        units_mapping: UnitsMapping = partial(
-            cluster.units_mapping,
-            weighted=clu_conf['weighted_score']
-        )
-
         # Choose random units depending on their random type
-
         tot_obj = clusters.obj_tot_count # tot number of objects
         clu_obj = len(cluster)           # cluster object count
 
         scoring_units: ScoringUnit
         match clu_conf['scr_type']:
 
-            # 0: use clusters units
-            case 0: scoring_units = cluster.scoring_units
+            # 1) Cluster - use clusters units
+            case 'cluster': 
 
-            # 1: use scattered random units with the same dimensionality of the cluster
-            case 1: scoring_units = list(np.random.choice(
-                np.arange(0, tot_obj), 
-                size=clu_obj, 
-                replace=False
-            ))
+                scoring_units = cluster.scoring_units
+
+                # Get units mapping for the weighted sum
+                units_mapping: UnitsMapping = partial(
+                    cluster.units_mapping,
+                    weighted=clu_conf['weighted_score']
+                )
+
+                units_reduction = 'sum'
+
+            # 2) Random - use scattered random units with the same dimensionality of the cluster
+            case 'random': 
+                
+                scoring_units = list(np.random.choice(
+                    np.arange(0, tot_obj), 
+                    size=clu_obj, 
+                    replace=False
+                ))
+
+                units_mapping = lambda x: x
+                units_reduction  = 'mean'
             
-            # 2: use continuos random units with the same dimensionality of the cluster
-            case 2:
+            # 3) Random adjacent - use continuos random units with the same dimensionality of the cluster
+            case 'random_adj':
+
                 start = np.random.randint(0, tot_obj - clu_obj + 1)
                 scoring_units = list(range(start, start + clu_obj))
+
+                units_mapping = lambda x: x
+                units_reduction  = 'mean'
     
             # Default - raise an error
             case _:
-                raise ValueError(f'Invalid `scr_type`: {clu_conf["scr_type"]}. Choose one between {{0, 1, 2}}')        
+                err_msg = f'Invalid `scr_type`: {clu_conf["scr_type"]}. '\
+                           'Choose one between {cluster, random, random_adj}. '
+                raise ValueError(err_msg)        
 
         # Extract layer idx clustering was performed with
         layer_idx = clu_conf['layer']
@@ -141,14 +155,12 @@ class ClusteringOptimizationExperiment(Experiment):
         )
         
         sbj_net.eval()
-        # sbj_net._network.eval() # TODO cannot access private attribute, make public method to call the eval
 
         # --- SCORER ---
 
         scorer = ActivityScorer(
             scoring_units={layer_name: scoring_units},
-            units_reduction='sum', # this is because of the weighted average
-                                   # and has to refer to the units mapping
+            units_reduction=units_reduction,
             layer_reduction=scr_conf['layer_reduction'],
             units_map=units_mapping
         )
