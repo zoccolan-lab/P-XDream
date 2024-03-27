@@ -2,7 +2,7 @@
 from functools import partial
 from os import path
 import os
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, List, Tuple, Type, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,8 +11,9 @@ from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
 
+from script.ClusteringOptimization.plotting import plot_scr
 from zdream.clustering.ds import DSCluster, DSClusters
-from zdream.experiment import Experiment
+from zdream.experiment import Experiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
@@ -25,6 +26,7 @@ from zdream.utils.misc import concatenate_images, device
 from zdream.utils.parsing import parse_boolean_string
 from zdream.message import Message
 
+# --- EXPERIMENT CLASS ---
 
 class ClusteringOptimizationExperiment(Experiment):
 
@@ -210,9 +212,11 @@ class ClusteringOptimizationExperiment(Experiment):
 
         # --- DATA ---
         data = {
-            'render':       conf['render'],
-            'use_nat':      use_nat,
-            'close_screen': conf.get('close_screen', False),
+            'weighted_score' : clu_conf['weighted_score'],
+            'cluster_idx'    : clu_conf['cluster_idx'],
+            'render'         : conf['render'],
+            'use_nat'        : use_nat,
+            'close_screen'   : conf.get('close_screen', False),
         }
 
         # Experiment configuration
@@ -259,6 +263,8 @@ class ClusteringOptimizationExperiment(Experiment):
         self._render        = cast(bool, data['render'])
         self._close_screen  = cast(bool, data['close_screen'])
         self._use_nat       = cast(bool, data['use_nat'])
+        self._weighted      = cast(bool, data['weighted_score'])
+        self._cluster_idx   = cast( int, data['cluster_idx'])
 
     def _progress_info(self, i: int, msg : Message) -> str:
 
@@ -394,3 +400,78 @@ class ClusteringOptimizationExperiment(Experiment):
                 self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
 
         return super()._stm_score_to_codes((sub_score, msg))
+    
+
+# --- MULTI-EXPERIMENT ---
+
+class UnitsWeightingMultiExperiment(MultiExperiment):
+
+    def __init__(
+            self, 
+            experiment:      Type['ClusteringOptimizationExperiment'], 
+            experiment_conf: Dict[str, List[Any]], 
+            default_conf:    Dict[str, Any]
+    ) -> None:
+        
+        super().__init__(experiment, experiment_conf, default_conf)
+
+        # Add the close screen flag to the last configuration
+        self._search_config[-1]['close_screen'] = True
+    
+    def _get_display_screens(self) -> List[DisplayScreen]:
+
+        # Screen for synthetic images
+        screens = [
+            DisplayScreen(
+                title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
+                display_size=(400, 400)
+            )
+        ]
+
+        # Add screen for natural images if at least one will use it
+        if any(
+            parse_boolean_string(conf['mask_generator']['template']).count(False) > 0 
+            for conf in self._search_config
+        ):
+            screens.append(
+                DisplayScreen(
+                    title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, 
+                    display_size=(400, 400)
+                )
+            )
+
+        return screens
+    
+    @property
+    def _logger_type(self) -> Type[Logger]:
+        return LoguruLogger
+        
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'       ] = 'Comparison between cluster-weighted an arithmetic score average'
+        self._data['cluster_idx'] = list()  # Cluster idx in the clustering
+        self._data['scores'     ] = list()  # Scores across generation
+        self._data['weighted'   ] = list()  # Boolean flag if scoring was weighted or not
+
+
+    def _progress(self, exp: ClusteringOptimizationExperiment, msg : Message, i: int):
+
+        super()._progress(exp, i, msg = msg)
+
+        self._data['scores']      .append(msg.scores_gen_history)
+        self._data['cluster_idx'].append(exp._cluster_idx)
+        self._data['weighted']   .append(exp._weighted)    
+
+    def _finish(self):
+        
+        super()._finish()
+        
+        plot_scr(
+            cluster_idx  = self._data['cluster_idx'],
+            weighted     = self._data['weighted'],
+            scores       = self._data['scores'],
+            out_dir      = self.target_dir,
+            logger       = self._logger
+        )
