@@ -265,7 +265,7 @@ class MaximizeActivityExperiment(Experiment):
         if self._use_natural:
             self._labels: List[int] = []
 
-        """
+        
         #-- RF MAPPING --         
         #mock images for receptive field mapping (both forward and backward)
         self.nr_imgs4rf = 10
@@ -334,7 +334,7 @@ class MaximizeActivityExperiment(Experiment):
         self._rf_2p_mask = rf_2p_mask
         
         # Remove the probe from the subject
-        self.subject.remove(probe) """
+        self.subject.remove(probe) 
         return msg
 
     def _progress(self, i: int, msg : Message):
@@ -573,6 +573,84 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
     ) -> None:
         
         super().__init__(experiment, experiment_conf, default_conf)
+        
+        #-- RANDOM UNITS SAMPLING ---
+
+        #QUA FARE IL SAMPLING DELLE UNITà RANDOMICHE CHE POI POSSONO ESSERE USATE (SCORING) PER IL RECORDING
+        
+        # Create a on-the-fly network subject to extract all network layer names
+        #ASSUMPION: ALL THE EXPERIMENTS SHARE THE SAME NETWORK MODEL (e.g. alexnet)
+        net_info: Dict[str, Tuple[int, ...]] = NetworkSubject(network_name=self._search_config[0]['subject']['net_name']).layer_info
+        layer_names = list(net_info.keys())
+        
+        #get all the unique rec layers in the multiexperiment
+        all_rec_layers = [(conf['subject']['rec_layers']).split(',') for conf in self._search_config]
+        unique_rec_layers = list({string for sublist in all_rec_layers for string in sublist})
+        
+        for rl in unique_rec_layers:
+            if 'r' in rl: # If random units are recorded (NOTE: FOR NOW IN THIS IF WE EXPECT ONLY CONV LAYERS)
+                #get the shape of the layer of interest
+                layer_idx , units = rl.split('=')
+                shape      = net_info[layer_names[int(layer_idx)]][1:]
+                n_rand, _ = units.split('r'); n_rand = int(n_rand)
+                # Unravel indexes sampled in the overall interval
+                neurons = np.unravel_index(
+                    indices=np.random.choice(
+                        a = np.prod(shape),
+                        size=n_rand,
+                        replace=False,
+                    ),
+                    shape=shape)
+                #convert the sampled neurons into string format
+                neurons_str ='='.join([layer_idx, str([tuple([neurons[c_i][i] for c_i in range(len(neurons))]) 
+                                                            for i in range(len(neurons[0]))] ).replace(',', '') ]) 
+                for config in self._search_config:
+                    config['subject']['rec_layers'] = config['subject']['rec_layers'].replace(rl, neurons_str)
+        
+        scored_units_dict = {}
+        
+        for config in self._search_config:
+            #NOTE: we assume that in maximize activity multiexp you score from
+            #one layer per experiment
+            layer_idx , units = config['scorer']['scr_layers'].split('=')
+            n_rand, _ = units.split('r'); n_rand = int(n_rand)
+            
+            for s in config['subject']['rec_layers'].split(','):
+                l_nr, rec_units = s.split('=')
+                if int(l_nr) == int(layer_idx):
+                    break
+            if rec_units.strip()=='[]':
+                #case 1) all units recorded    
+                n_rec = net_info[layer_names[int(layer_idx)]][1:][-1]
+            elif '(' in rec_units:
+                #case 2) convolutional layer -> NEVER all units recorded
+                n_rec = len(rec_units.split(') ('))
+            else:
+                #case 2) linear layer, only some units recorded
+                n_rec = len(rec_units.split(' '))
+            
+            
+            idx_to_score = list(
+                np.random.choice(
+                    a=np.arange(0,n_rec), 
+                    size=n_rand, 
+                    replace=False
+                )
+            )
+            
+            if rec_units.strip()=='[]':
+                scored_units = idx_to_score
+            else:
+                splitter = ') (' if '(' in rec_units else ' '
+                scored_units = [rec_units.strip('[]').split(splitter)[idx] for idx in idx_to_score]
+                if '(' in rec_units:
+                    for i,s in enumerate(scored_units):
+                        if not s.startswith('('):
+                            scored_units[i] = '('+ scored_units[i]
+                        if not s.endswith('('):
+                            scored_units[i] = scored_units[i]+ ')'
+                            
+            config['scorer']['scr_layers'] = '='.join([layer_idx,str(scored_units).replace("'", "").replace(",", "")])
 
         # Add the close screen flag to the last configuration
         self._search_config[-1]['close_screen'] = True
