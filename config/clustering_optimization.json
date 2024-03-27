@@ -3,7 +3,7 @@
     "clustering" : {
         "cluster_file": "",
         "cluster_idx": 0,
-        "weighted_score": true,
+        "weighted_score": false,
         "scr_type": "cluster",
         "layer": 21
     },
