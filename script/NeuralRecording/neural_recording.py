@@ -1,52 +1,50 @@
-from argparse import ArgumentParser
 from os import path
+import os
 import time
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Tuple, cast
 
-from zdream.clustering.model import NeuronalRecording, PairwiseSimilarity
-from zdream.experiment import ZdreamExperiment
-from zdream.generator import Generator
-from zdream.logger import Logger, LoguruLogger
+import numpy as np
+from torch.utils.data import Dataset
+
+from zdream.experiment import Experiment
+from zdream.logger import Logger, LoguruLogger, MutedLogger
 from zdream.message import ZdreamMessage
-from zdream.optimizer import Optimizer
-from zdream.scorer import Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.probe import RecordingProbe
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.io_ import read_json, save_json
-from zdream.utils.misc import flatten_dict, stringfy_time
-from zdream.utils.model import MaskGenerator
+from zdream.utils.io_ import save_json
+from zdream.utils.misc import device
 from zdream.utils.parsing import parse_int_list, parse_recording
+from zdream.message import Message
 
-class NeuralRecordingExperiment(ZdreamExperiment):
+class NeuralRecordingExperiment(Experiment):
     
-    EXPERIMENT_TITLE = "NeuronalRecording"
+    EXPERIMENT_TITLE = "NeuralRecording"
     
     def __init__(
-        self, 
-        neuronal_recording: NeuronalRecording, 
-        logger: Logger,
-        data: Dict[str, Any] = dict(),
-        name: str = 'experiment'
-    ) -> None:
-        
+        self,
+        subject   : InSilicoSubject,
+        dataset   : Dataset,
+        image_ids : List[int] = [],
+        logger    : Logger = MutedLogger(),
+        name      : str = 'neuronal_recording',
+        data      : Dict[str, Any] = dict()
+    ):
+    
         super().__init__(
-            # NOTE: We set None unused elements in the experiment
-            generator=None, # type: ignore
-            scorer=None,    # type: ignore
-            optimizer=None, # type: ignore
-            subject=None,   # type: ignore
-            iteration=0, 
+            name=name,
             logger=logger,
-            data=data,
-            name=name
+            data=data
         )
         
-        self._neuronal_recording = neuronal_recording
+        if not image_ids:
+            image_ids = list(range(len(dataset))) # type: ignore
         
-        self._log_chk = cast(int, data['log_chk'])
-        
-        
+        self._subject   = subject
+        self._image_ids = image_ids
+        self._dataset   = dataset
+        self._log_chk   = cast(int, data['log_chk'])
+
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> 'NeuralRecordingExperiment':
         
@@ -65,7 +63,7 @@ class NeuralRecordingExperiment(ZdreamExperiment):
         
         probe = RecordingProbe(target=record_target) # type: ignore
 
-        # --- SUBJECTS ---
+        # --- SUBJECT ---
         sbj_net = NetworkSubject(
             record_probe=probe,
             network_name=sbj_conf['net_name']
@@ -80,16 +78,7 @@ class NeuralRecordingExperiment(ZdreamExperiment):
         logger = LoguruLogger(conf=log_conf)
         
         # --- NEURAL RECORDING ---
-        indexes = parse_int_list(dat_conf['image_ids'])
-        
-        neuronal_recording = NeuronalRecording(
-            subject=sbj_net,
-            dataset=dataset,
-            image_ids=indexes,
-            stimulus_post=lambda x: x['imgs'].unsqueeze(dim=0),
-            state_post=lambda x: list(x.values())[0][0],
-            logger=logger
-        )
+        image_ids = parse_int_list(dat_conf['image_ids'])
         
         # --- DATA ---
         data = {
@@ -97,85 +86,68 @@ class NeuralRecordingExperiment(ZdreamExperiment):
         }
         
         return NeuralRecordingExperiment(
-            neuronal_recording=neuronal_recording,
-            logger=logger,
-            data=data
+            subject   = sbj_net,
+            dataset   = dataset,
+            image_ids = image_ids,
+            name      = log_conf['name'],
+            logger    = logger,
+            data      = data
         )
+        
+    @property
+    def _components(self) -> List[Tuple[str, Any]]:
+        return [
+            ('Subject', self._subject),
+            ('Dataset', self._dataset)
+        ]
     
-    def _init(self) -> ZdreamMessage:
+    
+    # --- RUN ---
 
-        # Create experiment directory
-        self._logger.create_target_dir()
-
-        # Save and log parameters
-        if self._param_config:
-
-            flat_dict = flatten_dict(self._param_config)
+    def _run(self, msg: Message) -> Message:
+        
+        sbj_states = []
+        
+        # Post-processing operations
+        stimuli_post = lambda x: x['imgs'].unsqueeze(dim=0)
+        state_post   = lambda x: list(x.values())[0][0]        
+        
+        for i, idx in enumerate(self._image_ids):
             
-            # Log
-            self._logger.info(f"")
-            self._logger.info(mess=str(self))
-            self._logger.info(f"Parameters:")
-
-            max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
-
-            for k, v in flat_dict.items():
-                k_ = f"{k}:"
-                self._logger.info(f'{k_:<{max_key_len}}   {v}')
-
-            # Save
-            config_param_fp = path.join(self.target_dir, 'params.json')
-            self._logger.info(f"Saving param configuration to: {config_param_fp}")
-            save_json(data=self._param_config, path=config_param_fp)
-
-        # Components
-        self._logger.info(f"")
-        self._logger.info(f"Components:")
-        self._logger.info(mess=f'Recording: {self._neuronal_recording}')
-        self._logger.info(f"")
-        
+            # Log progress
+            if i % self._log_chk == 0:
+                progress = f'{i:>{len(str(len(self._image_ids)))+1}}/{len(self._image_ids)}'
+                perc     = f'{i * 100 / len(self._image_ids):>5.2f}%'
+                self._logger.info(mess=f'Iteration [{progress}] ({perc})')
+            
+            # Retrieve stimulus
+            stimulus = self._dataset[idx]
+            stimulus = stimuli_post(stimulus).to(device)
+            
+            # Compute subject state
+            try: 
+                sbj_state, _ = self._subject(data=(stimulus, msg)) # type: ignore
+                sbj_state = state_post(sbj_state)
+            except Exception as e:
+                self._logger.warn(f"Unable to process image with index {idx}: {e}")
                 
-        # We generate an initial message containing the start time
-        msg = ZdreamMessage(
-            start_time = time.time()
-        )
+            # Update states
+            sbj_states.append(sbj_state)
         
-        return msg
-    
-    def _run(self, msg: ZdreamMessage) -> ZdreamMessage:
+        # Save states in recordings
+        self._recording = np.stack(sbj_states).T
         
-        self._neuronal_recording.record(log_chk=self._log_chk)
 
         return msg
     
-    def _finish(self, msg : ZdreamMessage) -> ZdreamMessage:
+    def _finish(self, msg : Message) -> Message:
         
-        # Log total elapsed time
-        str_time = stringfy_time(sec=msg.elapsed_time)
-        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
-        self._logger.info(mess="")
+        msg = super()._finish(msg=msg)
         
         # Save recordings
-        self._neuronal_recording.save(out_dir=self.target_dir)
-        
-        # Save similarities
-        pw = PairwiseSimilarity(recordings=self._neuronal_recording.recordings)
-        pw.cosine_similarity.save(out_dir=self.target_dir, logger=self._logger)
+        out_fp = os.path.join(self.target_dir, 'recordings.npy')
+        self._logger.info(f'Saving recordings to {out_fp}')
+        np.save(out_fp, self._recording)
 
         return msg
-
-
-
-def main(args): 
-    
-    # Extract layers info
-    layer_info = NetworkSubject(network_name=args['net_name']).layer_info
-    
-    # PROBE
-    record_target = parse_recording(input_str=args['rec_layers'], net_info=layer_info)
-    
-    if len(record_target) > 1:
-        raise NotImplementedError('Recording only supports one layer. ')
-    
-    probe = RecordingProbe(target=record_target) # type: ignore
     

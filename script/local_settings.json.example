@@ -4,5 +4,6 @@
     "out_dir": "path/to/output/directory",
     "test_image": "path/to/your/image",
     "config": "path/to/your/config/directory",
+    "recordings": "path/to/your/neural/recordings",
     "clustering": "path/to/your/clustering/file"
 }

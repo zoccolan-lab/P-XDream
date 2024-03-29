@@ -50,6 +50,9 @@ class MiniImageNet(ImageFolder):
             line.split()[0]: line.split()[2].replace('_', ' ')
             for line in lines
         }
+        
+    def __str__ (self) -> str: return f'MiniImageNet[{len(self)} images]'
+    def __repr__(self) -> str: return str(self)
 
     def class_to_lbl(self, lbl : int) -> str:
         # Takes in input the labels and outputs their categories

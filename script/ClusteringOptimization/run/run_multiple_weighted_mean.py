@@ -1,18 +1,14 @@
 from script.ClusteringOptimization.clustering_optimization import ClusteringOptimizationExperiment, UnitsWeightingMultiExperiment
 from script.ClusteringOptimization.parser import get_parser
-from script.multiexperiment_parsing import parse_multiexperiment_args
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import flatten_dict
 
 
 def main(args):
-    
-    json_conf, args_conf = parse_multiexperiment_args(args=args)
-    
-    mrun_experiment = UnitsWeightingMultiExperiment(
-        experiment=ClusteringOptimizationExperiment,
-        default_conf=json_conf,
-        experiment_conf=args_conf
+        
+    mrun_experiment = UnitsWeightingMultiExperiment.from_args(
+        args=args,
+        exp_type=ClusteringOptimizationExperiment
     )
 
     mrun_experiment.run()

@@ -1,0 +1,12 @@
+{
+    "config": "",
+    "clustering": {
+        "recordings": "",
+        "max_iter": 50000
+    },
+    "logger": {
+        "out_dir": "",
+        "name": "experiment",
+        "version": 0
+    }
+}

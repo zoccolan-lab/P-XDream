@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Tuple, Type, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from .utils.io_ import save_json, store_pickle
+from .utils.io_ import read_json, save_json, store_pickle
 
 from .logger import Logger, MutedLogger
 
@@ -93,11 +93,35 @@ class Experiment(ABC):
     
     
     # --- CONFIGURATION ---
+    
+    @classmethod
+    def from_args(cls, args: Dict[str, Any]) -> 'Experiment':
+        '''
+        Factory to instantiate an experiment from input parsing
+        The configuration is supposed to contain `config` key which
+        specify the default configuration location 
+
+        :param args: Terminal parsed argument.
+        :type args: Dict[str, Any]
+        :return: Experiment instance.
+        :rtype: Experiment
+        '''
+        
+        # Read default configuration
+        json_conf = read_json(args['config'])
+        
+        # Filter given arguments
+        args_conf = {k : v for k, v in args.items() if v}
+
+        # Combine set and default hyperparameters
+        full_conf = overwrite_dict(json_conf, args_conf)
+            
+        return cls.from_config(conf=full_conf)
 
     @classmethod
     def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
         '''
-        Method to instantiate an experiment from a hyperparameter configuration.
+        Factory to instantiate an experiment from a hyperparameter configuration.
 
         :param conf: Experiment hyperparameter configuration
         :type conf: Dict[str, Any]
@@ -206,7 +230,7 @@ class Experiment(ABC):
             self._logger.info(f'')
             self._logger.info(f'Components:')
             max_key_len = max(len(key) for key, _ in self._components) + 1 # for padding 
-            for k, v in flat_dict.items():
+            for k, v in self._components:
                 k_ = f"{k}:"
                 self._logger.info(mess=f'{k_:<{max_key_len}}   {v}')
             self._logger.info(mess=f'')
@@ -233,7 +257,7 @@ class Experiment(ABC):
 
         # Log total elapsed time
         str_time = stringfy_time(sec=msg.elapsed_time)
-        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
+        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time}.")
         self._logger.info(mess="")
 
         # NOTE: The method is also supposed to close logger screens
@@ -348,11 +372,10 @@ class ZdreamExperimentState:
             ('scr_units',  'npz'),
             ('rf_maps',    'npz'),
         ]
-        
+
+        logger.info(f'Loading experiment state from {in_dir}')
+
         loaded = dict()
-
-        logger.info(f'Loading experiment from {in_dir}')
-
         for name, ext in to_load:
 
             # File path
@@ -889,6 +912,7 @@ class MultiExperiment:
             }
         )
         
+        
     @property
     def _logger_type(self) -> Type[Logger]:
         '''
@@ -897,6 +921,67 @@ class MultiExperiment:
               to override this property.
         '''
         return Logger
+    
+    @classmethod
+    def from_args(
+        cls,
+        args: Dict[str, Any],
+        exp_type: Type[Experiment]
+    ):
+        '''
+        Initialize a multi-experiment from hyperparameter configuration.
+        The configuration is supposed to contain `config` key which
+        specify the default configuration location 
+        '''
+        
+        # Filter out None (non given input parameters)
+        args = {k: v for k, v in args.items() if v} 
+
+        # Load default configuration
+        json_conf = read_json(args['config'])
+
+        # Get type dictionary for casting
+        dict_type = {k: type(v) for k, v in flatten_dict(json_conf).items()}
+
+        # Config from command line
+        args_conf = {}
+
+        # Keep track of argument lengths
+        observed_lens = set()
+
+        # Loop on input arguments
+        for k, arg in args.items():
+
+            # Get typing for cast
+            type_cast = dict_type[k]
+
+            # Split input line with separator # and cast
+            args_conf[k] = [
+                type_cast(a.strip()) for a in arg.split('#')
+            ]
+
+            # Add observed length if different from one
+            n_arg = len(args_conf[k])
+            if n_arg != 1:
+                observed_lens.add(n_arg)
+
+        # Check if multiple lengths
+        if len(observed_lens) > 1:
+            raise SyntaxError(f'Multiple argument with different lengths: {observed_lens}')
+
+        # Check for no multiple args specified
+        if len(observed_lens) == 0:
+            raise SyntaxError(f'No multiple argument was specified.')
+
+        # Adjust 1-length values
+        n_args = list(observed_lens)[0]
+        args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
+        
+        return MultiExperiment(
+            experiment=exp_type,
+            experiment_conf=args_conf,
+            default_conf=json_conf
+        )
         
     # --- MAGIC METHODS ---
 
@@ -925,6 +1010,7 @@ class MultiExperiment:
 
         # In the default version we have no screen
         return []
+
     
     # --- RUN ---
 
