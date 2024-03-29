@@ -11,7 +11,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from zdream.logger import Logger, MutedLogger
 from zdream.subject import InSilicoSubject
 from zdream.utils.misc import default, device
-from zdream.message import Message
+from zdream.message import ZdreamMessage
 
 # --- TYPE ALIAS ---
 
@@ -263,7 +263,7 @@ class NeuronalRecording:
         log_chk = default(log_chk, len(self._image_ids)+1)
         
         sbj_states = []
-        msg = Message()
+        msg = ZdreamMessage()
         
         for i, idx in enumerate(self._image_ids):
             

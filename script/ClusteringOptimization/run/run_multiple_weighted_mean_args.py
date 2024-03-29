@@ -12,7 +12,6 @@ CLUSTER_IDX   = list(range(10))
 ITER          = 200
 SAMPLE        = 15
 
-
 def get_arguments(
         cluster_idx:  List[int],
         sample: int
@@ -47,7 +46,6 @@ if __name__ == '__main__':
         'weighted_score' : weighted_score_str,
         'random_seed'    : random_seed_str,
     }
-
 
     copy_exec(
         file='run_multiple_weighted_mean.py',

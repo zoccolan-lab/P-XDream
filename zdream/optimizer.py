@@ -7,7 +7,7 @@ from scipy.special import softmax
 
 from .utils.model import Codes, Score
 from .utils.misc import default, lazydefault
-from .message import Message
+from .message import ZdreamMessage
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']
 ''' Name of distributions for random initial codes '''
@@ -76,7 +76,7 @@ class Optimizer(ABC):
     '''
     
     @abstractmethod
-    def step(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
+    def step(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         '''
         Abstract step method. The `step()` method collects the set of
         old states from which it obtains the set of new scores via the
@@ -237,11 +237,11 @@ class GeneticOptimizer(Optimizer):
     
     def step(
         self,
-        data : Tuple[Score, Message],
+        data : Tuple[Score, ZdreamMessage],
         out_pop_size: int   | None = None,
         temperature : float | None = None, 
         save_topk : int     | None = None,   
-    ) -> Tuple[Codes, Message]:
+    ) -> Tuple[Codes, ZdreamMessage]:
         '''
         Optimizer step function that uses an associated score
         to each code to produce a new set of stimuli.

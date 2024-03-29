@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from typing import Any, Dict, List, Tuple, cast
 from torchvision.transforms.functional import to_pil_image
 
-from zdream.experiment import Experiment
+from zdream.experiment import ZdreamExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
@@ -22,11 +22,11 @@ from zdream.utils.misc import concatenate_images, device
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, Score, State, mask_generator_from_template
-from zdream.message import Message
+from zdream.message import ZdreamMessage
 
 from numpy.typing import NDArray
 
-class AdversarialAttackExperiment(Experiment):
+class AdversarialAttackExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = "AdversarialAttack"
 
@@ -229,7 +229,7 @@ class AdversarialAttackExperiment(Experiment):
         if self._use_natural:
             self._dataset   = cast(MiniImageNet, data['dataset'])
 
-    def _progress_info(self, i: int, msg : Message) -> str:
+    def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
 
         # We add the progress information about the best
         # and the average score per each iteration
@@ -257,7 +257,7 @@ class AdversarialAttackExperiment(Experiment):
 
         return f'{progress_super}{desc}'
 
-    def _init(self) -> Message:
+    def _init(self) -> ZdreamMessage:
 
         msg = super()._init()
 
@@ -271,7 +271,7 @@ class AdversarialAttackExperiment(Experiment):
 
         return msg
 
-    def _progress(self, i: int, msg : Message):
+    def _progress(self, i: int, msg : ZdreamMessage):
 
         super()._progress(i, msg)
 
@@ -281,7 +281,7 @@ class AdversarialAttackExperiment(Experiment):
         best_code = rearrange(best_code, f'b g ... -> (b g) ...', g=self._n_group)
         
         best_synthetic, _ = self.generator(
-            data=(best_code, Message(mask=np.array([True, True]))),
+            data=(best_code, ZdreamMessage(mask=np.array([True, True]))),
         )
         best_synthetic_img = concatenate_images(best_synthetic)
 
@@ -306,7 +306,7 @@ class AdversarialAttackExperiment(Experiment):
                     image=to_pil_image(best_natural)
                 )   
 
-    def _finish(self, msg : Message):
+    def _finish(self, msg : ZdreamMessage):
 
         super()._finish(msg)
 
@@ -326,7 +326,7 @@ class AdversarialAttackExperiment(Experiment):
         solution = rearrange(msg.solution, f'b g ... -> (b g) ...', g=self._n_group)
         
         best_gen, _ = self.generator(
-            data=(solution, Message(mask=np.array([True, True]))),
+            data=(solution, ZdreamMessage(mask=np.array([True, True]))),
         )
         best_gen = best_gen[0] # remove 1 batch size
 
@@ -367,27 +367,29 @@ class AdversarialAttackExperiment(Experiment):
         
         self._logger.info(mess='')
         
-    def _run_init(self, msg : Message) -> Tuple[Codes, Message]:
+    def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
         codes, msg = super()._run_init(msg)
         
         msg.n_group = self._n_group
         
         return codes, msg
         
-    def _codes_to_inputs(self, data: Tuple[Codes, Message]) -> Tuple[Codes, Message]:
+    def _codes_to_stimuli(self, data: Tuple[Codes, ZdreamMessage]) -> Tuple[Stimuli, ZdreamMessage]:
+        
+        codes, msg = data
+        
         # In the adversarial attack experiment each code represent
         # a pair of images, so is expected to have double the size
         # required by the generator, we override this hook to properly
         # resize the codes to split them in half and stack them along
         # the batch dimension
-        
-        codes, msg = data
-        
-        codes = rearrange(codes, f'b g ... -> (b g) ...', g=self._n_group)
+        codes_ = rearrange(codes, f'b g ... -> (b g) ...', g=self._n_group)
     
-        return codes, msg
+        data_ = (codes_, msg)
+        
+        return super()._codes_to_stimuli(data=data_)
 
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
+    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
 
         # We save the last set of stimuli
         stimuli, msg = data
@@ -395,25 +397,10 @@ class AdversarialAttackExperiment(Experiment):
         # self._gen_stimuli = stimuli.cpu().numpy()[ msg.mask]
         # self._nat_stimuli = stimuli.cpu().numpy()[~msg.mask]
 
-        return super()._stimuli_to_sbj_state(data)
+        return super()._stimuli_to_states(data)
     
-    def _sbj_state_to_scr_state(self, sbj_state: Tuple[State, Message]) -> Tuple[State, Message]:
-        
-        states, msg = sbj_state
-        
-        # Here we sort synthetic from natural images such that grouping works as expected
-        # sort_m = np.concatenate([np.nonzero(msg.mask), np.nonzero(~msg.mask)])
-        states = {k : rearrange(v, '(b g) ... -> b g ...', g=self._n_group) for k, v in states.items()}
-        
-        # print({k : v.shape for k, v in states.items()})
-        
-        # Here we sort the mask array in descending order so that all the True come in front
-        # and is then easier to just disregard later the natural images scores
-        # msg.mask[::-1].sort()
-        
-        return states, msg
 
-    def _scr_state_to_stm_score(self, data: Tuple[State, Message]) -> Tuple[Score, Message]:
+    def _states_to_scores(self, data: Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -423,7 +410,19 @@ class AdversarialAttackExperiment(Experiment):
         :rtype: Tuple[Score, Message]
         '''
         
-        scores, msg = self.scorer(data=data)
+        states, msg = data
+        
+        # Here we sort synthetic from natural images such that grouping works as expected
+        # sort_m = np.concatenate([np.nonzero(msg.mask), np.nonzero(~msg.mask)])
+        states_ = {k : rearrange(v, '(b g) ... -> b g ...', g=self._n_group) for k, v in states.items()}
+        
+        # Here we sort the mask array in descending order so that all the True come in front
+        # and is then easier to just disregard later the natural images scores
+        # msg.mask[::-1].sort()
+        
+        data_ = (states_, msg)
+        
+        scores, msg = self.scorer(data=data_)
         
         # Return mask to appropriate dimension
         msg.mask = reduce(msg.mask, '(b g) ... -> b ...', 'all', g=self._n_group)
@@ -433,7 +432,7 @@ class AdversarialAttackExperiment(Experiment):
         
         return scores, msg
 
-    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
+    def _scores_to_codes(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         stm_score, msg = data
         
@@ -450,5 +449,5 @@ class AdversarialAttackExperiment(Experiment):
                 self._best_nat_scr = max_
                 self._best_nat_img = self._nat_stimuli[argmax]
 
-        return super()._stm_score_to_codes((stm_score, msg))
+        return super()._scores_to_codes((stm_score, msg))
 

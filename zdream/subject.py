@@ -23,7 +23,7 @@ from .utils.misc import default
 from .utils.misc import device
 from .utils.misc import unpack
 from .utils.misc import replace_inplace
-from .message import Message
+from .message import ZdreamMessage
 
 class Subject(ABC):
     '''
@@ -47,8 +47,8 @@ class InSilicoSubject(Subject):
     @abstractmethod
     def __call__(
         self,
-        data : Tuple[Stimuli, Message]
-    ) -> Tuple[State, Message]:
+        data : Tuple[Stimuli, ZdreamMessage]
+    ) -> Tuple[State, ZdreamMessage]:
         
         raise NotImplementedError("Cannot instantiate a InSilicoSubject")
     
@@ -153,12 +153,12 @@ class NetworkSubject(InSilicoSubject, nn.Module):
         
     def __call__(
         self,
-        data : Tuple[Stimuli, Message],
+        data : Tuple[Stimuli, ZdreamMessage],
         probe : RecordingProbe | None = None,
         auto_clean : bool = True,
         raise_no_probe : bool = True,
         with_grad: bool = False,
-    ) -> Tuple[State, Message]:
+    ) -> Tuple[State, ZdreamMessage]:
         warn_msg = \
             '''
             Calling subject forward while no recording probe has been registered.
@@ -188,11 +188,11 @@ class NetworkSubject(InSilicoSubject, nn.Module):
     # @torch.no_grad()
     def forward(
         self,
-        data : Tuple[Stimuli, Message],
+        data : Tuple[Stimuli, ZdreamMessage],
         probe : RecordingProbe | None = None,
         auto_clean : bool = True,
         with_grad: bool = False
-    ) -> Tuple[State, Message]:
+    ) -> Tuple[State, ZdreamMessage]:
         '''
         Expose NetworkSubject to a (visual input) and return the
         measured (hidden) activations. If no recording probe was

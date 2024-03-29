@@ -7,7 +7,7 @@ from torch import Tensor
 from typing import Any, Dict, List, cast, Tuple
 from numpy.typing import NDArray
 from zdream.logger import Logger, LoguruLogger
-from zdream.experiment import Experiment
+from zdream.experiment import ZdreamExperiment
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, preprocess_image
 from zdream.utils.model import DisplayScreen, MaskGenerator, Message, RecordingUnit, Stimuli, Score
@@ -52,7 +52,7 @@ class _TrivialSubject(InSilicoSubject):
 
     
     
-class _TargetRecoveryExperiment(Experiment):
+class _TargetRecoveryExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = 'TargetRecovery'
 

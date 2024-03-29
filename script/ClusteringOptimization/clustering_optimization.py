@@ -13,7 +13,7 @@ from torchvision.transforms.functional import to_pil_image
 
 from script.ClusteringOptimization.plotting import plot_scr
 from zdream.clustering.ds import DSCluster, DSClusters
-from zdream.experiment import Experiment, MultiExperiment
+from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
@@ -24,11 +24,11 @@ from zdream.utils.dataset import MiniImageNet
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Score, ScoringUnit, State, Stimuli, UnitsMapping, mask_generator_from_template
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.parsing import parse_boolean_string
-from zdream.message import Message
+from zdream.message import ZdreamMessage
 
 # --- EXPERIMENT CLASS ---
 
-class ClusteringOptimizationExperiment(Experiment):
+class ClusteringOptimizationExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = "ClusteringOptimization"
 
@@ -266,7 +266,7 @@ class ClusteringOptimizationExperiment(Experiment):
         self._weighted      = cast(bool, data['weighted_score'])
         self._cluster_idx   = cast( int, data['cluster_idx'])
 
-    def _progress_info(self, i: int, msg : Message) -> str:
+    def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
 
         # We add to progress information relative to best and average score
 
@@ -296,7 +296,7 @@ class ClusteringOptimizationExperiment(Experiment):
 
         return f'{progress_super}{desc}'
 
-    def _init(self) -> Message:
+    def _init(self) -> ZdreamMessage:
 
         msg = super()._init()
 
@@ -307,13 +307,13 @@ class ClusteringOptimizationExperiment(Experiment):
         
         return msg
 
-    def _progress(self, i: int, msg : Message):
+    def _progress(self, i: int, msg : ZdreamMessage):
 
         super()._progress(i, msg)
 
         # Get best stimuli
         best_code = msg.solution
-        best_synthetic, _ = self.generator(data=(best_code, Message(mask=np.array([True]))))
+        best_synthetic, _ = self.generator(data=(best_code, ZdreamMessage(mask=np.array([True]))))
         best_synthetic_img = to_pil_image(best_synthetic[0])
 
         # Get best natural image
@@ -337,7 +337,7 @@ class ClusteringOptimizationExperiment(Experiment):
                     image=to_pil_image(best_natural)
                 )   
 
-    def _finish(self, msg : Message):
+    def _finish(self, msg : ZdreamMessage):
 
         super()._finish(msg)
 
@@ -353,7 +353,7 @@ class ClusteringOptimizationExperiment(Experiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen, _ = self.generator(data=(msg.solution, Message(mask=np.array([True]))))
+        best_gen, _ = self.generator(data=(msg.solution, ZdreamMessage(mask=np.array([True]))))
         best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
@@ -377,14 +377,14 @@ class ClusteringOptimizationExperiment(Experiment):
         return msg
         
 
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
+    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
 
         # We save the last set of stimuli
         self._stimuli, _ = data
 
-        return super()._stimuli_to_sbj_state(data)
+        return super()._stimuli_to_states(data)
 
-    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
+    def _scores_to_codes(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         sub_score, msg = data
 
@@ -399,7 +399,7 @@ class ClusteringOptimizationExperiment(Experiment):
                 self._best_nat_scr = max_
                 self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
 
-        return super()._stm_score_to_codes((sub_score, msg))
+        return super()._scores_to_codes((sub_score, msg))
     
 
 # --- MULTI-EXPERIMENT ---
@@ -456,7 +456,7 @@ class UnitsWeightingMultiExperiment(MultiExperiment):
         self._data['weighted'   ] = list()  # Boolean flag if scoring was weighted or not
 
 
-    def _progress(self, exp: ClusteringOptimizationExperiment, msg : Message, i: int):
+    def _progress(self, exp: ClusteringOptimizationExperiment, msg : ZdreamMessage, i: int):
 
         super()._progress(exp, i, msg = msg)
 

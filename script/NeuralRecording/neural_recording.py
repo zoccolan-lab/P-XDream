@@ -4,10 +4,10 @@ import time
 from typing import Any, Dict, List, cast
 
 from zdream.clustering.model import NeuronalRecording, PairwiseSimilarity
-from zdream.experiment import Experiment
+from zdream.experiment import ZdreamExperiment
 from zdream.generator import Generator
 from zdream.logger import Logger, LoguruLogger
-from zdream.message import Message
+from zdream.message import ZdreamMessage
 from zdream.optimizer import Optimizer
 from zdream.scorer import Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
@@ -18,7 +18,7 @@ from zdream.utils.misc import flatten_dict, stringfy_time
 from zdream.utils.model import MaskGenerator
 from zdream.utils.parsing import parse_int_list, parse_recording
 
-class NeuralRecordingExperiment(Experiment):
+class NeuralRecordingExperiment(ZdreamExperiment):
     
     EXPERIMENT_TITLE = "NeuronalRecording"
     
@@ -102,7 +102,7 @@ class NeuralRecordingExperiment(Experiment):
             data=data
         )
     
-    def _init(self) -> Message:
+    def _init(self) -> ZdreamMessage:
 
         # Create experiment directory
         self._logger.create_target_dir()
@@ -136,19 +136,19 @@ class NeuralRecordingExperiment(Experiment):
         
                 
         # We generate an initial message containing the start time
-        msg = Message(
+        msg = ZdreamMessage(
             start_time = time.time()
         )
         
         return msg
     
-    def _run(self, msg: Message) -> Message:
+    def _run(self, msg: ZdreamMessage) -> ZdreamMessage:
         
         self._neuronal_recording.record(log_chk=self._log_chk)
 
         return msg
     
-    def _finish(self, msg : Message) -> Message:
+    def _finish(self, msg : ZdreamMessage) -> ZdreamMessage:
         
         # Log total elapsed time
         str_time = stringfy_time(sec=msg.elapsed_time)

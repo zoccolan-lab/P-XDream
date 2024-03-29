@@ -22,7 +22,7 @@ from .utils.model import Stimuli
 from .utils.model import Codes
 from .utils.model import Mask
 from .utils.misc import default
-from .message import Message
+from .message import ZdreamMessage
 
 
 """ 
@@ -285,8 +285,8 @@ class Generator(ABC, nn.Module):
     
     def __call__(
         self, 
-        data: Tuple[Codes, Message],
-    ) -> Tuple[Stimuli, Message]:
+        data: Tuple[Codes, ZdreamMessage],
+    ) -> Tuple[Stimuli, ZdreamMessage]:
         
         stimuli, msg = self.forward(
             data
@@ -296,9 +296,9 @@ class Generator(ABC, nn.Module):
 
     def forward(
         self, 
-        data: Tuple[Codes, Message],
+        data: Tuple[Codes, ZdreamMessage],
         mask : Mask | None = None
-    ) -> Tuple[Stimuli, Message]:
+    ) -> Tuple[Stimuli, ZdreamMessage]:
         # TODO: Update documentation
         '''
         Produce the stimuli using latent image codes, along with some
@@ -356,8 +356,8 @@ class Generator(ABC, nn.Module):
     @abstractmethod 
     def _forward(
         self, 
-        data : Tuple[Codes, Message],
-    ) -> Tuple[Stimuli, Message]:
+        data : Tuple[Codes, ZdreamMessage],
+    ) -> Tuple[Stimuli, ZdreamMessage]:
         '''
         The abstract method will be implemented in each 
         subclass that need to specify the architecture logic of 
@@ -435,8 +435,8 @@ class InverseAlexGenerator(Generator):
     @torch.no_grad()
     def _forward(
         self, 
-        data : Tuple[Codes, Message],
-    ) -> Tuple[Stimuli, Message]:
+        data : Tuple[Codes, ZdreamMessage],
+    ) -> Tuple[Stimuli, ZdreamMessage]:
         '''
         Generated synthetic images starting with their latent code
 

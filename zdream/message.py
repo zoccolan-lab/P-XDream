@@ -11,7 +11,6 @@ from numpy.typing import NDArray
 from zdream.utils.misc import SEM
 from zdream.utils.model import Codes, Mask, RFBox, RecordingUnit, ScoringUnit, Score, State
 
-
 @dataclass
 class Message:
     '''
@@ -19,6 +18,27 @@ class Message:
     is shared among the entire data-flow.
     The aim of the class is to make different components communicate
     through the data-passing of common object they all can manipulate.
+    '''
+    
+    start_time   : float = 0
+    end_time     : float = 0
+    
+    @property
+    def elapsed_time(self) -> float:
+        
+        if not self.start_time:
+            raise ValueError('Cannot compute elapsed time: start time not set')
+        
+        if not self.end_time:
+            raise ValueError('Cannot compute elapsed time: end time not set')
+        
+        return self.end_time - self.start_time
+
+
+@dataclass
+class ZdreamMessage(Message):
+    '''
+    Message with attributes specific for ZdreamExperiment
     '''
     
     mask    : Mask = field(default_factory=lambda: np.array([]))
@@ -56,9 +76,6 @@ class Message:
     
     '''
     
-    start_time   : float = 0
-    end_time     : float = 0
-    elapsed_time : float = 0
     
     @property
     def codes(self) -> Codes:

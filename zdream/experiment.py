@@ -5,10 +5,8 @@ import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import tkinter
 from typing import Any, Dict, List, Tuple, Type, cast
 
-from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
@@ -17,28 +15,276 @@ from .utils.io_ import save_json, store_pickle
 from .logger import Logger, MutedLogger
 
 from .generator import Generator
-from .utils.model import Codes, DisplayScreen, Mask, MaskGenerator, RFBox, Stimuli, Score, State
+from .utils.model import Codes, DisplayScreen, MaskGenerator, Stimuli, Score, State
 from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
 from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
-from .message import Message
+from .message import Message, ZdreamMessage
+
+# --- EXPERIMENT ABSTRACT CLASS ---
+
+class Experiment(ABC):
+    '''
+    Generic class implementing an Experiment to run.
+    
+    It implements a generic data flow for experiment execution based on
+    three steps: `init`, `run` and `finish`.
+    
+    It also provides an automatic foldering organization for storing 
+    experiment data building a three-level hierarchy:
+    - Title: containing all experiment results of the data run with the same Experiment class
+    - Name: name of the specific experiment for a specific investigation, that can also consists of multiple runs.
+    - Version: version of the same experiment run with a different set of hyperparameters.
+    
+    The class can be instantiated in two modalities:
+    - 1) By an explicit instantiations of a class.
+    - 2) From a configuration file.
+    '''
+
+    EXPERIMENT_TITLE = "Experiment"
+    
+    # --- INIT ---
+    
+    def __init__(
+        self,    
+        name   : str = 'experiment',
+        logger : Logger = MutedLogger(),
+        data   : Dict[str, Any] = dict(),
+    ) -> None:
+        
+        '''
+        Initialization of the experiment with a name and a logger.
+
+        :param name: Name identifier for the experiment version, defaults to 'experiment'.
+        :type name: str, optional
+        :param logger: Logger instance to log information, warnings and errors;
+                       to handle directory paths and to display screens.
+        :type logger: Logger
+        :param data: General purpose attribute to allow the inclusion of any additional type of information.
+        :type data: Dict[str, Any]
+        '''
+        
+        # Experiment name
+        self._name = name
+        
+        # Logger
+        self._logger = logger
+
+        # NOTE: `Data` input is not used in the default version.
+        #       In general we don't want to save as an attribute the data dictionary,
+        #       but to extract it values and to use them in potentially different ways.
+        #       It's use in delegated to subclasses.
+        
+
+    def _set_param_configuration(self, param_config: Dict[str, Any]):
+        '''
+        Set the parameter configuration as experiment attribute
+
+        :param Dict: Parameter configuration dictionary
+        :type Dict: Dict[str, Any])
+        '''
+
+        # NOTE: The method is private and separated from the `__init__()` method
+        #       to make the classmethod `from_config` the only one allowed to
+        #       set the parameter.
+
+        self._param_config = param_config
+    
+    
+    # --- CONFIGURATION ---
+
+    @classmethod
+    def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
+        '''
+        Method to instantiate an experiment from a hyperparameter configuration.
+
+        :param conf: Experiment hyperparameter configuration
+        :type conf: Dict[str, Any]
+        :return: Experiment instantiated with proper configuration
+        :rtype: Experiment
+        '''
+        
+        # NOTE: The method only occupies to call the private `_from_config()` function
+        #       and to set the configuration as experiment attribute.
+        #       The method is not really supposed to be overridden, but just the private one.
+        
+        experiment = cls._from_config(conf=conf)
+        
+        experiment._set_param_configuration(param_config=conf)
+
+        return experiment
+
+    @classmethod
+    @abstractmethod
+    def _from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
+        '''
+        Method to instantiate an experiment from a hyperparameter configuration.
+
+        :param conf: Experiment hyperparameter configuration
+        :type conf: Dict[str, Any]
+        :return: Experiment instantiated with proper configuration
+        :rtype: Experiment
+        '''
+        pass
+    
+    # --- MAGIC METHODS ---
+    
+    def __str__ (self)  -> str: return f'{self.EXPERIMENT_TITLE}[{self._name}]'
+    def __repr__(self) -> str: return str(self)
+
+        
+    # --- PROPERTIES ---
+
+    @property
+    def target_dir(self) -> str:
+        ''' 
+        Experiment target directory is the Logger one.
+        '''
+        return self._logger.target_dir
+    
+    @property
+    def _components(self) -> List[Tuple[str, Any]]:
+        ''' 
+        List of experiment components with their name.
+        The method is using for logging purposes.
+        '''
+        return []
+    
+    # --- RUN ---
+    
+    # The general experiment pipeline is broken in different subfunctions
+    # The granularity helps in the definition of a new experiment by
+    # the modification of a specific component in the overall process.
+    #
+    # The full pipeline serves as a generic data structure called `Message`
+    # which is passed ubiquitous in the data flows and serves as a generic
+    # message passing information shared across the overall system.
+    
+    # NOTE: The overriding of the function is in general suggested not to redefine
+    #       the default behavior but to redirect to it using `super` keyboard.
+    
+    def _init(self) -> Message:
+        '''
+        The method is called before running the actual experiment.
+        The default version:
+        - create experiments directory
+        - logs the experiment parameters (if present) and the components.
+        - generate the initial message
+        
+        It is supposed to contain all preliminary operations such as initialization.
+        '''
+
+        # Create experiment directory
+        self._logger.create_target_dir()
+
+        # Save and log parameters
+        if hasattr(self, '_param_config'):
+
+            flat_dict = flatten_dict(self._param_config)
+            
+            # Log
+            self._logger.info(f"")
+            self._logger.info(mess=str(self))
+            self._logger.info(f"Parameters:")
+
+            max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
+
+            for k, v in flat_dict.items():
+                k_ = f"{k}:"
+                self._logger.info(mess=f'{k_:<{max_key_len}}   {v}')
+            self._logger.info(mess=f'')
+
+            # Save
+            config_param_fp = path.join(self.target_dir, 'params.json')
+            self._logger.info(f"Saving param configuration to: {config_param_fp}")
+            save_json(data=self._param_config, path=config_param_fp)
+
+        # Log components
+        if self._components:
+            
+            self._logger.info(f'')
+            self._logger.info(f'Components:')
+            max_key_len = max(len(key) for key, _ in self._components) + 1 # for padding 
+            for k, v in flat_dict.items():
+                k_ = f"{k}:"
+                self._logger.info(mess=f'{k_:<{max_key_len}}   {v}')
+            self._logger.info(mess=f'')
+        
+                
+        # Generate an initial message containing the start time
+        msg = Message(
+            start_time = time.time()
+        )
+        
+        return msg
+
+        
+    def _finish(self, msg : Message) -> Message:
+        '''
+        The method is called at the end of the actual experiment.
+        The default version logs the experiment elapsed time.
+        
+        It is supposed to perform operation of experiment results.
+        '''
+        
+        # Set experiment end time
+        msg.end_time = time.time()
+
+        # Log total elapsed time
+        str_time = stringfy_time(sec=msg.elapsed_time)
+        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
+        self._logger.info(mess="")
+
+        # NOTE: The method is also supposed to close logger screens
+        #       However this is not implemented in the default version 
+        #       because it may be possible to keep screen active for
+        #       other purposes, so the logic is lead to subclasses.
+        
+        return msg
+    
+    @abstractmethod
+    def _run(self, msg : Message) -> Message:
+        '''
+        The method implements the core of the experiment.
+        Which is lead to subclasses
+        '''
+        pass
+    
+    def run(self) -> Message:
+        '''
+        The method implements the experiment logic by combining
+        `_init()`, `_run()` and `_finish()` methods.
+        
+        :return: Message produced by the experiment
+        :rtype: Message
+        '''
+        
+        msg = self._init()
+        msg = self._run(msg)
+        msg = self._finish(msg)
+        
+        return msg
+    
+# --- ZDREAM ---
 
 @dataclass
-class ExperimentState:
+class ZdreamExperimentState:
     '''
     Dataclass collecting the main data structure describing the 
-    state of an experiment across generation and allows to dump
-    states to disk.
+    state of an Zdream experiment across generation and allows 
+    to dump states to disk.
 
-    The class can be instantiated either by providing an `Experiment` object
-    or by a folder path containing dumped states.
+    The class can be instantiated either by providing an `ZdreamExperiment` object
+    or by the folder path containing dumped states.
     '''
 
     # NOTE: We don't use the defined type aliases `Codes`, `State`, ...
     #       as they refer to a single step in the optimization process, while
     #       the underlying datastructures consider an additional first dimension
     #       in the Arrays relative to the generations.
+    
+    # NOTE: All states can take None value, that refers to the absence of the state
 
     mask:       NDArray[np.bool_]                        | None  # [generations x (n_gen + n_nat)]
     labels:     NDArray[np.int32]                        | None  # [generations x n_nat]
@@ -46,12 +292,12 @@ class ExperimentState:
     scores_gen: NDArray[np.float32]                      | None  # [generations x n_gen]
     scores_nat: NDArray[np.float32]                      | None  # [generations x n_nat]
     states:     Dict[str, NDArray[np.float32]]           | None  # layer_name: [generations x (n_gen + n_nat) x layer_dim]
-    rec_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: recorded units
-    scr_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: scores activation indexes
-    rf_maps:  Dict[Tuple[str, str], NDArray[np.int32]]   | None  # (layer mapped, layer of mapping units): receptive fields
+    rec_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: [recorded units]
+    scr_units:  Dict[str, NDArray[np.int32]]             | None  # layer_name: [scores activation indexes]
+    rf_maps:    Dict[Tuple[str, str], NDArray[np.int32]] | None  # (layer mapped, layer of mapping units): receptive fields
     
     @classmethod
-    def from_msg(cls, msg : Message) -> 'ExperimentState':
+    def from_msg(cls, msg : ZdreamMessage) -> 'ZdreamExperimentState':
         
         # Collate histories into a single data bundle
         states = {
@@ -59,11 +305,13 @@ class ExperimentState:
             for key in msg.rec_layers
         }
         
+        # Stack together dictionary components
         rec_units = {k: np.stack(v).T if v else np.array([]) for k, v in msg.rec_units.items()}
         scr_units = {k: np.array(v)                          for k, v in msg.scr_units.items()}
-        rf_maps   = {k: np.array(v, dtype=np.int32)          for k, v in msg.rf_maps.items()}
+        rf_maps   = {k: np.array(v, dtype=np.int32)          for k, v in msg.rf_maps.  items()}
         
-        return ExperimentState(
+        # Create experiment instance by stacking histories in a generation-batched array
+        return ZdreamExperimentState(
             mask       = np.stack(msg.masks_history),
             labels     = np.stack(msg.labels_history),
             states     = states,
@@ -76,10 +324,10 @@ class ExperimentState:
         )
 
     @classmethod
-    def from_path(cls, in_dir: str, logger: Logger | None = None):
+    def from_path(cls, in_dir: str, logger: Logger = MutedLogger()):
         '''
         Load an experiment state from a folder where the experiment
-        was dumped. If raises a warning if not all states are present.
+        was dumped. If raises a warning for not present states.
 
         :param in_dir: Directory where states are dumped.
         :type in_dir: str
@@ -87,9 +335,6 @@ class ExperimentState:
                        a `MutedLogger` is used. 
         :type logger: Logger | None, optional
         '''
-
-        # Logger default
-        logger = default(logger, MutedLogger())
 
         # File to load an their extension
         to_load = [
@@ -103,6 +348,7 @@ class ExperimentState:
             ('scr_units',  'npz'),
             ('rf_maps',    'npz'),
         ]
+        
         loaded = dict()
 
         logger.info(f'Loading experiment from {in_dir}')
@@ -122,7 +368,7 @@ class ExperimentState:
                 logger.info(f"> Loading {name} history from {fp}")
                 loaded[name] = load_fun(fp)
 
-            # Warning as the state is not present
+            # Warning if the state is not present
             else:
                 logger.warn(f"> Unable to fetch {fp}")
                 loaded[name] = None
@@ -140,20 +386,20 @@ class ExperimentState:
         )
 
 
-    def dump(self, out_dir: str, logger: Logger | None = None, store_states: bool = False):
+    def dump(self, out_dir: str, logger: Logger = MutedLogger(), store_states: bool = False):
         '''
-        Dump experiment state to an output directory where it creates a proper `state` subfolder.
-        Dumping the subject state is optional as typically memory demanding.
+        Dump experiment state to an output directory.
+        NOTE: Dumping the subject state is optional as typically memory demanding;
+              This is why is only for this variable is present an flag to indicate if to store them.
 
         :param out_dir: Directory where to dump states.
         :type out_dir: str
         :param logger: Logger to log i/o information. If not specified
                        a `MutedLogger` is used. 
         :type logger: Logger | None, optional
+        :param store_states: If to dump subject states.
+        :type store_states: bool
         '''
-        
-        # Logger default
-        logger = default(logger, MutedLogger())
 
         # File to load an their extension
         to_load = [
@@ -169,8 +415,8 @@ class ExperimentState:
         
         if store_states:
             to_load.append(('states','npz'))
-            
 
+        # Output directory
         logger.info(f'Dumping experiment to {out_dir}')
         os.makedirs(out_dir, exist_ok=True)
 
@@ -184,53 +430,39 @@ class ExperimentState:
                 case 'npy': save_fun = np.save
                 case 'npz': save_fun = lambda file, x: np.savez(file, **x)
 
-            # Saving state
+            # The checking function checks if the data structure contains no information
+            # and it's specific to each type of data. In case of no information it is not stored.
             match name:
                 case 'labels' | 'scores_nat':  check_fn = lambda x : x.size
                 case 'rf_maps':                check_fn = lambda x : len(x)
                 case 'states':                 check_fn = lambda x : all([v.size for v in x.values()])
                 case _:                        check_fn = lambda _ : True
-                
+            
+            # Get specific state 
             state = self.__getattribute__(name)
             
+            # Save if actual information
             if check_fn(state):
                 logger.info(f"> Saving {name} history from {fp}")
                 save_fun(fp, state)
+            
+            # Warning if no information
             else:
                 logger.warn(f'> Attempting to dump {name}, but empty')
         
         logger.info(f'')
 
 
-class Experiment(ABC):
+class ZdreamExperiment(Experiment):
     '''
-    This class implements the main pipeline of the Xdream experiment providing
+    This class implements the main pipeline of the Zdream experiment providing
     a granular implementation of the data flow.
     '''
 
-    EXPERIMENT_TITLE = "Experiment"
-    '''
-    Experiment title. All experiment outputs will be
-    saved in a sub-directory with its name.
-    '''
-
-    @classmethod
-    def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
-        
-        experiment = cls._from_config(conf=conf)
-
-        conf.pop('display_screens', None)
-        
-        experiment._set_param_configuration(param_config=conf)
-
-        return experiment
+    EXPERIMENT_TITLE = "ZdreamExperiment"
     
+    # --- INIT ---
 
-    @classmethod
-    @abstractmethod
-    def _from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
-        pass
-    
     def __init__(
         self,    
         generator:      Generator,
@@ -238,10 +470,10 @@ class Experiment(ABC):
         scorer:         Scorer,
         optimizer:      Optimizer,
         iteration:      int,
-        logger:         Logger,
+        logger:         Logger = MutedLogger(),
         mask_generator: MaskGenerator | None = None,
         data:           Dict[str, Any] = dict(),
-        name:           str = 'experiment'
+        name:           str = 'zdream-experiment'
     ) -> None:
         '''
 
@@ -255,7 +487,7 @@ class Experiment(ABC):
         :type generator: Generator.
         :param generator: Generator instance.
         :type generator: Generator.
-        :param iteration: Number of iteration to perform in the experiment.
+        :param iteration: Number of iteration (generation steps) to perform in the experiment.
         :type iteration: int
         :param logger: Logger instance to log information, warnings and errors,
                        to handle directory paths and to display screens.
@@ -264,7 +496,7 @@ class Experiment(ABC):
                                and natural images in the stimuli. A new mask is potentially generated at 
                                each iteration for a varying number of synthetic stimuli: the function
                                maps their number to a valid mask (i.e. as many True values as synthetic stimuli).
-                               Defaults to None.
+                               Defaults to synthetic-only mask.
         :type mask_generator: MaskGenerator | None
         :param data: General purpose attribute to allow the inclusion of any additional type of information.
         :type data: Dict[str, Any]
@@ -272,6 +504,12 @@ class Experiment(ABC):
         :param name: Name identifier for the experiment version, defaults to 'experiment'.
         :type name: str, optional
         '''
+        
+        super().__init__(
+            name=name,
+            logger=logger,
+            data=data
+        )
         
         # Experiment name
         self._name = name
@@ -291,12 +529,6 @@ class Experiment(ABC):
             default(mask_generator, lambda x: np.array([], dtype=np.bool_))
         )
 
-        # NOTE: `Data` input is not used in the default version, but
-        #       it can exploited in subclasses to store additional information
-
-        # Param config
-        self._param_config: Dict[str, Any] = dict()
-
     def _set_param_configuration(self, param_config: Dict[str, Any]):
         '''
         Set the parameter configuration file for the experiment
@@ -304,17 +536,14 @@ class Experiment(ABC):
         :param Dict: Parameter configuration dictionary
         :type Dict: Dict[str, Any])
         '''
-
-        # NOTE: The method is private and separated from the `__init__()` method
-        #       to make the classmethod `from_config` the only one allowed to
-        #       set the parameter.
-
-        self._param_config = param_config
-
-    def __str__(self)  -> str: return f'{self.EXPERIMENT_TITLE}[{self._name}]'
-    def __repr__(self) -> str: return str(self)
-
         
+        # NOTE: We remove from the configuration file 
+        #       the display screens potentially present from
+        #       multi-experiment configuration
+        param_config.pop('display_screens', None)
+        
+        super()._set_param_configuration(param_config=param_config)
+
     # --- PROPERTIES --- 
         
     # NOTE: Property methods override in experiment subclasses is crucial for
@@ -344,10 +573,7 @@ class Experiment(ABC):
     @property
     def optimizer(self) -> Optimizer:       return self._optimizer
 
-    @property
-    def target_dir(self) -> str:
-        return self._logger.target_dir
-    
+    # TODO @Paolo, can you document why this?
     @property
     def num_imgs(self) -> int:
         return self._optimizer.n_states
@@ -366,7 +592,12 @@ class Experiment(ABC):
     #      override the specific function. The overridden method is in general advised not to
     #      redefine the default behavior but to redirect to it using the `super` keyboard.
     
-    def _run_init(self, msg : Message) -> Tuple[Codes, Message]:
+    def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
+        '''
+        Method called before entering the main for-loop across generations.
+        It is responsible for generating the initial codes
+        '''
+        
         # Codes initialization
         codes = self.optimizer.init()
         
@@ -374,21 +605,8 @@ class Experiment(ABC):
         msg.codes_history.append(codes)
         
         return codes, msg
-    
-    def _codes_to_inputs(self, codes: Tuple[Codes, Message]) -> Tuple[Codes, Message]:
-        '''
-        This method is put here as a hook that can be overridden by an
-        experiment in case some manipulation of the codes (e.g. reshaping)
-        is needed to properly format them to suit the generator inputs.
-        
-        :param codes: Codes representing the Optimizer output
-        :type codes: Codes
-        :return: A new set of codes that suit the generator as inputs
-        :rtype: Codes
-        '''
-        return codes
 
-    def _codes_to_stimuli(self, data: Tuple[Codes, Message]) -> Tuple[Stimuli, Message]:
+    def _codes_to_stimuli(self, data: Tuple[Codes, ZdreamMessage]) -> Tuple[Stimuli, ZdreamMessage]:
         '''
         The method uses the generator that maps input codes to visual stimuli.
         It uses the mask generator to generate the mask that interleaves
@@ -398,12 +616,11 @@ class Experiment(ABC):
         :type codes: Codes
         :return: Generated visual stimuli and a Message
         :rtype: Tuple[Stimuli, Message]
-        '''
-        
-        codes, msg = data
+        '''        
         
         # Generate the mask based on the number of codes 
         # produced by the optimizer.
+        codes, msg = data
         msg.mask = self._mask_generator(self.num_imgs)
         msg.masks_history.append(msg.mask)
         
@@ -411,7 +628,7 @@ class Experiment(ABC):
         
         return self.generator(data)
     
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
+    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
         '''
         The method collects the Subject responses to a presented set of stimuli.
 
@@ -421,18 +638,19 @@ class Experiment(ABC):
         :rtype: Tuple[State, Message]
         '''
         
+        # Subject step
         states, msg = self.subject(data=data)
+        
+        # NOTE: By default we decide not not save subject states
+        #       as they can be memory demanding if in terms of RAM memory
+        #       Experiments who needs to save subject states needs to 
+        #       override the method
+        
+        # msg.states_history.append(state)
     
         return states, msg
     
-    def _sbj_state_to_scr_state(self, sbj_state : Tuple[State, Message]) -> Tuple[State, Message]:
-        '''
-        
-        '''
-        
-        return sbj_state
-    
-    def _scr_state_to_stm_score(self, data: Tuple[State, Message]) -> Tuple[Score, Message]:
+    def _states_to_scores(self, data: Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -442,20 +660,19 @@ class Experiment(ABC):
         :rtype: Tuple[Score, Message]
         '''
         
+        # Scorer step
         scores, msg = self.scorer(data=data)
     
+        # Update message scores history (synthetic and natural)
         msg.scores_gen_history.append(scores[ msg.mask])
         msg.scores_nat_history.append(scores[~msg.mask])
         
         return scores, msg
     
-    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
+    def _scores_to_codes(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         '''
         The method uses the scores for each stimulus to optimize the images
         in the latent coded space, resulting in a new set of codes.
-        
-        NOTE: The optimization only works with synthetic images so the optimizer
-              is asked to filter out natural ones using mask information in the message. 
         
         NOTE: Depending on the specific Optimizer implementation the number of 
               codes at each iteration is possibly varying.
@@ -471,6 +688,7 @@ class Experiment(ABC):
         # Filter scores only for synthetic images
         scores = scores[msg.mask]
         
+        # Optimizer step
         codes, msg = self.optimizer.step(data=(scores, msg))
     
         # Update the message codes history
@@ -487,71 +705,35 @@ class Experiment(ABC):
     # NOTE: The overriding of the function is in general suggested not to redefine
     #       the default behavior but to redirect to it using `super` keyboard.
     
-    def _init(self) -> Message:
+    def _init(self) -> ZdreamMessage:
         '''
         The method is called before running the actual experiment.
-        The default version logs the attributes of the components.
-        It is supposed to contain all preliminary operations such as initialization.
+        It adds to the message the number of recorded units 
         '''
 
-        # Create experiment directory
-        self._logger.create_target_dir()
-
-        # Save and log parameters
-        if self._param_config:
-
-            flat_dict = flatten_dict(self._param_config)
-            
-            # Log
-            self._logger.info(f"")
-            self._logger.info(mess=str(self))
-            self._logger.info(f"Parameters:")
-
-            max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
-
-            for k, v in flat_dict.items():
-                k_ = f"{k}:"
-                self._logger.info(f'{k_:<{max_key_len}}   {v}')
-
-            # Save
-            config_param_fp = path.join(self.target_dir, 'params.json')
-            self._logger.info(f"Saving param configuration to: {config_param_fp}")
-            save_json(data=self._param_config, path=config_param_fp)
-
-        # Components
-        self._logger.info(f"")
-        self._logger.info(f"Components:")
-        self._logger.info(mess=f'Generator: {self.generator}')
-        self._logger.info(mess=f'Subject:   {self.subject}')
-        self._logger.info(mess=f'Scorer:    {self.scorer}')
-        self._logger.info(mess=f'Optimizer: {self.optimizer}')
-        self._logger.info(f"")
+        msg = super()._init()
         
-                
-        # We generate an initial message containing the start time
-        msg = Message(
-            start_time = time.time(),
+        # NOTE: We need to create a new specif message for Zdream
+        msg_ = ZdreamMessage(
+            start_time = msg.start_time,
             rec_units  = self.subject.target,
             scr_units  = self.scorer.scoring_units,
         )
         
-        return msg
+        return msg_
 
         
-    def _finish(self, msg : Message) -> Message:
+    def _finish(self, msg : ZdreamMessage) -> ZdreamMessage:
         '''
         The method is called at the end of the actual experiment.
-        The default version logs the experiment elapsed time.
-        It is supposed to perform operation of experiment results.
+        It performs the dump of states history contained in the message.
         '''
 
-        # Log total elapsed time
-        str_time = stringfy_time(sec=msg.elapsed_time)
-        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time} s.")
-        self._logger.info(mess="")
+        msg = super()._finish(msg=msg)  # type: ignore
 
         # Dump
-        state = ExperimentState.from_msg(msg)
+        state = ZdreamExperimentState.from_msg(msg=msg)
+        
         state.dump(
             out_dir=path.join(self.target_dir, 'state'),
             logger=self._logger
@@ -564,7 +746,7 @@ class Experiment(ABC):
         
         return msg
     
-    def _progress_info(self, i: int, msg : Message) -> str:
+    def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
         '''
         The method returns the information to log in the progress at each iteration.
         Default version returns the progress percentage.
@@ -585,7 +767,7 @@ class Experiment(ABC):
         
         return f'{self}: [{progress}] ({perc})'
     
-    def _progress(self, i: int, msg : Message):
+    def _progress(self, i: int, msg : ZdreamMessage):
         '''
         The method is called at the end of any experiment iteration.
         The default version logs the default progress information.
@@ -595,7 +777,7 @@ class Experiment(ABC):
         '''
         self._logger.info(self._progress_info(i=i, msg=msg))
         
-    def _run(self, msg : Message) -> Message:
+    def _run(self, msg : ZdreamMessage) -> ZdreamMessage:
         '''
         The method implements the core of the experiment.
         It initializes random codes and iterates combining 
@@ -605,50 +787,37 @@ class Experiment(ABC):
 
         self._logger.info("Running...")
         
-        opt_codes, msg = self._run_init(msg)
+        codes, msg = self._run_init(msg)
         
         for i in range(self._iteration):
-            inp_codes, msg = self._codes_to_inputs       ((opt_codes, msg))
-            s_stimuli, msg = self._codes_to_stimuli      ((inp_codes, msg))
-            sbj_state, msg = self._stimuli_to_sbj_state  ((s_stimuli, msg))
-            scr_state, msg = self._sbj_state_to_scr_state((sbj_state, msg))
-            stm_score, msg = self._scr_state_to_stm_score((scr_state, msg))
-            opt_codes, msg = self._stm_score_to_codes    ((stm_score, msg))
+            stimuli, msg = self._codes_to_stimuli (data=(codes,   msg))
+            states,  msg = self._stimuli_to_states(data=(stimuli, msg))
+            scores,  msg = self._states_to_scores (data=(states,  msg))
+            codes,   msg = self._scores_to_codes  (data=(scores,  msg))
 
             self._progress(i=i, msg=msg)
-            
-        msg.end_time = time.time()
-        msg.elapsed_time = msg.start_time - msg.end_time
-            
-        return msg
-    
-    def run(self) -> Message:
-        '''
-        The method implements the experiment logic by combining
-        `init()`, `run()` and `finish()` methods. 
-        It computes the total elapsed time of the experiment that can
-        be accessed in the `finish()` method.
-        '''
-        
-        msg = self._init()
-        
-        msg = self._run(msg)
-        
-        msg = self._finish(msg)
         
         return msg
+
+# --- MULTI EXPERIMENT ---
 
 class MultiExperiment:
     '''
     Class for running multiple versions of the same experiment
-    varying the set of hyperparameters through a configuration file.
+    varying the set of hyperparameters using a configuration file
+    and a default hyperparameters settings.
     '''
+    
+    RENDER_PARAM = 'render'
+    ''' Parameter flag to render screens'''
+    
+    # --- INIT ---
     
     def __init__(
         self,
         experiment      : Type['Experiment'],
         experiment_conf : Dict[str, List[Any]], 
-        default_conf  : Dict[str, Any],
+        default_conf    : Dict[str, Any],
     ) -> None:
         '''
         Create a list of experiments configurations by combining
@@ -657,23 +826,23 @@ class MultiExperiment:
         :param experiment: Experiment class for conducing multi-experiment run.
         :type experiment: Type['Experiment']
         :param experiment_conf: Configuration for the multi-experiment specifying a list
-                                of values for a set of hyperparameters. All lists are
-                                expected to have the same length.        
+                                of values for a set of hyperparameters. 
+                                All lists are expected to have the same length.        
         :param default_conf: Default configuration file for all hyperparameters not 
-                               explicitly provided in the experiment configuration.
+                             explicitly provided in the experiment configuration.
         :type default_conf: Dict[str, Any]
         '''
         
-        # Check that provided search configuration argument
-        # share the same length as length defines the number
-        # of experiments to run.
+        # Check that provided search configuration argument share the same 
+        # length as length defines the number of experiments to run.
         lens = [len(v) for v in experiment_conf.values()]
+        
         if len(set(lens)) > 1:
-            err_msg = f'Provided search configuration files have conflicting '\
-                      f'number of experiments runs: {lens}. Please provide '\
-                      f'coherent number of experiment runs.'
+            err_msg = f'Provided search configuration files have conflicting number of experiments runs: {lens}.'\
+                      f'Please provide coherent number of experiment runs.'
             raise ValueError(err_msg)
         
+        # Save experiment class
         self._Exp = experiment
         
         # Convert the search configuration and combine with default values 
@@ -687,20 +856,13 @@ class MultiExperiment:
             for V in zip(*vals)
         ]
 
-        # Set the logger with experiment names check
+        # Set the logger with proper checks
         self._logger = self._set_logger()
-
-
-    def __len__(self) -> int:
-        return len(self._search_config)
-
-    def __str__(self) -> str:
-        return f'MultiExperiment[{self._name}]({len(self)} versions)'
-    
-    def __repr__(self) -> str: return str(self)
+        
 
     def _set_logger(self) -> Logger:
         '''
+        Utility for the `_init_()` function to set the logger.
         Set a multi-experiment level logger and checks name consistency between experiments
         '''
 
@@ -735,11 +897,19 @@ class MultiExperiment:
               to override this property.
         '''
         return Logger
+        
+    # --- MAGIC METHODS ---
 
+    def __len__ (self) -> int: return len(self._search_config)
+    def __str__ (self) -> str: return f'MultiExperiment[{self._name}]({len(self)} versions)'
+    def __repr__(self) -> str: return str(self)
+
+    # --- PROPERTIES ---
 
     @property
     def target_dir(self) -> str: return self._logger.target_dir
     
+    # --- UTILITIES ---
 
     def _get_display_screens(self) -> List[DisplayScreen]:
         '''
@@ -748,13 +918,15 @@ class MultiExperiment:
         NOTE: This is made to make all experiments share and reuse the same
         screen and prevent screen instantiation overhead and memory leaks.
 
-        NOTE: The method is not a property because it's pre-executed to simulate
+        NOTE: The method is not a property because it would be pre-executed to simulate
               attribute behavior even if not explicitly called and we want to avoid
               the creation of the `DisplayScreen` with no usage. 
         '''
 
         # In the default version we have no screen
         return []
+    
+    # --- RUN ---
 
     def _init(self):
         '''
@@ -765,10 +937,9 @@ class MultiExperiment:
         '''
 
         # Initial logging
-        self._logger.info(mess=f'RUNNING MULTIPLE VERSIONS ({len(self)}) OF EXPERIMENT {self._name}')
+        self._logger.info(mess=f'RUNNING {self}')
         
-
-        # NOTE: Handling screen turns fundamental in handling
+        # NOTE: Handling screen turns fundamental in time
         #       overhead and memory during multi-experiment run.
         #       For this reason in the case at least one experiment 
         #       has the `render` option enabled we instantiate shared
@@ -776,14 +947,14 @@ class MultiExperiment:
         #       to the configuration dictionary.
 
         # Add screens if at least one experiment has `render` flag on
-        if any(conf['render'] for conf in self._search_config):
+        if any(conf.get(self.RENDER_PARAM, False) for conf in self._search_config):
 
             self._main_screen = DisplayScreen.set_main_screen() # keep reference
             self._screens     = self._get_display_screens()
 
             # Add screens to configuration to experiments with `render` flag on
             for conf in self._search_config:
-                if conf['render']:
+                if conf.get(self.RENDER_PARAM, False):
                     conf['display_screens'] = self._screens
 
         # Data dictionary
@@ -798,12 +969,13 @@ class MultiExperiment:
 
         :param exp: Instance of the run experiment.
         :type exp: Experiment
-        :param i: _Iteration of the multi-run.
+        :param i: Iteration of the multi-run.
         :type i: int
         '''
 
         j = i+1
         self._logger.info(mess=f'EXPERIMENT {j} OF {len(self)} RUN SUCCESSFULLY.')
+        self._logger.info(mess=f'')
 
     def _finish(self):
         '''
@@ -813,8 +985,9 @@ class MultiExperiment:
 
         str_time = stringfy_time(sec=self._elapsed_time)
         self._logger.info(mess=f'ALL EXPERIMENT RUN SUCCESSFULLY. ELAPSED TIME: {str_time} s.')
+        self._logger.info(mess=f'')
 
-        # Save multi-run experiment as a .pickle file
+        # Save multi-run experiment as a .PICKLE file
         if self._data:
             out_fp = path.join(self.target_dir, 'data.pickle')
             self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
@@ -832,9 +1005,8 @@ class MultiExperiment:
             exp = self._Exp.from_config(conf=conf)
             
             msg = exp.run()
-            #return msg
             
-            self._progress(exp=exp, i=i, msg= msg)
+            self._progress(exp=exp, i=i, msg=msg)
 
     def run(self):
         '''
@@ -849,8 +1021,6 @@ class MultiExperiment:
         start_time = time.time()
         
         self._run()
-        #msg = self._run()
-        #return msg
         
         end_time = time.time()
         

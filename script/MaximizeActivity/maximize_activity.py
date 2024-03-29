@@ -3,7 +3,7 @@
 import gc
 import pandas as pd
 from script.MaximizeActivity.plots import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_cat
-from zdream.experiment import Experiment, MultiExperiment
+from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
@@ -15,7 +15,7 @@ from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, Score, State, mask_generator_from_template
 from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
-from zdream.message import Message
+from zdream.message import ZdreamMessage
 
 import numpy as np
 import torch
@@ -30,7 +30,7 @@ from os import path
 from typing import Any, Dict, List, Tuple, Type, cast
 
 
-class MaximizeActivityExperiment(Experiment):
+class MaximizeActivityExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = "MaximizeActivity"
 
@@ -221,7 +221,7 @@ class MaximizeActivityExperiment(Experiment):
         if self._use_natural:
             self._dataset   = cast(MiniImageNet, data['dataset'])
 
-    def _progress_info(self, i: int, msg : Message) -> str:
+    def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
 
         # We add the progress information about the best
         # and the average score per each iteration
@@ -249,7 +249,7 @@ class MaximizeActivityExperiment(Experiment):
 
         return f'{progress_super}{desc}'
 
-    def _init(self) -> Message:
+    def _init(self) -> ZdreamMessage:
 
         msg = super()._init()
 
@@ -269,7 +269,7 @@ class MaximizeActivityExperiment(Experiment):
         #-- RF MAPPING --         
         #mock images for receptive field mapping (both forward and backward)
         self.nr_imgs4rf = 10
-        mock_msg = Message(
+        mock_msg = ZdreamMessage(
             mask=np.ones(self.nr_imgs4rf, dtype=bool),
             label=[],    
         )
@@ -334,16 +334,16 @@ class MaximizeActivityExperiment(Experiment):
         self._rf_2p_mask = rf_2p_mask
         
         # Remove the probe from the subject
-        self.subject.remove(probe) 
+        self.subject.remove(probe)
         return msg
 
-    def _progress(self, i: int, msg : Message):
+    def _progress(self, i: int, msg : ZdreamMessage):
 
         super()._progress(i, msg)
 
         # Get best stimuli
         best_code = msg.solution
-        best_synthetic, _ = self.generator(data=(best_code, Message(mask=np.array([True]))))
+        best_synthetic, _ = self.generator(data=(best_code, ZdreamMessage(mask=np.array([True]))))
         
         """#evidence the rf of conv layers only
         if 'conv' in msg.scr_layers[-1]:
@@ -372,7 +372,7 @@ class MaximizeActivityExperiment(Experiment):
                     image=to_pil_image(best_natural)
                 )   
 
-    def _finish(self, msg : Message):
+    def _finish(self, msg : ZdreamMessage):
 
         super()._finish(msg)
 
@@ -388,7 +388,7 @@ class MaximizeActivityExperiment(Experiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen, _ = self.generator(data=(msg.solution, Message(mask=np.array([True]))))
+        best_gen, _ = self.generator(data=(msg.solution, ZdreamMessage(mask=np.array([True]))))
         best_gen = best_gen[0] # remove 1 batch size
         
 
@@ -461,16 +461,20 @@ class MaximizeActivityExperiment(Experiment):
         return msg
         
 
-    def _stimuli_to_sbj_state(self, data: Tuple[Stimuli, Message]) -> Tuple[State, Message]:
+    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
 
         # We save the last set of stimuli
         self._stimuli, msg = data
         if self._use_natural:
             self._labels.extend(msg.label)
+            
+        states, msg = super()._stimuli_to_states(data)
+            
+        msg.states_history.append(states)
 
-        return super()._stimuli_to_sbj_state(data)
+        return states, msg
 
-    def _stm_score_to_codes(self, data: Tuple[Score, Message]) -> Tuple[Codes, Message]:
+    def _scores_to_codes(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         sub_score, msg = data
 
@@ -485,17 +489,7 @@ class MaximizeActivityExperiment(Experiment):
                 self._best_nat_scr = max_
                 self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
 
-        return super()._stm_score_to_codes((sub_score, msg))
-    
-    def _sbj_state_to_scr_state(self, sbj_state : Tuple[State, Message]) -> Tuple[State, Message]:
-        '''
-        
-        '''
-        
-        state, msg = sbj_state
-        msg.states_history.append(state)
-        
-        return super()._sbj_state_to_scr_state(sbj_state=sbj_state)
+        return super()._scores_to_codes((sub_score, msg))
 
 
 # --- MULTI EXPERIMENT ---
@@ -504,7 +498,7 @@ class NeuronScalingMultiExperiment(MultiExperiment):
 
     def __init__(
             self, 
-            experiment:      Type['Experiment'], 
+            experiment:      Type['ZdreamExperiment'], 
             experiment_conf: Dict[str, List[Any]], 
             default_conf:    Dict[str, Any]
     ) -> None:
@@ -543,7 +537,7 @@ class NeuronScalingMultiExperiment(MultiExperiment):
         self._data['iter'   ] = list()
 
 
-    def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
+    def _progress(self, exp: MaximizeActivityExperiment, msg : ZdreamMessage, i: int):
 
         super()._progress(exp, i, msg = msg)
 
@@ -567,7 +561,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
 
     def __init__(
             self, 
-            experiment:      Type['Experiment'], 
+            experiment:      Type['ZdreamExperiment'], 
             experiment_conf: Dict[str, List[Any]], 
             default_conf:    Dict[str, Any]
     ) -> None:
@@ -701,7 +695,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
         self._data['Crec_rec_var']  = list()
 
     
-    def _progress(self, exp: MaximizeActivityExperiment, msg : Message, i: int):
+    def _progress(self, exp: MaximizeActivityExperiment, msg : ZdreamMessage, i: int):
 
         super()._progress(exp, i, msg=msg)
         mock_template = exp._mask_generator(1)

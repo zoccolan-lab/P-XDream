@@ -16,7 +16,7 @@ from .utils.model import LayerReduction, ScoringUnit, UnitsMapping
 from .utils.model import Score
 from .utils.model import State
 from .utils.misc import default
-from .message import Message
+from .message import ZdreamMessage
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
 #       which we need to redefine for issues with importing private variables from modules.
@@ -69,7 +69,7 @@ class Scorer(ABC):
         self._units_reduce : UnitsReduction = units_reduce
 
 
-    def __call__(self, data : Tuple[State, Message]) -> Tuple[Score, Message]:
+    def __call__(self, data : Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
         '''
         Compute the subject scores given a subject state by 
         using the mapping and reducing functions.

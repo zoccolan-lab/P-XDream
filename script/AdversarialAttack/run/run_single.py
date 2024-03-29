@@ -13,10 +13,6 @@ from script.AdversarialAttack.adversarial_attack import AdversarialAttackExperim
 
 matplotlib.use('TKAgg')
 
-# NOTE: Script directory path refers to the current script file
-SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..', '..'))
-LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
-
 def main(args): 
     
     # Experiment
@@ -39,17 +35,6 @@ def main(args):
 
 
 if __name__ == '__main__':
-    
-    # Loading custom local settings
-    local_folder       = path.dirname(path.abspath(__file__))
-    script_settings_fp = path.join(local_folder, LOCAL_SETTINGS)
-    script_settings    = read_json(path=script_settings_fp)
-    
-    # Set as defaults
-    gen_weights  = script_settings['gen_weights']
-    out_dir      = script_settings['out_dir']
-    mini_inet    = script_settings['mini_inet']
-    config_path  = script_settings['adversarial_attack_config']
 
     parser = get_parser()
     
