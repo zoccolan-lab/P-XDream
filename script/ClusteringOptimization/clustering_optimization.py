@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
 
-from script.ClusteringOptimization.plotting import plot_scr
+from script.ClusteringOptimization.plotting import plot_scr, plot_weighted
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
@@ -214,6 +214,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         data = {
             'weighted_score' : clu_conf['weighted_score'],
             'cluster_idx'    : clu_conf['cluster_idx'],
+            'scr_type'       : clu_conf['scr_type'],
             'render'         : conf['render'],
             'use_nat'        : use_nat,
             'close_screen'   : conf.get('close_screen', False),
@@ -264,6 +265,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         self._close_screen  = cast(bool, data['close_screen'])
         self._use_nat       = cast(bool, data['use_nat'])
         self._weighted      = cast(bool, data['weighted_score'])
+        self._scr_type      = cast(bool, data['scr_type'])
         self._cluster_idx   = cast( int, data['cluster_idx'])
 
     def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
@@ -468,10 +470,82 @@ class UnitsWeightingMultiExperiment(MultiExperiment):
         
         super()._finish()
         
-        plot_scr(
+        plot_weighted(
             cluster_idx  = self._data['cluster_idx'],
             weighted     = self._data['weighted'],
             scores       = self._data['scores'],
+            out_dir      = self.target_dir,
+            logger       = self._logger
+        )
+
+class ClusteringScoringTypeMultiExperiment(MultiExperiment):
+
+    def __init__(
+        self, 
+        experiment:      Type['ClusteringOptimizationExperiment'], 
+        experiment_conf: Dict[str, List[Any]], 
+        default_conf:    Dict[str, Any]
+    ) -> None:
+        
+        super().__init__(experiment, experiment_conf, default_conf)
+
+        # Add the close screen flag to the last configuration
+        self._search_config[-1]['close_screen'] = True
+    
+    def _get_display_screens(self) -> List[DisplayScreen]:
+
+        # Screen for synthetic images
+        screens = [
+            DisplayScreen(
+                title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
+                display_size=(400, 400)
+            )
+        ]
+
+        # Add screen for natural images if at least one will use it
+        if any(
+            parse_boolean_string(conf['mask_generator']['template']).count(False) > 0 
+            for conf in self._search_config
+        ):
+            screens.append(
+                DisplayScreen(
+                    title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, 
+                    display_size=(400, 400)
+                )
+            )
+
+        return screens
+    
+    @property
+    def _logger_type(self) -> Type[Logger]:
+        return LoguruLogger
+        
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'       ] = 'Comparison between clustering units optimization'
+        self._data['cluster_idx'] = list()  # Cluster idx in the clustering
+        self._data['score'      ] = list()  # Best stimulus score
+        self._data['scr_type'   ] = list()  # Boolean flag if scoring was weighted or not
+
+
+    def _progress(self, exp: ClusteringOptimizationExperiment, msg : ZdreamMessage, i: int):
+
+        super()._progress(exp, i, msg = msg)
+
+        self._data['cluster_idx'].append(exp._cluster_idx)
+        self._data['score']      .append(msg.stats_gen['best_score'])
+        self._data['scr_type']   .append(exp._scr_type)    
+
+    def _finish(self):
+        
+        super()._finish()
+        
+        plot_scr(
+            cluster_idxs = self._data['cluster_idx'],
+            scr_types    = self._data['scr_type'],
+            scores       = self._data['score'],
             out_dir      = self.target_dir,
             logger       = self._logger
         )

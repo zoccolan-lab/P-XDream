@@ -1,7 +1,7 @@
 import os
 import logging
 from os     import path
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 from PIL    import Image
 import loguru
@@ -33,9 +33,11 @@ class Logger:
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
 
-		# Public prefix to dynamically prepend a string 
+		# Public formatting function to dynamically manipulate string 
 		# to logging information
-		self.prefix = ''
+		self.formatting: Callable[[str], str] = lambda x: x
+
+	def reset_formatting(self): self.formatting = lambda x: x
 
 	# LOGGING
 	
@@ -44,14 +46,15 @@ class Logger:
 	#	    Subclasses that intend to log with other strategies and technologies should
 	#       override the private methods.
 	
-	def  info(self,  mess: str): self._info(mess=f'{self.prefix}{mess}')
+	def  info(self,  mess: str): self._info(mess=self.formatting(mess))
 	def _info(self,  mess: str): logging.info(mess)
 	
-	def  warn(self,  mess: str): self._warn(mess=f'{self.prefix}{mess}')
+	def  warn(self,  mess: str): self._warn(mess=self.formatting(mess))
 	def _warn(self,  mess: str): logging.warn(mess)
 	
-	def  error(self, mess: str): self._error(mess=f'{self.prefix}{mess}')
+	def  error(self, mess: str): self._error(mess=self.formatting(mess))
 	def _error(self, mess: str): logging.error(mess)
+
 
 	# TARGET DIRECTORY
 	

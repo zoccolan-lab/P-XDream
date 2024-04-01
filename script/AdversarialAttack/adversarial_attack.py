@@ -358,12 +358,12 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         os.makedirs(plots_dir, exist_ok=True)
         self._logger.info(mess=f"Saving plots to {plots_dir}")
         
-        self._logger.prefix='> '
+        self._logger.formatting = lambda x: f'> {x}'
 
         if self._use_natural:
             pass
 
-        self._logger.prefix=''
+        self._logger.reset_formatting()
         
         self._logger.info(mess='')
         

@@ -429,7 +429,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         os.makedirs(plots_dir, exist_ok=True)
         self._logger.info(mess=f"Saving plots to {plots_dir}")
         
-        self._logger.prefix='> '
+        self._logger.formatting = lambda x: f'> {x}'
         plot_scores(
             scores=(
                 np.stack(msg.scores_gen_history),
@@ -454,7 +454,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
                 dataset = self._dataset,
                 logger=self._logger
             )
-        self._logger.prefix=''
+        self._logger.reset_formatting()
         
         self._logger.info(mess='')
         
@@ -768,7 +768,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
         self._logger.info(mess=f'Creating directory {plots_dir}')
         os.makedirs(plots_dir)
 
-        self._logger.prefix = '> '
+        self._logger.formatting = '> '
 
         # Plot neuron score scaling
         sc_metrics = ['scores','scores_norm']
@@ -796,7 +796,7 @@ class LayersCorrelationMultiExperiment(MultiExperiment):
                     logger=self._logger
                 )
         
-        self._logger.prefix = ''
+        self._logger.formatting = ''
         
     @staticmethod
     def _create_df(multiexp_data: Dict[str, Any]) -> DataFrame:

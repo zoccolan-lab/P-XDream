@@ -1,9 +1,11 @@
 from argparse import ArgumentParser
+from os import path
 from typing import Any, Dict, List, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
+from script.DSClustering.run.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
 from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
 from zdream.clustering.algo import BaseDSClustering
 from zdream.experiment import Experiment
@@ -71,10 +73,33 @@ class DSClusteringExperiment(Experiment):
         
         msg = super()._finish(msg)
         
+        # Extract clusters
+        clusters = self._clu_algo.clusters
+        
         # Save
-        self._clu_algo.clusters.dump(
+        clusters.dump(
             out_fp=self.target_dir,
             logger=self._logger
         )
+        
+        # Plots
+        plot_dir = path.join(self.target_dir, 'plots')
+        self._logger.info(f'Saving plots to {plot_dir}')
+        
+        self._logger.formatting = lambda x: f'> {x}'
+        
+        plot_cluster_extraction_trend(
+            clusters=clusters,
+            out_dir=self.target_dir,
+            logger=self._logger
+        )
+        
+        plot_cluster_ranks(
+            clusters=clusters,
+            out_dir=self.target_dir,
+            logger=self._logger
+        )
+        
+        self._logger.reset_formatting()
         
         return msg

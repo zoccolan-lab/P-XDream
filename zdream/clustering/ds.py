@@ -334,16 +334,19 @@ class DSClusters:
         save_json(data=out_dict, path=fp)
         
     @classmethod
-    def from_file(cls, fp: str) -> DSClusters:
+    def from_file(cls, fp: str, logger: Logger = MutedLogger()) -> DSClusters:
         '''
         Load a DSCluster state from JSON file
 
         :param fp: File path to .JSON file where DSClusters information is stored.
         :type fp: str
+        :param logger: Logger to log i/o information.
+        :type logger: Logger
         :return: Loaded clusters object.
         :rtype: DSClusters
         '''
         
+        logger.info(mess=f'Reding clusters from {fp}')
         data = read_json(path=fp)
         
         clusters = DSClusters()

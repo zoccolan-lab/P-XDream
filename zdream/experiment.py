@@ -977,7 +977,7 @@ class MultiExperiment:
         n_args = list(observed_lens)[0]
         args_conf = {k : v * n_args if len(v) == 1 else v for k, v in args_conf.items()}
         
-        return MultiExperiment(
+        return cls(
             experiment=exp_type,
             experiment_conf=args_conf,
             default_conf=json_conf
