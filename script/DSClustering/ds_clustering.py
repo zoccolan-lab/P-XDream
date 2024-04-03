@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from script.DSClustering.run.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
+from script.DSClustering.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
 from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
 from zdream.clustering.algo import BaseDSClustering
 from zdream.experiment import Experiment

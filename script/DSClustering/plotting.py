@@ -21,7 +21,7 @@ def plot_cluster_extraction_trend(
     # Create a figure and an Axes object
     fig, axes = plt.subplots(ncols=2, figsize=(15, 8))
 
-    x = list(range(1, len(clusters)+1))
+    x = list(range(len(clusters)))
 
     for ax, y, ylab, col in zip(
         axes, 
@@ -72,7 +72,7 @@ def plot_cluster_ranks(
     ax.set_ylabel('Rank')
     ax.set_title ('Cluster ranks')
 
-    ax.set_xticks(list(range(1, len(clusters)))[::4])
+    ax.set_xticks(list(range(len(clusters))))[::5]
     
     # Save
     out_fp = path.join(out_dir, f'DS_ranks.png')
