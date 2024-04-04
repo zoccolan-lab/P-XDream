@@ -259,6 +259,9 @@ class Experiment(ABC):
         str_time = stringfy_time(sec=msg.elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time}.")
         self._logger.info(mess="")
+        
+        # Close the terminal
+        self._logger.close()
 
         # NOTE: The method is also supposed to close logger screens
         #       However this is not implemented in the default version 
