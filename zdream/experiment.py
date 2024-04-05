@@ -618,19 +618,6 @@ class ZdreamExperiment(Experiment):
     #      override the specific function. The overridden method is in general advised not to
     #      redefine the default behavior but to redirect to it using the `super` keyboard.
     
-    def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
-        '''
-        Method called before entering the main for-loop across generations.
-        It is responsible for generating the initial codes
-        '''
-        
-        # Codes initialization
-        codes = self.optimizer.init()
-        
-        # Update the message codes history
-        msg.codes_history.append(codes)
-        
-        return codes, msg
 
     def _codes_to_stimuli(self, data: Tuple[Codes, ZdreamMessage]) -> Tuple[Stimuli, ZdreamMessage]:
         '''
@@ -802,6 +789,20 @@ class ZdreamExperiment(Experiment):
         :type i: int
         '''
         self._logger.info(self._progress_info(i=i, msg=msg))
+        
+    def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
+        '''
+        Method called before entering the main for-loop across generations.
+        It is responsible for generating the initial codes
+        '''
+        
+        # Codes initialization
+        codes = self.optimizer.init()
+        
+        # Update the message codes history
+        msg.codes_history.append(codes)
+        
+        return codes, msg
         
     def _run(self, msg : ZdreamMessage) -> ZdreamMessage:
         '''

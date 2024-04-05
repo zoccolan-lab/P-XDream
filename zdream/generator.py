@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, cast, Callable, Tuple, Literal
+from pytorch_pretrained_biggan import BigGAN
 
 import numpy as np
 import torch
@@ -21,7 +22,7 @@ from tqdm.auto import trange
 from .utils.model import Stimuli
 from .utils.model import Codes
 from .utils.model import Mask
-from .utils.misc import default
+from .utils.misc import default, device
 from .message import ZdreamMessage
 
 
@@ -641,7 +642,70 @@ class InverseAlexGenerator(Generator):
         
         return nets_dict  
 
+class BigGANGenerator(Generator):
+    '''_summary_
+
+    :param Generator: _description_
+    :type Generator: _type_
+    '''
+    
+    CLASS_VECTOR = 1000
+    NOISE_VECTOR =  128
+    
+    def __init__(
+        self, 
+        output_pipe: Callable[[Tensor], Tensor] | None = None,
+        nat_img_loader: DataLoader | None = None
+    ) -> None:
+        
+        name = 'biggan-deep-256'
+        
+        super().__init__(
+            name='biggan-deep-256', 
+            output_pipe=output_pipe, 
+            nat_img_loader=nat_img_loader
+        )
+        
+        self.load(path=name)
+        self._model.to(device)
+        
+    def load(self, path : str | Path) -> None:
+    
+        self._model = BigGAN.from_pretrained(path)
+        
+    @property
+    def input_dim(self) -> Tuple[int, ...]:
+        
+        return ((self.CLASS_VECTOR + self.NOISE_VECTOR), )
+    
+    # TODO We should put 
+    @property
+    def output_dim(self) -> Tuple[int, ...]:
+        
+        return (3, 256, 256)
+    
+    def _forward(
+        self, 
+        data: Tuple[Codes | ZdreamMessage]
+    ) -> Tuple[Tensor | ZdreamMessage]:
+        
+        codes, msg = data
+        
+        noise_vector =      torch.tensor(codes[:, :self.NOISE_VECTOR], dtype=torch.float32, device=device)
+        class_vector = .5 * torch.tensor(codes[:, self.NOISE_VECTOR:], dtype=torch.float32, device=device)
+
+        # Generate an image
+        with torch.no_grad():
+            output = self._model(noise_vector, class_vector, 0.4)
+            
+        # TODO Put in output pipeline
+        output += 1
+        output *= 0.5
+            
+        return output, msg
+    
+    
+
 # TODO: This is @Paolo's job!
 class SDXLTurboGenerator(Generator):
-    '''
-    '''
+    pass
