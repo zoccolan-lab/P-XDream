@@ -55,6 +55,14 @@ class Logger:
 	def  error(self, mess: str): self._error(mess=self.formatting(mess))
 	def _error(self, mess: str): logging.error(mess)
 
+	def close(self):
+		''' 
+		Function including generic operations
+		when the logger is no more intended to be used
+		Such as releasing resources
+		'''
+		pass
+
 
 	# TARGET DIRECTORY
 	
@@ -263,7 +271,7 @@ class LoguruLogger(Logger):
 		if on_file:
 
 			log_file = path.join(self.target_dir, 'info.log')
-			self._logger.add(
+			self._handler = self._logger.add(
 				log_file, level=0, enqueue=True, 
 				filter=lambda x: x['extra']['id'] == self._id
 			)
@@ -272,6 +280,9 @@ class LoguruLogger(Logger):
 	def _info(self, mess: str): self._logger.info(mess)
 	def _warn(self, mess: str): self._logger.warning(mess)
 	def _err (self, mess: str): self._logger.error(mess)
+
+	def close(self):
+		self._logger.remove(handler_id=self._handler)
 
 
 class MutedLogger(Logger):
