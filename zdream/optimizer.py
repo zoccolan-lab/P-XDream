@@ -4,6 +4,7 @@ from typing import Callable, Dict, Literal, Tuple, List
 import numpy as np
 from numpy.typing import NDArray
 from scipy.special import softmax
+from cma import CMAEvolutionStrategy
 
 from .utils.model import Codes, Score
 from .utils.misc import default, lazydefault
@@ -402,3 +403,73 @@ class GeneticOptimizer(Optimizer):
                 child[genes] = population[parent][genes]
                 
         return children
+
+
+class CMAESOptimizer(Optimizer):
+    
+    def __init__(
+        self, 
+        pop_size: int,
+        code_len: int,
+        x0: NDArray | None = None,
+        sigma0: float = 2,
+        random_seed: None | int = None
+    ) -> None:
+        
+        super().__init__(
+            states_shape=pop_size,
+            random_seed=random_seed
+        )
+        
+        self._init_pop_size = pop_size
+        
+        x0 = default(x0, np.array(code_len * [0]))
+        
+        inopts = {'popsize': pop_size}
+        if random_seed: inopts['seed'] = random_seed
+        
+        self._es = CMAEvolutionStrategy(
+            x0     = x0,
+            sigma0 = sigma0,
+            inopts = inopts
+        )
+        
+    def __str__ (self) -> str: return f'CMAESOptimizer'
+    def __repr__(self) -> str: return str(self)
+    
+    @property
+    def n_states(self) -> int:
+        '''
+        The number of states is the number of produced codes.
+        If no code was produced yet, it is simply the initial population size.
+        '''
+        return len(self._prev_codes) if self._prev_codes is not None else self._init_pop_size
+    
+    def init(self, init_codes : NDArray | None = None, **kwargs) -> Codes:
+        
+        # Codes were provided
+        if isinstance(init_codes, np.ndarray):
+            # Check shape consistency
+            if init_codes.shape != (self.n_states, *self._shape):
+                err_msg = 'Provided initial condition does not match expected shape'
+                raise Exception(err_msg)
+            # Use input codes as first codes
+            self._prev_codes = init_codes.copy()
+        # Codes were not provided: random generation
+        else:
+            self._prev_codes = np.stack(self._es.ask())
+
+        return self._prev_codes.copy()
+    
+    def step(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+        
+        scores, msg  = data
+        
+        self._es.tell(
+            solutions=list(self.codes),
+            function_values=list(-scores)
+        )
+        
+        self._prev_codes = np.stack(self._es.ask())
+        
+        return self._prev_codes.copy(), msg
