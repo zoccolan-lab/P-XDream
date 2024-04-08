@@ -157,9 +157,9 @@ class DSCluster:
         
     # --- MAGIC METHODS ---
     
-    def __str__ (self) -> str:                return f'DSCluster[objects: {len(self)}, coherence: {self.W}]'
-    def __repr__(self) -> str:                return str(self)
-    def __len__ (self) -> int:                return len(self.objects)
+    def __str__ (self) -> str: return f'DSCluster[objects: {len(self)}, coherence: {self.W}]'
+    def __repr__(self) -> str: return str(self)
+    def __len__ (self) -> int: return len(self.objects)
     
     def __iter__(self) -> Iterable[DSObject]:    return iter(self.objects)
     def __getitem__(self, idx: int) -> DSObject: return self.objects[idx]
@@ -221,13 +221,14 @@ class DSCluster:
         :rtype: List[DSCluster]
         '''
         
-        # NOTE: In the base case of the inductive definition
-        #       of w_S(i) the base case corresponds to 1 when |S| = 1
+        # NOTE: The case case correspond to an AffinityMatrix of just
+        #       one element. Since the only value which is also the 
+        #       diagonal is equal to 0, then also the coherence w must be so.
         return [
             DSCluster(
                 labels = np.array([lbl]), 
                 ranks  = np.array([1.]),
-                w      = np.float32(1.)
+                w      = np.float32(0.)
             )
             for lbl in aff_mat.labels
         ]

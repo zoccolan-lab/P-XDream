@@ -92,86 +92,86 @@ class DSClustering(ABC):
 
     # --- CLUSTERING ALGORITHM ---
 
-    @staticmethod
     def _replicator_dynamics(
-            aff_mat: AffinityMatrix,
-            x: NDArray | None = None, # type: ignore
-            alpha: float = 0.,
-            max_iter: int = 1000,
-            delta_eps: float = 1e-8
-        ) -> Tuple[NDArray, np.float32, bool]:
-            '''
-            Perform one-step replicator dynamics on the given affinity matrix.
+        self,
+        aff_mat: AffinityMatrix,
+        x: NDArray | None = None, # type: ignore
+        alpha: float = 0.,
+        max_iter: int = 1000,
+        delta_eps: float = 1e-8
+    ) -> Tuple[NDArray, np.float32, bool]:
+        '''
+        Perform one-step replicator dynamics on the given affinity matrix.
 
-            Replicator dynamics is an algorithm used for clustering based on affinity matrix.
-            It iteratively updates the distribution of cluster memberships until convergence or
-            maximum iteration limit is reached.
+        Replicator dynamics is an algorithm used for clustering based on affinity matrix.
+        It iteratively updates the distribution of cluster memberships until convergence or
+        maximum iteration limit is reached.
 
-            :param aff_mat: Affinity matrix representing the pairwise similarities between data points.
-            :param aff_mat: Initial distribution of cluster memberships. If not provided, a uniform
-                            distribution will be used.
-            :param alpha: Regularization factor for spurious solutions.
-            :type alpha: float
-            :param max_iter: Maximum number of iterations of the replicator dynamics, defaults to 1000.
-            :type max_iter: int, optional
-            :param delta_eps: Convergence threshold for the replicator dynamics.
-                            Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
-            :type delta_eps: float, optional
-            :return: Tuple containing the final distribution of cluster memberships, their coherence and 
-                     a boolean indicating if the process converged.
-            '''
+        :param aff_mat: Affinity matrix representing the pairwise similarities between data points.
+        :param aff_mat: Initial distribution of cluster memberships. If not provided, a uniform
+                        distribution will be used.
+        :param alpha: Regularization factor for spurious solutions.
+        :type alpha: float
+        :param max_iter: Maximum number of iterations of the replicator dynamics, defaults to 1000.
+        :type max_iter: int, optional
+        :param delta_eps: Convergence threshold for the replicator dynamics.
+                        Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
+        :type delta_eps: float, optional
+        :return: Tuple containing the final distribution of cluster memberships, their coherence and 
+                    a boolean indicating if the process converged.
+        '''
 
-            # In the case initial distribution is not given use a uniform one
-            x: NDArray = default(x, np.zeros(len(aff_mat)) + 1 / len(aff_mat))
+        # In the case initial distribution is not given use a uniform one
+        x: NDArray = default(x, np.zeros(len(aff_mat)) + 1 / len(aff_mat))
 
-            # Initialize hyperparameters
-            dist:  float = 2 * delta_eps  # this is just for entering the first loop
-            iter:  int   = 0
+        # Initialize hyperparameters
+        dist:  float = 2 * delta_eps  # this is just for entering the first loop
+        iter:  int   = 0
 
-            # We extract the actual matrix from the object
-            # to use it's method and avoid computational overhead of
-            # class internal checks
-            a = aff_mat.A
+        # We extract the actual matrix from the object
+        # to use it's method and avoid computational overhead of
+        # class internal checks
+        a = aff_mat.A
 
-            # Loop until convergence threshold
-            # or until predetermined number of iterations            
-            while iter < max_iter and dist > delta_eps:
+        # Loop until convergence threshold
+        # or until predetermined number of iterations            
+        while iter < max_iter and dist > delta_eps:
 
-                # Store old distribution for convergence comparison
-                x_old = np.copy(x)
+            # Store old distribution for convergence comparison
+            x_old = np.copy(x)
 
-                # Promote cluster membership with higher payoffs
-                # x_i = x_i^T (Ax_i - \alpha x_i)
-                x_ = x * (a.dot(x) - alpha * x)
+            # Promote cluster membership with higher payoffs
+            # x_i = x_i^T (Ax_i - \alpha x_i)
+            x_ = x * (a.dot(x) - alpha * x)
 
-                # Compute cluster coherency
-                #w = (x * a.dot(x)).sum()
+            # Compute cluster coherency
+            #w = (x * a.dot(x)).sum()
 
-                # Compute normalization 
-                # W_S = \sum_{i \in S} w_S(i)
-                # den = x^T (A - \alpha I) x
-                a_: NDArray = a - alpha * np.eye(len(aff_mat))
-                den = (x * a_.dot(x)).sum()
-
-                # Normalize the distribution
-                x = x_ / den
-
-                # Compute the change in distribution with previous iterations
-                dist = np.sqrt(np.sum((x - x_old) ** 2))
-
-                # Increment the iteration counter
-                iter += 1
-
+            # Compute normalization 
             # W_S = \sum_{i \in S} w_S(i)
-            # w = den # TODO is this correct of should we compute w = (x * a.dot(x)).sum()
-                    # before normalization? - this would add overhead at every cycle
+            # den = x^T (A - \alpha I) x
+            a_: NDArray = a - alpha * np.eye(len(aff_mat))
+            den = (x * a_.dot(x)).sum()
 
-            x.clip(min=0)
+            # Normalize the distribution
+            x = x_ / den
 
-            # Convergence flag
-            converged = iter < max_iter
+            # Compute the change in distribution with previous iterations
+            dist = np.sqrt(np.sum((x - x_old) ** 2))
 
-            return x, den, converged
+            # Increment the iteration counter
+            iter += 1
+
+        # W_S = \sum_{i \in S} w_S(i)
+        # w = den # TODO is this correct of should we compute w = (x * a.dot(x)).sum()
+                # before normalization? - this would add overhead at every cycle
+
+        x.clip(min=0)
+
+        # Convergence flag
+        converged = iter < max_iter
+
+        return x, den, converged
 
     @abstractmethod
     def run(self):
@@ -196,8 +196,8 @@ class BaseDSClustering(DSClustering):
 
         super().__init__(aff_mat, min_elements, max_iter, delta_eps, zero_eps, logger)
 
-    @staticmethod
     def _replicator_dynamics(
+        self,
         aff_mat: AffinityMatrix,
         x: NDArray | None = None, # type: ignore
         max_iter: int = 1000,
@@ -233,6 +233,7 @@ class BaseDSClustering(DSClustering):
         # to use it's method and avoid computational 
         # overhead of class internal checks
         a = aff_mat.A
+        w = np.float32(0.)
 
         # Loop until convergence threshold
         # or until predetermined number of iterations            
@@ -247,7 +248,12 @@ class BaseDSClustering(DSClustering):
 
             # Compute internal coherence 
             # W_S = x^T A x
-            w = x_.sum()
+            w_old = w
+            w: np.float32 = x_.sum()
+            
+            delta_w = w - w_old
+            if delta_w < 0:
+                self._logger.warn(mess=f'Iteration {iter}: coherence decreased of {delta_w}. ')
 
             # Normalize the distribution
             x = x_ / w
@@ -287,7 +293,7 @@ class BaseDSClustering(DSClustering):
             self._logger.info(mess=info)
 
             # Perform 1-step of replicator dynamics
-            x, w, converged = BaseDSClustering._replicator_dynamics(
+            x, w, converged = self._replicator_dynamics(
                 aff_mat=aff_mat,
                 max_iter=self._max_iter
             )
@@ -344,4 +350,4 @@ class HierarchicalDSClustering(DSClustering):
         
     
     def run(self):
-        print("Hello")
+        raise NotImplementedError('Not implemented yet')
