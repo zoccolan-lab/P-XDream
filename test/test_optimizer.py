@@ -57,11 +57,11 @@ class GeneticOptimizerTest(unittest.TestCase):
             states_shape=self.states_shape,
             random_seed=self.random_seed,
             random_distr=self.random_distr,
-            mutation_rate=self.mutation_rate,
-            mutation_size=self.mutation_size,
-            population_size=self.population_size,
-            temperature=self.temperature,
-            num_parents=2,
+            mut_rate=self.mutation_rate,
+            mut_size=self.mutation_size,
+            pop_size=self.population_size,
+            temp=self.temperature,
+            n_parents=2,
         )
 
         # Initialize optimizer with random condition
@@ -74,7 +74,7 @@ class GeneticOptimizerTest(unittest.TestCase):
         msg = Message(mask=np.ones(self.population_size, dtype=bool))
 
         for t in range(self.num_iteration):
-            state = optim.step((score, msg))
+            state = optim._step((score, msg))
             score = self.non_convex_score(state)
 
         # Extract optimizer states, in particular the

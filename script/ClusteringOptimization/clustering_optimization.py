@@ -10,13 +10,15 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
+from PIL import Image
+
 
 from script.ClusteringOptimization.plotting import plot_scr, plot_weighted
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
-from zdream.optimizer import GeneticOptimizer, Optimizer
+from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.probe import RecordingProbe
@@ -39,7 +41,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     def scorer(self)  -> ActivityScorer: return cast(ActivityScorer, self._scorer) 
 
     @property
-    def subject(self) -> NetworkSubject:    return cast(NetworkSubject, self._subject) 
+    def subject(self) -> NetworkSubject: return cast(NetworkSubject, self._subject) 
 
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> 'ClusteringOptimizationExperiment':
@@ -168,18 +170,40 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         )
 
         # --- OPTIMIZER ---
-
-        optim = GeneticOptimizer(
-            states_shape   = generator.input_dim,
-            random_seed    =     conf['random_seed'],
-            random_distr   = opt_conf['random_distr'],
-            mutation_rate  = opt_conf['mutation_rate'],
-            mutation_size  = opt_conf['mutation_size'],
-            population_size= opt_conf['pop_size'],
-            temperature    = opt_conf['temperature'],
-            num_parents    = opt_conf['num_parents'],
-            topk           = opt_conf['topk']
-        )
+        
+        match opt_conf['optimizer_type']:
+            
+            case 'genetic':
+        
+                optim =  GeneticOptimizer(
+                    codes_shape  = generator.input_dim,
+                    rnd_seed     =     conf['random_seed'],
+                    rnd_distr    = opt_conf['random_distr'],
+                    rnd_scale    = opt_conf['random_scale'],
+                    pop_size     = opt_conf['pop_size'],
+                    mut_size     = opt_conf['mutation_size'],
+                    mut_rate     = opt_conf['mutation_rate'],
+                    n_parents    = opt_conf['num_parents'],
+                    allow_clones = opt_conf['allow_clones'],
+                    topk         = opt_conf['topk'],
+                    temp         = opt_conf['temperature'],
+                    temp_factor  = opt_conf['temperature_factor']
+                )
+                
+            case 'cmaes': 
+                
+                optim = CMAESOptimizer(
+                    codes_shape  = generator.input_dim,
+                    rnd_seed     =     conf['random_seed'],
+                    rnd_distr    = opt_conf['random_distr'],
+                    rnd_scale    = opt_conf['random_scale'],
+                    pop_size     = opt_conf['pop_size'],
+                    sigma0       = opt_conf['sigma0']
+                )
+                
+            case _: 
+                
+                raise ValueError(f'Invalid optimizer: {opt_conf["optimizer_type"]}')
 
         #  --- LOGGER --- 
 
@@ -330,8 +354,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 screen_name=self.GEN_IMG_SCREEN,
                 image=best_synthetic_img
             )
-            
-
+        
             # Natural
             if self._use_nat:
                 self._logger.update_screen(
@@ -347,7 +370,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         if self._close_screen:
             self._logger.close_all_screens()
 
-        # 1. Save visual stimuli (synthetic and natural)
+        # Save visual stimuli (synthetic and natural)
 
         img_dir = path.join(self.target_dir, 'images')
         os.makedirs(img_dir, exist_ok=True)
@@ -363,15 +386,18 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             best_nat = self._best_nat_img
 
         # Saving images
-        for img, label in [
-            (to_pil_image(best_gen), 'best synthetic'),
-            (to_pil_image(best_nat), 'best natural'),
-            (concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'),
-        ] if self._use_nat else [
-            (to_pil_image(best_gen), 'best synthetic')
-        ]:
-            out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
-            self._logger.info(f'> Saving {label} image to {out_fp}')
+        to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best synthetic')]
+        
+        if self._use_nat:
+            to_save.extend([
+                (to_pil_image(best_nat), 'best natural'),
+                (concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'),
+            ])
+        
+        for img, name in to_save:
+            
+            out_fp = path.join(img_dir, f'{name.replace(" ", "_")}.png')
+            self._logger.info(f'> Saving {name} image to {out_fp}')
             img.save(out_fp)
         
         self._logger.info(mess='')

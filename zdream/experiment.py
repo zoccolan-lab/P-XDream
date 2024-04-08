@@ -602,7 +602,7 @@ class ZdreamExperiment(Experiment):
     # TODO @Paolo, can you document why this?
     @property
     def num_imgs(self) -> int:
-        return self._optimizer.n_states
+        return self._optimizer.pop_size
     
     # --- DATAFLOW METHODS ---
     
@@ -702,7 +702,7 @@ class ZdreamExperiment(Experiment):
         scores = scores[msg.mask]
         
         # Optimizer step
-        codes, msg = self.optimizer.step(data=(scores, msg))
+        codes, msg = self.optimizer._step(data=(scores, msg))
     
         # Update the message codes history
         msg.codes_history.append(codes)

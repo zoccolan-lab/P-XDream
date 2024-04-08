@@ -40,7 +40,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
     def subject(self) -> NetworkSubject:    return cast(NetworkSubject, self._subject) 
     
     @property
-    def num_imgs(self) -> int: return self._n_group * self._optimizer.n_states
+    def num_imgs(self) -> int: return self._n_group * self._optimizer.pop_size
 
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> 'AdversarialAttackExperiment':
@@ -128,11 +128,11 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             states_shape   = (2, *generator.input_dim),
             random_seed    =     conf['random_seed'],
             random_distr   = opt_conf['random_distr'],
-            mutation_rate  = opt_conf['mutation_rate'],
-            mutation_size  = opt_conf['mutation_size'],
-            population_size= opt_conf['pop_size'],
-            temperature    = opt_conf['temperature'],
-            num_parents    = opt_conf['num_parents']
+            mut_rate  = opt_conf['mutation_rate'],
+            mut_size  = opt_conf['mutation_size'],
+            pop_size= opt_conf['pop_size'],
+            temp    = opt_conf['temperature'],
+            n_parents    = opt_conf['num_parents']
         )
 
         #  --- LOGGER --- 

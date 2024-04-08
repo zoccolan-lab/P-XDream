@@ -24,13 +24,18 @@
         "layer_reduction": "mean"
     },
     "optimizer": {
-        "pop_size": 20,
-        "mutation_rate": 0.3,
-        "mutation_size": 0.3,
-        "num_parents": 3,
+        "optimizer_type": "cmaes",
+        "random_distr": "normal",
+        "random_scale": 1.0,
+        "pop_size": 50,
+        "mutation_size": 0.5,
+        "mutation_rate": 0.5,
+        "num_parents": 4,
+        "allow_clones": true,
+        "topk": 5,
         "temperature": 1.0,
-        "topk": 2,
-        "random_distr": "normal"
+        "temperature_factor": 0.9999,
+        "sigma0": 1.0
     },
     "logger": {
         "out_dir": "",

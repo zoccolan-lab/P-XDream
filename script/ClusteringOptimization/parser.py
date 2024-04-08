@@ -36,47 +36,52 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser = ArgumentParser()
     
     # Configuration file
-    parser.add_argument('--config',          type=def_type(str),   help='Path for the JSON configuration file', default = config_path)
+    parser.add_argument('--config',            type=def_type(str),   help='Path for the JSON configuration file', default = config_path)
     
     # Clustering
-    parser.add_argument('--cluster_file',    type=def_type(str),   help='Path to clustering JSON file', default = cluster)
-    parser.add_argument('--cluster_idx',     type=def_type(int),   help='Cluster index')
-    parser.add_argument('--weighted_score',  type=def_type(bool),  help='If to weight score by clustering centrality')
-    parser.add_argument('--layer',           type=def_type(str),   help='Layer index clustering was computed')
-    parser.add_argument('--scr_type',        type=def_type(str),   help='Scoring units strategy {cluster; random; random_adj}')
+    parser.add_argument('--cluster_file',      type=def_type(str),   help='Path to clustering JSON file', default = cluster)
+    parser.add_argument('--cluster_idx',       type=def_type(int),   help='Cluster index')
+    parser.add_argument('--weighted_score',    type=def_type(bool),  help='If to weight score by clustering centrality')
+    parser.add_argument('--layer',             type=def_type(str),   help='Layer index clustering was computed')
+    parser.add_argument('--scr_type',          type=def_type(str),   help='Scoring units strategy {cluster; random; random_adj}')
     
     # Generator
-    parser.add_argument('--weights',         type=def_type(str),   help='Path to folder with generator weights', default = gen_weights,)
-    parser.add_argument('--mini_inet',       type=def_type(str),   help='Path to mini-imagenet dataset', default = mini_inet,)
-    parser.add_argument('--batch_size',      type=def_type(int),   help='Natural image dataloader batch size')
-    parser.add_argument('--variant',         type=def_type(str),   help='Variant of InverseAlexGenerator to use')
+    parser.add_argument('--weights',           type=def_type(str),   help='Path to folder with generator weights', default = gen_weights,)
+    parser.add_argument('--mini_inet',         type=def_type(str),   help='Path to mini-imagenet dataset', default = mini_inet,)
+    parser.add_argument('--batch_size',        type=def_type(int),   help='Natural image dataloader batch size')
+    parser.add_argument('--variant',           type=def_type(str),   help='Variant of InverseAlexGenerator to use')
     
     # Mask generator
-    parser.add_argument('--template',        type=def_type(str),   help='String of True(T) and False(F) as the basic sequence of the mask')
-    parser.add_argument('--shuffle',         type=def_type(bool),  help='If to shuffle mask template')
+    parser.add_argument('--template',          type=def_type(str),   help='String of True(T) and False(F) as the basic sequence of the mask')
+    parser.add_argument('--shuffle',           type=def_type(bool),  help='If to shuffle mask template')
 
     # Subject
-    parser.add_argument('--net_name',        type=def_type(str),   help='SubjectNetwork name')
+    parser.add_argument('--net_name',          type=def_type(str),   help='SubjectNetwork name')
 
     # Scorer
-    parser.add_argument('--layer_reduction', type=def_type(str),   help='Name of reducing function across layers')
+    parser.add_argument('--layer_reduction',   type=def_type(str),   help='Name of reducing function across layers')
     
     # Optimizer
-    parser.add_argument('--pop_size',        type=def_type(int),   help='Starting number of the population')
-    parser.add_argument('--mutation_rate',   type=def_type(float), help='Mutation rate for the optimizer')
-    parser.add_argument('--mutation_size',   type=def_type(float), help='Mutation size for the optimizer')
-    parser.add_argument('--num_parents',     type=def_type(int),   help='Number of parents for the optimizer')
-    parser.add_argument('--topk',            type=def_type(int),   help='Number of codes of previous generation to keep')
-    parser.add_argument('--temperature',     type=def_type(float), help='Temperature for the optimizer')
+    parser.add_argument('--optimizer_type',    type=def_type(str),   help='Type of optimizer {{`genetic`, `cmaes`}}')
+    parser.add_argument('--random_distr',      type=def_type(str),   help='Type of sampling random distribution')
+    parser.add_argument('--random_scale',      type=def_type(float), help='Scale for random distribution')
+    parser.add_argument('--pop_size',          type=def_type(int),   help='Starting number of the population')
+    parser.add_argument('--mutation_rate',     type=def_type(float), help='Mutation rate for the optimizer')
+    parser.add_argument('--mutation_size',     type=def_type(float), help='Mutation size for the optimizer')
+    parser.add_argument('--num_parents',       type=def_type(int),   help='Number of parents for the optimizer')
+    parser.add_argument('--topk',              type=def_type(int),   help='Number of codes of previous generation to keep')
+    parser.add_argument('--temperature',       type=def_type(float), help='Temperature for the optimizer')
+    parser.add_argument('--temperature_scale', type=def_type(float), help='Temperature scale per iteration')
+    parser.add_argument('--sigma0',            type=def_type(float), help='Variance for CMAES optimizer')
     
     # Logger
-    parser.add_argument('--name',            type=def_type(str),   help='Experiment name')
-    parser.add_argument('--version',         type=def_type(int),   help='Experiment version')
-    parser.add_argument('--out_dir',         type=def_type(str),   help='Path to directory to save outputs', default = out_dir)
-    
+    parser.add_argument('--name',              type=def_type(str),   help='Experiment name')
+    parser.add_argument('--version',           type=def_type(int),   help='Experiment version')
+    parser.add_argument('--out_dir',           type=def_type(str),   help='Path to directory to save outputs', default = out_dir)
+
     # Globals
-    parser.add_argument('--iter',            type=def_type(int),   help='Number of total iterations')
-    parser.add_argument('--random_seed',     type=def_type(int),   help='Random state for the experiment')
-    parser.add_argument('--render',          type=def_type(bool),  help='If to render stimuli')
+    parser.add_argument('--iter',              type=def_type(int),   help='Number of total iterations')
+    parser.add_argument('--random_seed',       type=def_type(int),   help='Random state for the experiment')
+    parser.add_argument('--render',            type=def_type(bool),  help='If to render stimuli')
 
     return parser

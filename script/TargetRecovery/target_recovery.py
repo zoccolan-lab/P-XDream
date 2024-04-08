@@ -86,11 +86,11 @@ class _TargetRecoveryExperiment(ZdreamExperiment):
             states_shape   = generator.input_dim,
             random_seed    =     conf['random_seed'],
             random_distr   = opt_conf['random_distr'],
-            mutation_rate  = opt_conf['mutation_rate'],
-            mutation_size  = opt_conf['mutation_size'],
-            population_size= opt_conf['pop_size'],
-            temperature    = opt_conf['temperature'],
-            num_parents    = opt_conf['num_parents']
+            mut_rate  = opt_conf['mutation_rate'],
+            mut_size  = opt_conf['mutation_size'],
+            pop_size= opt_conf['pop_size'],
+            temp    = opt_conf['temperature'],
+            n_parents    = opt_conf['num_parents']
         )
         
         subject = _TrivialSubject(name='image')
