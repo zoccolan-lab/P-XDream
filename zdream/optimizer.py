@@ -513,6 +513,8 @@ class CMAESOptimizer(Optimizer):
             rnd_scale = rnd_scale
         )
         
+        self._sigma0 = sigma0
+        
         x0 = default(x0, np.zeros(shape=np.prod(self._codes_shape)))
         
         inopts = {'popsize': pop_size}
@@ -524,7 +526,7 @@ class CMAESOptimizer(Optimizer):
             inopts = inopts
         )
         
-    def __str__ (self) -> str: return f'CMAESOptimizer[sigma0: {self._es.sigma0}]'
+    def __str__ (self) -> str: return f'CMAESOptimizer[sigma0: {self._sigma0}]'
     def __repr__(self) -> str: return str(self)
     
     def _rnd_codes_generation(self, **kwargs) -> Codes:

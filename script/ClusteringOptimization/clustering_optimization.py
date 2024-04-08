@@ -36,6 +36,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
     NAT_IMG_SCREEN = 'Best Natural Image'
     GEN_IMG_SCREEN = 'Best Synthetic Image'
+    
+    # Define specific components to activate their behavior    
 
     @property
     def scorer(self)  -> ActivityScorer: return cast(ActivityScorer, self._scorer) 
@@ -46,7 +48,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> 'ClusteringOptimizationExperiment':
 
-        # Extract specific configurations
+        # Extract components configurations
         gen_conf = conf['generator']
         msk_conf = conf['mask_generator']
         clu_conf = conf['clustering']
@@ -55,7 +57,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         opt_conf = conf['optimizer']
         log_conf = conf['logger']
 
-        # Set random seed
+        # Set numpy random seed
         np.random.seed(conf['random_seed'])
 
         # --- CLUSTERING ---
@@ -235,6 +237,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                     )
 
         # --- DATA ---
+        
         data = {
             'weighted_score' : clu_conf['weighted_score'],
             'cluster_idx'    : clu_conf['cluster_idx'],
@@ -369,9 +372,10 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # Close screens
         if self._close_screen:
             self._logger.close_all_screens()
+            
+        # 1) SAVING BEST STIMULI
 
         # Save visual stimuli (synthetic and natural)
-
         img_dir = path.join(self.target_dir, 'images')
         os.makedirs(img_dir, exist_ok=True)
         self._logger.info(mess=f"Saving images to {img_dir}")
@@ -379,7 +383,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
         best_gen, _ = self.generator(data=(msg.solution, ZdreamMessage(mask=np.array([True]))))
-        best_gen = best_gen[0] # remove 1 batch size
 
         # We retrieve the stored best natural image
         if self._use_nat:
@@ -391,7 +394,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         if self._use_nat:
             to_save.extend([
                 (to_pil_image(best_nat), 'best natural'),
-                (concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'),
+                (concatenate_images(img_list=[best_gen[0], best_nat]), 'best stimuli'),
             ])
         
         for img, name in to_save:
@@ -399,6 +402,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             out_fp = path.join(img_dir, f'{name.replace(" ", "_")}.png')
             self._logger.info(f'> Saving {name} image to {out_fp}')
             img.save(out_fp)
+            
+        # 2) PLOT
+        # TODO Plots of activations
         
         self._logger.info(mess='')
         
@@ -432,7 +438,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
 # --- MULTI-EXPERIMENT ---
 
-class UnitsWeightingMultiExperiment(MultiExperiment):
+class _ClusteringOptimizationMultiExperiment(MultiExperiment):
 
     def __init__(
             self, 
@@ -473,6 +479,9 @@ class UnitsWeightingMultiExperiment(MultiExperiment):
     @property
     def _logger_type(self) -> Type[Logger]:
         return LoguruLogger
+    
+
+class UnitsWeightingMultiExperiment(_ClusteringOptimizationMultiExperiment):
         
     def _init(self):
         
@@ -504,48 +513,8 @@ class UnitsWeightingMultiExperiment(MultiExperiment):
             logger       = self._logger
         )
 
-class ClusteringScoringTypeMultiExperiment(MultiExperiment):
+class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperiment):
 
-    def __init__(
-        self, 
-        experiment:      Type['ClusteringOptimizationExperiment'], 
-        experiment_conf: Dict[str, List[Any]], 
-        default_conf:    Dict[str, Any]
-    ) -> None:
-        
-        super().__init__(experiment, experiment_conf, default_conf)
-
-        # Add the close screen flag to the last configuration
-        self._search_config[-1]['close_screen'] = True
-    
-    def _get_display_screens(self) -> List[DisplayScreen]:
-
-        # Screen for synthetic images
-        screens = [
-            DisplayScreen(
-                title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
-                display_size=(400, 400)
-            )
-        ]
-
-        # Add screen for natural images if at least one will use it
-        if any(
-            parse_boolean_string(conf['mask_generator']['template']).count(False) > 0 
-            for conf in self._search_config
-        ):
-            screens.append(
-                DisplayScreen(
-                    title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, 
-                    display_size=(400, 400)
-                )
-            )
-
-        return screens
-    
-    @property
-    def _logger_type(self) -> Type[Logger]:
-        return LoguruLogger
-        
     def _init(self):
         
         super()._init()

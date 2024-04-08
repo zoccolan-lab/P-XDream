@@ -15,6 +15,8 @@ from typing import Callable, Dict, Tuple
 from zdream.logger import Logger, MutedLogger
 from zdream.utils.misc import default
 
+# TODO Abstract class ExperimentDataset. With from file and get_item returning images and labels.
+
 
 '''
 NOTE: To download

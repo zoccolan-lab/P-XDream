@@ -100,7 +100,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
             network_name=sbj_conf['net_name']
         )
         
-        sbj_net._network.eval() # TODO cannot access private attribute, make public method to call the eval
+        sbj_net.eval()
 
         # --- SCORER ---
 

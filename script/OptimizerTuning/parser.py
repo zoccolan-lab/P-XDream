@@ -7,6 +7,10 @@ from zdream.utils.io_ import read_json
 SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
 LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
+LAYERS_NEURONS_SPECIFICATION = '''
+TMP
+'''
+
 
 def get_parser(multirun: bool = False) -> ArgumentParser:
     '''
@@ -29,36 +33,24 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     # Set paths as defaults
     gen_weights  = script_settings['gen_weights']
     out_dir      = script_settings['out_dir']
-    mini_inet    = script_settings['mini_inet']
-    cluster      = script_settings['clustering']
-    config_path  = path.join(script_settings['config'], 'clustering_optimization.json')
+    config_path  = path.join(script_settings['config'], 'optimizer_tuning.json')
 
     parser = ArgumentParser()
     
     # Configuration file
     parser.add_argument('--config',            type=def_type(str),   help='Path for the JSON configuration file', default = config_path)
     
-    # Clustering
-    parser.add_argument('--cluster_file',      type=def_type(str),   help='Path to clustering JSON file', default = cluster)
-    parser.add_argument('--cluster_idx',       type=def_type(int),   help='Cluster index to optimize for')
-    parser.add_argument('--weighted_score',    type=def_type(bool),  help='If to weight score by cluster rank')
-    parser.add_argument('--layer',             type=def_type(str),   help='Layer name for which clustering was computed')
-    parser.add_argument('--scr_type',          type=def_type(str),   help='Scoring units strategy {`cluster`; `random`; `random_adj`}')
-    
     # Generator
     parser.add_argument('--variant',           type=def_type(str),   help='Variant of InverseAlexGenerator to use')
     parser.add_argument('--weights',           type=def_type(str),   help='Path to folder with generator weights', default = gen_weights)
-    parser.add_argument('--mini_inet',         type=def_type(str),   help='Path to mini-imagenet dataset', default = mini_inet)
-    parser.add_argument('--batch_size',        type=def_type(int),   help='Natural image dataloader batch size')
-    
-    # Mask generator
-    parser.add_argument('--template',          type=def_type(str),   help='String of True(`T`) and False(`F`) as the basic sequence of the mask')
-    parser.add_argument('--shuffle',           type=def_type(bool),  help='If to shuffle mask template')
 
     # Subject
     parser.add_argument('--net_name',          type=def_type(str),   help='SubjectNetwork name')
+    parser.add_argument('--rec_layers',        type=def_type(str),   help=f'Recording layers with specification\n{LAYERS_NEURONS_SPECIFICATION}')
 
     # Scorer
+    parser.add_argument('--scr_layers',        type=def_type(str),   help=f'Target scoring layers and neurons with specification\n{LAYERS_NEURONS_SPECIFICATION}')
+    parser.add_argument('--units_reduction',   type=def_type(str),   help='Name of reducing function across units')
     parser.add_argument('--layer_reduction',   type=def_type(str),   help='Name of reducing function across layers')
     
     # Optimizer

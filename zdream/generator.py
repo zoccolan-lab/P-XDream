@@ -348,6 +348,7 @@ class Generator(ABC, nn.Module):
         out[~mask_ten] = nat_img
         
         # Attach information to the message
+        msg.mask  = mask
         msg.label = labels
         msg.labels_history.append(labels)
         
