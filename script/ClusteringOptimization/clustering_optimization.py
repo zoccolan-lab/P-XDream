@@ -12,7 +12,6 @@ from torchvision.transforms.functional import to_pil_image
 
 from PIL import Image
 
-
 from script.ClusteringOptimization.plotting import plot_scr, plot_weighted
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
@@ -185,7 +184,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                     pop_size     = opt_conf['pop_size'],
                     mut_size     = opt_conf['mutation_size'],
                     mut_rate     = opt_conf['mutation_rate'],
-                    n_parents    = opt_conf['num_parents'],
+                    n_parents    = opt_conf['n_parents'],
                     allow_clones = opt_conf['allow_clones'],
                     topk         = opt_conf['topk'],
                     temp         = opt_conf['temperature'],

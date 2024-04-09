@@ -132,7 +132,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             mut_size  = opt_conf['mutation_size'],
             pop_size= opt_conf['pop_size'],
             temp    = opt_conf['temperature'],
-            n_parents    = opt_conf['num_parents']
+            n_parents    = opt_conf['n_parents']
         )
 
         #  --- LOGGER --- 

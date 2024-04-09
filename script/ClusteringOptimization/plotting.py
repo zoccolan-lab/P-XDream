@@ -63,9 +63,9 @@ def plot_weighted(
     
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
         
-        for i, (stat, genreations) in enumerate(cluster_info.items()):
+        for i, (stat, generations) in enumerate(cluster_info.items()):
             
-            for scr_type, scores in genreations.items():
+            for scr_type, scores in generations.items():
                 
                 means, stds = scores
                 

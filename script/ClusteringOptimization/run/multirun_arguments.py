@@ -6,11 +6,11 @@ import numpy as np
 from zdream.utils.misc import copy_exec
 
 
-NAME = 'scoring_comparison'
+NAME = 'first_trial'
 
-CLUSTER_IDX   = list(range(2))
-ITER          = 2
-SAMPLE        = 2
+CLUSTER_IDX   = list(range(10))
+ITER          = 5
+SAMPLE        = 5
 
 def get_arguments_weighting(
         cluster_idx:  List[int],

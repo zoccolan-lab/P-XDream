@@ -14,6 +14,7 @@ from PIL import Image
 
 
 from script.ClusteringOptimization.plotting import plot_scr, plot_weighted
+from script.OptimizerTuning.plotting import plot_hyperparam
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
@@ -111,7 +112,7 @@ class OptimizationTuningExperiment(ZdreamExperiment):
                     pop_size     = opt_conf['pop_size'],
                     mut_size     = opt_conf['mutation_size'],
                     mut_rate     = opt_conf['mutation_rate'],
-                    n_parents    = opt_conf['num_parents'],
+                    n_parents    = opt_conf['n_parents'],
                     allow_clones = opt_conf['allow_clones'],
                     topk         = opt_conf['topk'],
                     temp         = opt_conf['temperature'],
@@ -352,18 +353,25 @@ class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
         super()._init()
         
         self._data['desc'      ] = 'Comparison of same optimization optimizing a different hyperparameter'
-        self._data['hyperparam'] = list()  # Cluster idx in the clustering
+        self._data['hyperparam'] = self.hyperparameter
+        self._data['values'    ] = list()  # Cluster idx in the clustering
         self._data['scores'    ] = list()  # Scores across generation
 
     def _progress(self, exp: OptimizationTuningExperiment, msg : ZdreamMessage, i: int):
 
         super()._progress(exp, i, msg = msg)
 
-        self._data['hyperparam'].append(exp.optimizer.__getattribute__(f'_{self.hyperparameter}'))
-        self._data['scores']    .append(msg.scores_gen_history)   
+        self._data['values'].append(exp.optimizer.__getattribute__(f'_{self.hyperparameter}'))
+        self._data['scores'].append(msg.scores_gen_history)   
 
     def _finish(self):
         
         super()._finish()
         
-        # TODO PLOT
+        plot_hyperparam(
+            hyperparam = self._data['hyperparam'],
+            values     = self._data['values'],
+            scores     = self._data['scores'],
+            out_dir    = self.target_dir,
+            logger     = self._logger
+        )

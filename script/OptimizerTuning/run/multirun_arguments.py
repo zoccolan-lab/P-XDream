@@ -6,14 +6,14 @@ import numpy as np
 from zdream.utils.misc import copy_exec
 
 
-NAME = 'first_trial'
+NAME = 'before_berha'
 
-VALUES         = [2, 3, 4, 5]
-HYPERPARAMETER = 'num_parents'
+VALUES         = [2, 3, 4]
+HYPERPARAMETER = 'n_parents'
 TYPE           = 'genetic'
 UNITS          = "21=[0:20]"
-ITER           = 2
-SAMPLE         = 5
+ITER           = 5
+SAMPLE         = 3
 
 def get_arguments_opt_comparison(
     sample: int

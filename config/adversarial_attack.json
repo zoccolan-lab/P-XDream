@@ -23,7 +23,7 @@
         "pop_size": 20,
         "mutation_rate": 0.3,
         "mutation_size": 0.3,
-        "num_parents": 3,
+        "n_parents": 3,
         "temperature": 1.0,
         "random_distr": "normal"
     },

@@ -251,7 +251,7 @@ class GeneticOptimizer(Optimizer):
     - The top_k performing solution are left unaltered
     - The rest of the population pool are recombined to produce novel
       candidate solutions via breeding and random mutations
-    - The num_parents contributing to a single offspring are selected
+    - The n_parents contributing to a single offspring are selected
       via importance sampling based on parents fitness scores
     - Mutations rate and sizes can be adjusted independently 
     '''
