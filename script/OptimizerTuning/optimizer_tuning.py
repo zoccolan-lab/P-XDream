@@ -1,21 +1,15 @@
 
-from functools import partial
 from os import path
 import os
 from typing import Any, Dict, List, Tuple, Type, cast
 
 import numpy as np
 from numpy.typing import NDArray
-import torch
-from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 
 from PIL import Image
 
-
-from script.ClusteringOptimization.plotting import plot_scr, plot_weighted
-from script.OptimizerTuning.plotting import plot_hyperparam
-from zdream.clustering.ds import DSCluster, DSClusters
+from script.OptimizerTuning.plotting import plot_hyperparam, plot_optim_type_comparison
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
 from zdream.logger import Logger, LoguruLogger
@@ -23,10 +17,9 @@ from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.probe import RecordingProbe
-from zdream.utils.dataset import MiniImageNet
-from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Score, ScoringUnit, State, Stimuli, UnitsMapping, mask_generator_from_template
-from zdream.utils.misc import concatenate_images, device
-from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
+from zdream.utils.model import DisplayScreen, MaskGenerator
+from zdream.utils.misc import device
+from zdream.utils.parsing import parse_recording, parse_scoring
 from zdream.message import ZdreamMessage
 
 # --- EXPERIMENT CLASS ---
@@ -333,7 +326,12 @@ class OptimizerComparisonMultiExperiment(_OptimizerTuningMultiExperiment):
         
         super()._finish()
         
-        # TODO PLOT
+        plot_optim_type_comparison(
+            opt_types = self._data['optim_type'],
+            scores    = self._data['scores'],
+            out_dir   = self.target_dir,
+            logger    = self._logger
+        )
 
 class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
     
@@ -375,3 +373,4 @@ class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
             out_dir    = self.target_dir,
             logger     = self._logger
         )
+        

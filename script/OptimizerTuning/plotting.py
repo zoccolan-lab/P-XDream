@@ -31,7 +31,6 @@ def plot_hyperparam(
     means = [[np.mean(iter_score) for iter_score in exp_scores] for exp_scores in scores] 
     
     # Scores across multiple samples grouped by same hyperparameter
-    # hyperparameter value: list of scores
     exp_scores = defaultdict(list)
 
     for param, gen_scores in zip(values, means):
@@ -75,7 +74,70 @@ def plot_hyperparam(
     ax.grid(True)
     ax.legend()
     
-    
+    # Save
     out_fp = path.join(out_dir, f'tuning_{hyperparam}.png')
+    logger.info(mess=f'Saving plot to {out_fp}')
+    fig.savefig(out_fp)
+    
+def plot_optim_type_comparison(
+    opt_types   : List[str],
+    scores  : List[List[NDArray]],
+    out_dir : str,
+    logger  : Logger = MutedLogger()
+):
+    
+    COLORS = {
+        'cmaes':   '#2980B9',
+        'genetic': '#DC7633'
+    }
+    
+    # Compute mean of each population
+    means = [[np.mean(iter_score) for iter_score in exp_scores] for exp_scores in scores] 
+    
+    # Scores across multiple samples grouped by same optim type
+    exp_scores = defaultdict(list)
+
+    for opt_type, gen_scores in zip(opt_types, means):
+        exp_scores[str(opt_type)].append(gen_scores)
+        
+    # Computing mean and SEM of scores across samples
+    scores_stats = {
+        opt_type: tuple(zip(*[
+            (np.mean(scores), SEM(scores)) for scores in zip(*gen_scores)
+        ])) 
+        for opt_type, gen_scores in exp_scores.items()
+    }
+    
+    # Plot
+    
+    fig, ax = plt.subplots(figsize=(16, 8))
+        
+    for opt_type, (means, stds) in scores_stats.items():
+        
+        means = np.array(means)
+        stds  = np.array(stds)
+            
+        col = COLORS[opt_type]
+            
+        # Line
+        ax.plot(range(len(means)), means, color=col, label=opt_type)
+
+        # IC
+        ax.fill_between(
+            range(len(stds)),
+            means - stds,
+            means + stds, 
+            color = f'{col}80' # add alpha channel
+        )
+        
+    # Names
+    ax.set_xlabel('Generations')
+    ax.set_ylabel(f'Score')
+    ax.set_title(f'Optimization strategies comparison')
+    ax.grid(True)
+    ax.legend()
+    
+    # Save
+    out_fp = path.join(out_dir, f'optimizer_comparison.png')
     logger.info(mess=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
