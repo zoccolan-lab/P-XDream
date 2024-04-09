@@ -85,9 +85,9 @@ class _TargetRecoveryExperiment(ZdreamExperiment):
         optim = GeneticOptimizer(
             states_shape   = generator.input_dim,
             random_seed    =     conf['random_seed'],
-            random_distr   = opt_conf['random_distr'],
-            mut_rate  = opt_conf['mutation_rate'],
-            mut_size  = opt_conf['mutation_size'],
+            rnd_distr   = opt_conf['rnd_distr'],
+            mut_rate  = opt_conf['mut_rate'],
+            mut_size  = opt_conf['mut_size'],
             pop_size= opt_conf['pop_size'],
             temp    = opt_conf['temperature'],
             n_parents    = opt_conf['n_parents']

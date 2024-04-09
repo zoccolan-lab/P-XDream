@@ -179,11 +179,11 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 optim =  GeneticOptimizer(
                     codes_shape  = generator.input_dim,
                     rnd_seed     =     conf['random_seed'],
-                    rnd_distr    = opt_conf['random_distr'],
-                    rnd_scale    = opt_conf['random_scale'],
+                    rnd_distr    = opt_conf['rnd_distr'],
+                    rnd_scale    = opt_conf['rnd_scale'],
                     pop_size     = opt_conf['pop_size'],
-                    mut_size     = opt_conf['mutation_size'],
-                    mut_rate     = opt_conf['mutation_rate'],
+                    mut_size     = opt_conf['mut_size'],
+                    mut_rate     = opt_conf['mut_rate'],
                     n_parents    = opt_conf['n_parents'],
                     allow_clones = opt_conf['allow_clones'],
                     topk         = opt_conf['topk'],
@@ -196,8 +196,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 optim = CMAESOptimizer(
                     codes_shape  = generator.input_dim,
                     rnd_seed     =     conf['random_seed'],
-                    rnd_distr    = opt_conf['random_distr'],
-                    rnd_scale    = opt_conf['random_scale'],
+                    rnd_distr    = opt_conf['rnd_distr'],
+                    rnd_scale    = opt_conf['rnd_scale'],
                     pop_size     = opt_conf['pop_size'],
                     sigma0       = opt_conf['sigma0']
                 )

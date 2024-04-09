@@ -63,8 +63,8 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     
     # Optimizer
     parser.add_argument('--pop_size',       type=def_type(int),   help='Starting number of the population')
-    parser.add_argument('--mutation_rate',  type=def_type(float), help='Mutation rate for the optimizer')
-    parser.add_argument('--mutation_size',  type=def_type(float), help='Mutation size for the optimizer')
+    parser.add_argument('--mut_rate',  type=def_type(float), help='Mutation rate for the optimizer')
+    parser.add_argument('--mut_size',  type=def_type(float), help='Mutation size for the optimizer')
     parser.add_argument('--n_parents',    type=def_type(int),   help='Number of parents for the optimizer')
     parser.add_argument('--temperature',    type=def_type(float), help='Temperature for the optimizer')
     

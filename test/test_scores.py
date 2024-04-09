@@ -92,10 +92,10 @@ class MSEScorerTest(unittest.TestCase):
 class WeightedPairSimilarityScorerTest(unittest.TestCase):
     
     num_imgs = 5
-    random_distr = 31415
+    rnd_distr = 31415
     
     def setUp(self) -> None:
-        self.rng = np.random.default_rng(self.random_distr)
+        self.rng = np.random.default_rng(self.rnd_distr)
         self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
         
     def test_two_layers_euclidean(self):
@@ -139,10 +139,10 @@ class WeightedPairSimilarityScorerTest(unittest.TestCase):
 class MaxActivityScorerTest(unittest.TestCase):
     
     num_imgs = 5
-    random_distr = 31415
+    rnd_distr = 31415
     
     def setUp(self) -> None:
-        self.rng = np.random.default_rng(self.random_distr)
+        self.rng = np.random.default_rng(self.rnd_distr)
         self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
         
     def test_score_format(self):

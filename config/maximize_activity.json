@@ -21,12 +21,12 @@
     },
     "optimizer": {
         "pop_size": 20,
-        "mutation_rate": 0.3,
-        "mutation_size": 0.3,
+        "mut_rate": 0.3,
+        "mut_size": 0.3,
         "n_parents": 3,
         "temperature": 1.0,
         "topk": 2,
-        "random_distr": "normal"
+        "rnd_distr": "normal"
     },
     "logger": {
         "out_dir": "",

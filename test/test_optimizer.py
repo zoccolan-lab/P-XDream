@@ -37,10 +37,10 @@ class GeneticOptimizerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.states_shape = (2,)
         self.random_seed = 31415
-        self.random_distr: RandomDistribution = 'normal'
+        self.rnd_distr: RandomDistribution = 'normal'
 
-        self.mutation_size = 0.3
-        self.mutation_rate = 0.3
+        self.mut_size = 0.3
+        self.mut_rate = 0.3
         self.population_size = 10
         self.temperature = 1.
 
@@ -56,9 +56,9 @@ class GeneticOptimizerTest(unittest.TestCase):
         optim = GeneticOptimizer(
             states_shape=self.states_shape,
             random_seed=self.random_seed,
-            random_distr=self.random_distr,
-            mut_rate=self.mutation_rate,
-            mut_size=self.mutation_size,
+            rnd_distr=self.rnd_distr,
+            mut_rate=self.mut_rate,
+            mut_size=self.mut_size,
             pop_size=self.population_size,
             temp=self.temperature,
             n_parents=2,
