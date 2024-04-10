@@ -1052,7 +1052,7 @@ class MultiExperiment:
         #       experiment results. It will be stored as a .pickle file.
         self._data: Dict[str, Any] = dict()
 
-    def _progress(self, exp: Experiment, i: int, msg: Message):
+    def _progress(self, exp: Experiment, conf: Dict[str, Any], i: int, msg: Message):
         '''
         Method called after running a single experiment.
         In the default version it only logs the progress.
@@ -1096,7 +1096,7 @@ class MultiExperiment:
             
             msg = exp.run()
             
-            self._progress(exp=exp, i=i, msg=msg)
+            self._progress(exp=exp, conf=conf, i=i, msg=msg)
 
     def run(self):
         '''

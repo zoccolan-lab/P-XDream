@@ -3,14 +3,24 @@ from typing import List, Tuple
 
 import numpy as np
 
+from script.ClusteringOptimization.parser import LOCAL_SETTINGS
+from zdream.clustering.ds import DSClusters
+from zdream.utils.io_ import read_json
 from zdream.utils.misc import copy_exec
 
 
-NAME = 'first_trial'
+NAME = 'subset_trial'
 
-CLUSTER_IDX   = list(range(10))
-ITER          = 5
-SAMPLE        = 5
+CLUSTER_FILE = read_json(LOCAL_SETTINGS)['clustering']
+
+CLUSTER_CARDINALITY = {
+    i: len(cluster)
+    for i, cluster in enumerate(DSClusters.from_file(CLUSTER_FILE)) # type: ignore
+}
+
+CLUSTER_IDX   = [0] #list(range(10))
+ITER          = 3
+SAMPLE        = 2
 
 def get_arguments_weighting(
         cluster_idx:  List[int],
@@ -26,7 +36,6 @@ def get_arguments_weighting(
         
         random_seed_str =    '#'.join([str(np.random.randint(1000, 100000)) for _ in range(tot_examples)])
         
-
         return cluster_idx_str, weighted_score_str, random_seed_str
     
     
@@ -34,8 +43,6 @@ def get_arguments_scoring(
         cluster_idx:  List[int],
         sample: int
 ) -> Tuple[str, str, str]:
-    
-        pass
         
         tot_examples = len(cluster_idx) * sample * 3
         
@@ -53,6 +60,28 @@ def get_arguments_scoring(
         
 
         return cluster_idx_str, weighted_score_str, random_seed_str
+    
+def get_arguments_subset_optimization(
+        cluster_idx:  List[int],
+        sample: int
+) -> Tuple[str, str, str]:
+        
+        triples = [ 
+                (
+                    opt_unit+1,
+                    clu_idx,
+                    str(np.random.randint(1000, 100000))
+                )
+                for _ in range(sample)
+                for clu_idx in cluster_idx 
+                for opt_unit in range(2) # range(CLUSTER_CARDINALITY[clu_idx])
+        ]
+        
+        opt_units_str = '#'.join([str(a) for a, _, _ in triples])
+        clu_idx_str   = '#'.join([str(a) for _, a, _ in triples])
+        rnd_seed_str  = '#'.join([str(a) for _, _, a in triples])
+        
+        return clu_idx_str, opt_units_str, rnd_seed_str
 
 
 if __name__ == '__main__':
@@ -67,17 +96,24 @@ if __name__ == '__main__':
             'fun'  : get_arguments_scoring,
             'arg'  : 'scr_type',
             'file' : 'run_multiple_scr_type.py'
+        },
+        'subsetting': {
+            'fun'  : get_arguments_subset_optimization,
+            'arg'  : 'opt_units',
+            'file' : 'run_multiple_subset_optimization.py'
         }
     }
     
     print('Multiple run: ')
     print('[1] Weighting ')
     print('[2] Scoring type ')
+    print('[3] Subset optimization single unit')
+    print('[4] Subset optimization top-k unit')
+    print('[5] Subset optimization bottom-k unit')
     choice = int(input('Choice: '))
     
     values = list(choices.values())[choice-1]
     
-
     cluster_idx_str, arg_str, random_seed_str = values['fun'](
         cluster_idx=CLUSTER_IDX,
         sample=SAMPLE
@@ -91,7 +127,14 @@ if __name__ == '__main__':
         values['arg']    : arg_str,
         'random_seed'    : random_seed_str,
     }
-            
+    
+    if choice == 3:
+        args['scr_type'] = 'subset'
+    if choice == 4:
+        args['scr_type'] = 'subset_top'
+    if choice == 5:
+        args['scr_type'] = 'subset_bot'
+    
     copy_exec(
         file=values['file'],
         args=args

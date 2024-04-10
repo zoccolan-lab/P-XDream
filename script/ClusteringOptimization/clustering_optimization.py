@@ -1,4 +1,5 @@
 
+from collections import defaultdict
 from functools import partial
 from os import path
 import os
@@ -12,7 +13,7 @@ from torchvision.transforms.functional import to_pil_image
 
 from PIL import Image
 
-from script.ClusteringOptimization.plotting import plot_activations, plot_scr, plot_weighted
+from script.ClusteringOptimization.plotting import plot_activations, plot_scr, plot_subsetting_optimization, plot_weighted
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
@@ -199,8 +200,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                     for obj in sorted(list(cluster), key=lambda obj: obj.rank) #type: ignore
                 ][::-1]
                 
-                print('here')
-                
                 clu_opt_idx: ScoringUnit
                 match clu_conf['scr_type']:
                     
@@ -309,9 +308,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # --- DATA ---
         
         data = {
-            'weighted_score' : clu_conf['weighted_score'],
-            'cluster_idx'    : clu_conf['cluster_idx'],
-            'scr_type'       : clu_conf['scr_type'],
             'render'         : conf['render'],
             'use_nat'        : use_nat,
             'close_screen'   : conf.get('close_screen', False),
@@ -362,9 +358,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         self._render         = cast(bool, data['render'])
         self._close_screen   = cast(bool, data['close_screen'])
         self._use_nat        = cast(bool, data['use_nat'])
-        self._weighted       = cast(bool, data['weighted_score'])
-        self._scr_type       = cast(bool, data['scr_type'])
-        self._cluster_idx    = cast( int, data['cluster_idx'])
         
         self._activation_idx = cast(Dict[str, ScoringUnit], data['activation_idx'])
 
@@ -596,13 +589,21 @@ class UnitsWeightingMultiExperiment(_ClusteringOptimizationMultiExperiment):
         self._data['weighted'   ] = list()  # Boolean flag if scoring was weighted or not
 
 
-    def _progress(self, exp: ClusteringOptimizationExperiment, msg : ZdreamMessage, i: int):
+    def _progress(
+        self, 
+        exp: ClusteringOptimizationExperiment, 
+        conf: Dict[str, Any],
+        msg : ZdreamMessage, 
+        i: int
+    ):
 
-        super()._progress(exp, i, msg = msg)
-
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        clu_conf = conf['clustering']
+        
         self._data['scores']      .append(msg.scores_gen_history)
-        self._data['cluster_idx'].append(exp._cluster_idx)
-        self._data['weighted']   .append(exp._weighted)    
+        self._data['cluster_idx'].append(clu_conf['cluster_idx'])
+        self._data['weighted']   .append(clu_conf['weighted_score'])    
 
     def _finish(self):
         
@@ -628,13 +629,21 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
         self._data['scr_type'   ] = list()  # Boolean flag if scoring was weighted or not
 
 
-    def _progress(self, exp: ClusteringOptimizationExperiment, msg : ZdreamMessage, i: int):
+    def _progress(
+        self, 
+        exp: ClusteringOptimizationExperiment,
+        conf: Dict[str, Any],
+        msg : ZdreamMessage, 
+        i: int
+    ):
 
-        super()._progress(exp, i, msg = msg)
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        clu_conf = conf['clustering']
 
-        self._data['cluster_idx'].append(exp._cluster_idx)
+        self._data['cluster_idx'].append(clu_conf['cluster_idx'])
+        self._data['scr_type']   .append(clu_conf['scr_type'])    
         self._data['score']      .append(msg.stats_gen['best_score'])
-        self._data['scr_type']   .append(exp._scr_type)    
 
     def _finish(self):
         
@@ -647,3 +656,67 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
             out_dir      = self.target_dir,
             logger       = self._logger
         )
+
+class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiExperiment):
+
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'] = 'Comparison between co-activation inside and outside cluster for non optimized units'
+        
+        # Dictionary: cluster-idx: optimized_unit: component: list of sample final average activation
+        self._data['cluster_activations'] = defaultdict(lambda: defaultdict(list))
+
+
+    def _progress(
+        self, 
+        exp: ClusteringOptimizationExperiment, 
+        conf: Dict[str, Any],
+        msg : ZdreamMessage,
+        i: int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        clu_conf = conf['clustering']
+        
+        assert clu_conf['scr_type'].startswith('subset')
+        
+        cluster_idx  = clu_conf['cluster_idx']
+        cluster_unit = int(clu_conf['opt_units'])
+        
+        # Compute average of final activation
+        # as the average of the last column
+        avg_activation = {
+            name: float(np.mean(np.stack(activations)[:, -1]))
+            for name, activations in exp._activations.items()
+        }
+        
+        self._data['cluster_activations'][cluster_idx][cluster_unit].append(avg_activation)
+
+    def _finish(self):
+        
+        # Dictionary redefinition with no lambdas
+        # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
+        
+        self._data['cluster_activations'] = {
+            cluster_idx: {
+                cluster_unit: values
+                for cluster_unit, values in units.items()
+            }
+            for cluster_idx, units in self._data['cluster_activations'].items()
+        }
+        
+        super()._finish()
+        
+        plot_dir = path.join(self.target_dir, 'plots')
+        self._logger.info(mess=f'Saving plots to {plot_dir}')
+        self._logger.formatting = lambda x: f'> {x}'
+        plot_subsetting_optimization(
+            clusters_activations=self._data['cluster_activations'],
+            logger=self._logger,
+            out_dir=self.target_dir
+        )
+        
+        self._logger.info(mess='')

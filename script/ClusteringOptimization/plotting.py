@@ -108,9 +108,9 @@ def plot_scr(
     
     # Color, offset
     STYLE = {
-        'cluster'    : ('#DC763380',  .0), 
-        'random'     : ('#3498DB80', -.1), 
-        'random_adj' : ('#52BE8080', +.1)
+        'cluster'    : ('#DC7633',  .0), 
+        'random'     : ('#3498DB', -.1), 
+        'random_adj' : ('#52BE80', +.1)
     }
     EDGE_COLOR = 'black'
     
@@ -139,6 +139,7 @@ def plot_scr(
             
             for pc in violin_parts['bodies']:  # type: ignore
                 pc.set_color(color)
+                pc.set_alpha(1)
                 pc.set_edgecolor(EDGE_COLOR)
 
     # Customizing legend
@@ -207,3 +208,109 @@ def plot_activations(
     out_fp = path.join(out_dir, f'subset_optimization.png')
     logger.info(mess=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
+    
+def plot_subsetting_optimization(
+    clusters_activations: Dict[int, Dict[int, List[Dict[str, float]]]],
+    out_dir: str,
+    logger: Logger = MutedLogger()
+):
+
+    # Auxiliary function
+    def dict_list_to_array_dict(dict_list):
+        ''' List of dicts with same keys to dict of lists stacked in arrays '''
+    
+        out = {}
+        
+        # Invert
+        for d in dict_list:
+            for key, value in d.items():
+                out.setdefault(key, []).append(value)
+        
+        # Stack
+        out = {k: np.array(v) for k, v in out.items()}
+                
+        return out
+
+    # STYLE MACRO
+    STYLE = {
+            'Cluster optimized'      : ('#DC7633',  .0), 
+            'External non optimized' : ('#3498DB', -.1), 
+            'Cluster non optimized'  : ('#52BE80', +.1)
+    }
+    EDGE_COLOR = 'black'
+    
+    # Plot individually for each cluster
+    for cluster_idx, units_activations in clusters_activations.items():
+    
+        # Plot both errors bars and violinplots
+        erorrbars, ax1 = plt.subplots(figsize=(16, 8))
+        violins,   ax2 = plt.subplots(figsize=(16, 8))
+        
+        # Unify information
+        units_activations = {unit: dict_list_to_array_dict(values) for unit, values in units_activations.items()}
+        
+        # Lineplots points to be computed
+        linesX = {k: [] for k in STYLE}
+        linesY = {k: [] for k in STYLE}
+        
+        # Each point refers to a specific optimized units
+        for unit_id, activations in units_activations.items():
+            
+            # Three components of the optimization
+            for name, y in activations.items():
+                
+                # Styling associated to the component
+                color, offset = STYLE[name]
+                
+                # ERROR BARS
+                x = unit_id + offset * 0.2
+                y_bar = np.mean(y)
+                ax1.errorbar(x, y_bar, yerr=SEM(y), color=color, label=name, ecolor=color, fmt='o', markersize=8, capsize=10)
+                
+                linesX[name].append(x)
+                linesY[name].append(y_bar)
+                
+                # VIOLIN PLOTS
+                x = unit_id + offset * 0.5
+
+                violin_parts = ax2.violinplot(
+                    dataset=y,
+                    positions=[x],
+                    widths=0.1, 
+                    showmeans=False,
+                    showextrema=False
+                )
+                
+                for pc in violin_parts['bodies']:  # type: ignore
+                    pc.set_color(color)
+                    pc.set_alpha(1)
+                    pc.set_edgecolor(EDGE_COLOR)
+
+        # Customizing legend
+        legend_labels = [
+            plt.Line2D(  # type: ignore
+                [0], [0], color=color, lw=4, label=scr_type)
+            for scr_type, (color, _) in STYLE.items()
+        ]
+        
+        # Line plot for ERROR BARS
+        for name, (color, _) in STYLE.items():
+            ax1.plot(linesX[name], linesY[name], color=color, marker=',')
+            
+        # Axes names
+        for ax in [ax1, ax2]:
+            
+            ax.legend(handles=legend_labels)
+            ax.set_xlabel('Unit rank')
+            ax.set_ylabel('Final activation')
+            ax.set_title('Scoring Types comparison')
+            ax.set_xticks(list(units_activations.keys()))
+
+        # Save
+        for fig, name in [
+            (erorrbars, 'subset_optimization_error_bars'),
+            (violins,   'subset_optimization_violin_plots'), 
+        ]:
+            out_fp = path.join(out_dir, f'cluster_{cluster_idx}-{name}.png')
+            logger.info(mess=f'Saving plot to {out_fp}')
+            fig.savefig(out_fp)
