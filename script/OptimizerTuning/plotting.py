@@ -19,11 +19,13 @@ def plot_hyperparam(
 ):
     
     COLORS = [
-        '#E74C3C', 
+        '#E74C3C',
         '#F39C12', 
         '#27AE60', 
         '#3498DB', 
         '#A569BD', 
+        '#F700FF',
+        '#34495E',
         '#7F8C8D'
     ]
     

@@ -6,14 +6,18 @@ import numpy as np
 from zdream.utils.misc import copy_exec
 
 
-NAME = 'before_berha'
+NAME = 'opt_comparison_cluster'
 
-VALUES         = [2, 3, 4]
-HYPERPARAMETER = 'n_parents'
-TYPE           = 'genetic'
-UNITS          = "21=[0:20]"
-ITER           = 5
-SAMPLE         = 3
+# First cluster
+# [470 503 504 505 572 618 619 626 631 666 696 710 711 720 725 737 773 804 813 828 846 849 855 859 868 883 898 899 907 910 966 968]
+
+VALUES         = [0.1, 0.5, 1., 2., 5., 10., 20., 50.]
+HYPERPARAMETER = 'sigma0'
+TYPE           = 'cmaes'
+UNITS          = "21=[470 503 504 505 572 618 619 626 631 666 696 710 711 720 725 737 773 804 813 828 846 849 855 859 868 883 898 899 907 910 966 968]"
+ITER           = 200
+SAMPLE         = 15
+
 
 def get_arguments_opt_comparison(
     sample: int
@@ -57,7 +61,7 @@ if __name__ == '__main__':
             args = {
                 'iter'           : ITER,
                 'name'           : NAME,
-                'rec_layers'     : UNITS,
+                'rec_layers'     : f'"{UNITS}"',
                 'optimizer_type' : optimizer_str,
                 'random_seed'    : random_seed_str,
             }
@@ -74,9 +78,10 @@ if __name__ == '__main__':
             args = {
                 'iter'           : ITER,
                 'name'           : NAME,
-                'rec_layers'     : UNITS,
+                'rec_layers'     : f'"{UNITS}"',
                 HYPERPARAMETER   : values_str,
                 'random_seed'    : random_seed_str,
+                'optimizer_type' : TYPE,
                 'hyperparameter' : HYPERPARAMETER
             }
             
