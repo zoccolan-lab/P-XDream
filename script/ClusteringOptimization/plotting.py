@@ -1,6 +1,6 @@
 from collections import defaultdict
 from os import path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
@@ -156,5 +156,54 @@ def plot_scr(
     ax.set_xticks(list(out.keys()))
 
     out_fp = path.join(out_dir, f'scr_types.png')
+    logger.info(mess=f'Saving plot to {out_fp}')
+    fig.savefig(out_fp)
+
+
+def plot_activations(
+    activations: Dict[str, NDArray],
+    out_dir: str,
+    logger: Logger = MutedLogger()
+):
+    
+    COLORS = ['#0013D6', '#E65c00','#36A900']
+    
+    fig, axes = plt.subplots(ncols=2, figsize=(20, 10))
+
+    for i, (name, act) in enumerate(activations.items()):
+
+        color = COLORS[i]
+
+        # 1 plot
+        for i in range(act.shape[1]):
+            axes[0].plot(act[:, i], color=color, linewidth=0.8)
+
+        axes[0].set_xlabel('Generations')
+        axes[0].set_ylabel('Unit activation')
+        axes[0].set_title('Individual neurons activations')
+        axes[0].grid(True)
+
+        # 2 plot
+        means = np.mean(act, axis=1)
+        stds  =     SEM(act, axis=1)
+
+        axes[1].plot(range(len(means)), means, color=color, label=name)
+
+        # IC
+        axes[1].fill_between(
+            range(len(stds)),
+            means - stds,
+            means + stds, 
+            color = f'{color}80' # add alpha channel
+        )
+            
+        # Names
+        axes[1].set_xlabel('Generations')
+        axes[1].set_ylabel('Avg. Activations')
+        axes[1].set_title(f'Componentes aggregated activations')
+        axes[1].grid(True)
+        axes[1].legend()
+
+    out_fp = path.join(out_dir, f'subset_optimization.png')
     logger.info(mess=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)

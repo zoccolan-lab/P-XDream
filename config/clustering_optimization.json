@@ -4,7 +4,8 @@
         "cluster_file": "",
         "cluster_idx": 0,
         "weighted_score": false,
-        "scr_type": "cluster",
+        "scr_type": "subset",
+        "opt_units": "1",
         "layer": 21
     },
     "generator": {

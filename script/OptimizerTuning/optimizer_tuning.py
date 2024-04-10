@@ -345,6 +345,7 @@ class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
         super().__init__(experiment, experiment_conf, default_conf)
         
         self.hyperparameter = ''
+        self.score_title    = ''
         
     def _init(self):
         

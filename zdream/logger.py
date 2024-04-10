@@ -203,7 +203,7 @@ class Logger:
 		:type screen_name: str.
 		'''
 
-		self.info("Closing screen")
+		self.info(f"Closing screen {screen_name}")
 
 		# Stop rendering
 		try:
