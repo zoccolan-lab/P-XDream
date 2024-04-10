@@ -8,9 +8,6 @@ from zdream.clustering.ds import DSClusters
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import copy_exec
 
-
-NAME = 'subset_trial'
-
 CLUSTER_FILE = read_json(LOCAL_SETTINGS)['clustering']
 
 CLUSTER_CARDINALITY = {
@@ -18,9 +15,12 @@ CLUSTER_CARDINALITY = {
     for i, cluster in enumerate(DSClusters.from_file(CLUSTER_FILE)) # type: ignore
 }
 
-CLUSTER_IDX   = [0] #list(range(10))
-ITER          = 3
-SAMPLE        = 2
+NAME = 'subsetting_optimization_alexnetfc8_single_unit_3clusters'
+
+CLUSTER_IDX   = list(range(3))
+ITER          = 200
+SAMPLE        = 12
+
 
 def get_arguments_weighting(
         cluster_idx:  List[int],
@@ -74,7 +74,7 @@ def get_arguments_subset_optimization(
                 )
                 for _ in range(sample)
                 for clu_idx in cluster_idx 
-                for opt_unit in range(2) # range(CLUSTER_CARDINALITY[clu_idx])
+                for opt_unit in range(CLUSTER_CARDINALITY[clu_idx])
         ]
         
         opt_units_str = '#'.join([str(a) for a, _, _ in triples])
@@ -98,6 +98,16 @@ if __name__ == '__main__':
             'file' : 'run_multiple_scr_type.py'
         },
         'subsetting': {
+            'fun'  : get_arguments_subset_optimization,
+            'arg'  : 'opt_units',
+            'file' : 'run_multiple_subset_optimization.py'
+        },
+        'subsetting_topk': {
+            'fun'  : get_arguments_subset_optimization,
+            'arg'  : 'opt_units',
+            'file' : 'run_multiple_subset_optimization.py'
+        },
+        'subsetting_botk': {
             'fun'  : get_arguments_subset_optimization,
             'arg'  : 'opt_units',
             'file' : 'run_multiple_subset_optimization.py'
