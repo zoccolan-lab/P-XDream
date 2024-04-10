@@ -43,7 +43,8 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--cluster_idx',       type=def_type(int),   help='Cluster index to optimize for')
     parser.add_argument('--weighted_score',    type=def_type(bool),  help='If to weight score by cluster rank')
     parser.add_argument('--layer',             type=def_type(str),   help='Layer name for which clustering was computed')
-    parser.add_argument('--scr_type',          type=def_type(str),   help='Scoring units strategy {`cluster`; `random`; `random_adj`}')
+    parser.add_argument('--scr_type',          type=def_type(str),   help='Scoring units strategy {`cluster`; `random`; `random_adj`, `subset_top`, `subset_bot`, `subset_rand`}')
+    parser.add_argument('--opt_units',         type=def_type(int),   help='Number of units to optimize in the cluster for `subset` scoring type')
     
     # Generator
     parser.add_argument('--variant',           type=def_type(str),   help='Variant of InverseAlexGenerator to use')
@@ -62,7 +63,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--layer_reduction',   type=def_type(str),   help='Name of reducing function across layers')
     
     # Optimizer
-    parser.add_argument('--optimizer_type',    type=def_type(str),   help='Type of optimizer {{`genetic`, `cmaes`}}')
+    parser.add_argument('--optimizer_type',    type=def_type(str),   help='Type of optimizer {`genetic`, `cmaes`}')
     parser.add_argument('--rnd_distr',      type=def_type(str),   help='Type of sampling random distribution')
     parser.add_argument('--rnd_scale',      type=def_type(float), help='Scale for random distribution')
     parser.add_argument('--pop_size',          type=def_type(int),   help='Starting number of the population')

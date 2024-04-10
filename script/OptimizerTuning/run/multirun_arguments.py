@@ -6,7 +6,7 @@ import numpy as np
 from zdream.utils.misc import copy_exec
 
 
-NAME = 'before_berha'
+NAME = 'minum'
 
 VALUES         = [2, 3, 4]
 HYPERPARAMETER = 'n_parents'

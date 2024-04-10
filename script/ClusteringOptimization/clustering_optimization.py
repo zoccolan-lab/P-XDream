@@ -12,7 +12,7 @@ from torchvision.transforms.functional import to_pil_image
 
 from PIL import Image
 
-from script.ClusteringOptimization.plotting import plot_scr, plot_weighted
+from script.ClusteringOptimization.plotting import plot_activations, plot_scr, plot_weighted
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
@@ -22,6 +22,7 @@ from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, NetworkSubject
 from zdream.probe import RecordingProbe
 from zdream.utils.dataset import MiniImageNet
+from zdream.utils.io_ import store_pickle
 from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, Score, ScoringUnit, State, Stimuli, UnitsMapping, mask_generator_from_template
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.parsing import parse_boolean_string
@@ -58,63 +59,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         # Set numpy random seed
         np.random.seed(conf['random_seed'])
-
-        # --- CLUSTERING ---
-
-        # Read clustering from file and extract the i-th cluster as specified by conf
-        clusters: DSClusters = DSClusters.from_file(clu_conf['cluster_file'])
-        cluster:  DSCluster  = clusters[clu_conf['cluster_idx']]
-
-        # Choose random units depending on their random type
-        tot_obj = clusters.obj_tot_count # tot number of objects
-        clu_obj = len(cluster)           # cluster object count
-
-        scoring_units: ScoringUnit
-        match clu_conf['scr_type']:
-
-            # 1) Cluster - use clusters units
-            case 'cluster': 
-
-                scoring_units = cluster.scoring_units
-
-                # Get units mapping for the weighted sum
-                units_mapping: UnitsMapping = partial(
-                    cluster.units_mapping,
-                    weighted=clu_conf['weighted_score']
-                )
-
-                units_reduction = 'sum'
-
-            # 2) Random - use scattered random units with the same dimensionality of the cluster
-            case 'random': 
-                
-                scoring_units = list(np.random.choice(
-                    np.arange(0, tot_obj), 
-                    size=clu_obj, 
-                    replace=False
-                ))
-
-                units_mapping = lambda x: x
-                units_reduction  = 'mean'
-            
-            # 3) Random adjacent - use continuos random units with the same dimensionality of the cluster
-            case 'random_adj':
-
-                start = np.random.randint(0, tot_obj - clu_obj + 1)
-                scoring_units = list(range(start, start + clu_obj))
-
-                units_mapping = lambda x: x
-                units_reduction  = 'mean'
-    
-            # Default - raise an error
-            case _:
-                err_msg = f'Invalid `scr_type`: {clu_conf["scr_type"]}. '\
-                           'Choose one between {cluster, random, random_adj}. '
-                raise ValueError(err_msg)        
-
-        # Extract layer idx clustering was performed with
-        layer_idx = clu_conf['layer']
-
+        
         # --- MASK GENERATOR ---
 
         template = parse_boolean_string(boolean_str=msk_conf['template'])
@@ -135,9 +80,11 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             variant        = gen_conf['variant'],
             nat_img_loader = dataloader if use_nat else None
         ).to(device)
-
-
+        
         # --- SUBJECT ---
+        
+        # Extract layer idx clustering was performed with
+        layer_idx = clu_conf['layer']
 
         # Create a on-the-fly network subject to extract all network layer names
         layer_info: Dict[str, Tuple[int, ...]] = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
@@ -160,6 +107,121 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         )
         
         sbj_net.eval()
+
+        # --- CLUSTERING ---
+
+        # Read clustering from file and extract the i-th cluster as specified by conf
+        clusters: DSClusters = DSClusters.from_file(clu_conf['cluster_file'])
+        cluster:  DSCluster  = clusters[clu_conf['cluster_idx']]
+
+        # Choose random units depending on their random type
+        tot_obj = clusters.obj_tot_count # tot number of objects
+        clu_obj = len(cluster)           # cluster object count
+        
+        # Dictionary indicating groups of activations to store
+        # mapping key name to neurons indexes
+        activations_idx: Dict[str, ScoringUnit] = {}
+        
+        # Retrieve all units idx in the layer
+        layer_shape = list(layer_info.values())[layer_idx]
+        tot_layer_units = np.prod(layer_shape)
+        layer_idx = list(range(tot_layer_units))
+
+        scoring_units: ScoringUnit
+        match clu_conf['scr_type']:
+
+            # 1) Cluster - use clusters units
+            case 'cluster': 
+
+                scoring_units = cluster.scoring_units
+
+                # Get units mapping for the weighted sum
+                units_mapping: UnitsMapping = partial(
+                    cluster.units_mapping,
+                    weighted=clu_conf['weighted_score']
+                )
+
+                units_reduction = 'sum'
+                
+                # Take at random other units outside the cluster with the same cardinality
+                cluster_idx  = cluster.scoring_units
+                non_cluster_idx = list(set(layer_idx).difference(cluster_idx))
+                external_idx = list(np.random.choice(non_cluster_idx, len(cluster_idx), replace=False))
+                
+                activations_idx = {
+                    'cluster' : cluster_idx,
+                    'external': external_idx
+                }
+
+            # 2) Random - use scattered random units with the same dimensionality of the cluster
+            case 'random': 
+                
+                scoring_units = list(np.random.choice(
+                    np.arange(0, tot_obj), 
+                    size=clu_obj, 
+                    replace=False
+                ))
+
+                units_mapping = lambda x: x
+                units_reduction  = 'mean'
+            
+            # 3) Random adjacent - use continuos random units with the same dimensionality of the cluster
+            case 'random_adj':
+
+                start = np.random.randint(0, tot_obj - clu_obj + 1)
+                scoring_units = list(range(start, start + clu_obj))
+
+                units_mapping = lambda x: x
+                units_reduction  = 'mean'
+                
+            # 4) Scoring only subset of the cluster
+            case 'subset_top' | 'subset_bot' | 'subset_rand':
+                
+                # Get number of units to optimize
+                opt_units = clu_conf['opt_units']
+                
+                # TODO Raise specific errors
+                assert 1 <= opt_units <= len(cluster)
+                
+                # Get cluster indexes and sort them by score
+                clu_idx: List[int] = [
+                    int(obj.label)
+                    for obj in sorted(list(cluster), key=lambda obj: obj.rank) #type: ignore
+                ]
+                
+                match clu_conf['scr_type']:
+                    
+                    case 'subset_top' : clu_opt_idx = clu_idx[:opt_units]
+                    case 'subset_bot' : clu_opt_idx = clu_idx[opt_units:]
+                    case 'subset_rand': clu_opt_idx = list(np.random.choice(clu_idx, opt_units, replace=False))
+                
+                # Retrieve the non scoring units
+                clu_non_opt_idx = list(set(clu_idx).difference(clu_opt_idx))
+                
+                
+                
+                # Compute the non-cluster units as difference
+                non_cluster_idx = list(set(layer_idx).difference(clu_idx))
+                
+                # Extract as many non cluster optimized units outside the cluster at random
+                ext_non_opt_idx = list(np.random.choice(non_cluster_idx, len(clu_non_opt_idx), replace=False))
+                
+                scoring_units = clu_opt_idx
+                
+                units_mapping   = lambda x: x
+                units_reduction = 'mean'
+                
+                activations_idx = {
+                    "Cluster optimized"      : clu_opt_idx,
+                    "External non optimized" : ext_non_opt_idx,
+                    "Cluster non optimized"  : clu_non_opt_idx
+                }
+
+            # Default - raise an error
+            case _:
+                err_msg =  f'Invalid `scr_type`: {clu_conf["scr_type"]}. '\
+                            'Choose one between {cluster, random, random_adj, subset_top, subset_bot, fraction rand}. '
+                raise ValueError(err_msg)        
 
         # --- SCORER ---
 
@@ -244,6 +306,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             'render'         : conf['render'],
             'use_nat'        : use_nat,
             'close_screen'   : conf.get('close_screen', False),
+            'activation_idx' : activations_idx
         }
 
         # Experiment configuration
@@ -287,16 +350,16 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         )
 
         # Extract from Data
-        self._render        = cast(bool, data['render'])
-        self._close_screen  = cast(bool, data['close_screen'])
-        self._use_nat       = cast(bool, data['use_nat'])
-        self._weighted      = cast(bool, data['weighted_score'])
-        self._scr_type      = cast(bool, data['scr_type'])
-        self._cluster_idx   = cast( int, data['cluster_idx'])
+        self._render         = cast(bool, data['render'])
+        self._close_screen   = cast(bool, data['close_screen'])
+        self._use_nat        = cast(bool, data['use_nat'])
+        self._weighted       = cast(bool, data['weighted_score'])
+        self._scr_type       = cast(bool, data['scr_type'])
+        self._cluster_idx    = cast( int, data['cluster_idx'])
+        
+        self._activation_idx = cast(Dict[str, ScoringUnit], data['activation_idx'])
 
     def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
-
-        # We add to progress information relative to best and average score
 
         # Synthetic
         stat_gen = msg.stats_gen
@@ -327,6 +390,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     def _init(self) -> ZdreamMessage:
 
         msg = super()._init()
+        
+        # Data structure to save clusters activations
+        self._activations: Dict[str, List[NDArray]] = {k: [] for k in self._activation_idx}
 
         # Data structure to save best score and best image
         if self._use_nat:
@@ -388,7 +454,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             best_nat = self._best_nat_img
 
         # Saving images
-        to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best synthetic')]
+        to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen[0]), 'best synthetic')]
         
         if self._use_nat:
             to_save.extend([
@@ -403,12 +469,41 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             img.save(out_fp)
             
         # 2) PLOT
-        # TODO Plots of activations
+        if len(self._activations):
+            
+            # Stack arrays
+            activations: Dict[str, NDArray] = {name: np.stack(acts) for name, acts in self._activations.items()}
+            
+            # Store activations
+            act_fp = path.join(self.target_dir, 'activations.npz')
+            self._logger.info(f'Storing activations to {act_fp}')
+            np.savez(act_fp, **activations)
+            
+            # Plot
+            plot_activations(
+                activations=activations,
+                out_dir=self.target_dir,
+                logger=self._logger
+            )
         
         self._logger.info(mess='')
         
         return msg
+    
+    # --- PIPELINE ---
+    
+    def _states_to_scores(self, data: Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
         
+        states, msg = data
+        
+        assert len(states) == 1
+        full_activations = list(states.values())[0][msg.mask]
+        
+        for act_name, act_idx in self._activation_idx.items():
+            activation = np.mean(full_activations[:, act_idx], axis=0)
+            self._activations[act_name].append(activation)
+        
+        return super()._states_to_scores(data)
 
     def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
 
