@@ -44,7 +44,7 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     parser.add_argument('--weighted_score',    type=def_type(bool),  help='If to weight score by cluster rank')
     parser.add_argument('--layer',             type=def_type(str),   help='Layer name for which clustering was computed')
     parser.add_argument('--scr_type',          type=def_type(str),   help='Scoring units strategy {`cluster`; `random`; `random_adj`, `subset_top`, `subset_bot`, `subset_rand`}')
-    parser.add_argument('--opt_units',         type=def_type(int),   help='Number of units to optimize in the cluster for `subset` scoring type')
+    parser.add_argument('--opt_units',         type=def_type(str),   help='Number of units to optimize in the cluster for `subset` scoring type')
     
     # Generator
     parser.add_argument('--variant',           type=def_type(str),   help='Variant of InverseAlexGenerator to use')

@@ -122,13 +122,20 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # mapping key name to neurons indexes
         activations_idx: Dict[str, ScoringUnit] = {}
         
+        # Default unit reduction as mean
+        units_mapping = lambda x: x
+        units_reduction = 'mean'
+        
         # Retrieve all units idx in the layer
         layer_shape = list(layer_info.values())[layer_idx]
         tot_layer_units = np.prod(layer_shape)
         layer_idx = list(range(tot_layer_units))
 
+        scr_type = clu_conf['scr_type']
+        
         scoring_units: ScoringUnit
-        match clu_conf['scr_type']:
+        
+        match scr_type:
 
             # 1) Cluster - use clusters units
             case 'cluster': 
@@ -161,44 +168,49 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                     size=clu_obj, 
                     replace=False
                 ))
-
-                units_mapping = lambda x: x
-                units_reduction  = 'mean'
             
             # 3) Random adjacent - use continuos random units with the same dimensionality of the cluster
             case 'random_adj':
 
                 start = np.random.randint(0, tot_obj - clu_obj + 1)
                 scoring_units = list(range(start, start + clu_obj))
-
-                units_mapping = lambda x: x
-                units_reduction  = 'mean'
                 
             # 4) Scoring only subset of the cluster
-            case 'subset_top' | 'subset_bot' | 'subset_rand':
+            case 'subset' | 'subset_top' | 'subset_bot' | 'subset_rand':
                 
-                # Get number of units to optimize
-                opt_units = clu_conf['opt_units']
+                # Extract the optimizer units
+                opt_units: List[int] = [int(idx) for idx in clu_conf['opt_units'].split()]
                 
+                # For subset specific indexes they are the specific indexes
+                # while for the other ones it just the number of units and it is a single number
                 # TODO Raise specific errors
-                assert 1 <= opt_units <= len(cluster)
+                    
+                for opt_unit in opt_units:
+                    assert 1 <= opt_unit <= len(cluster)
                 
+                if scr_type != 'subset':
+                    assert len(opt_units) == 1
+                    opt_units_ = opt_units[0]
+                    
                 # Get cluster indexes and sort them by score
-                clu_idx: List[int] = [
+                # From high centrality to lower one
+                clu_idx: ScoringUnit = [
                     int(obj.label)
                     for obj in sorted(list(cluster), key=lambda obj: obj.rank) #type: ignore
-                ]
+                ][::-1]
                 
+                print('here')
+                
+                clu_opt_idx: ScoringUnit
                 match clu_conf['scr_type']:
                     
-                    case 'subset_top' : clu_opt_idx = clu_idx[:opt_units]
-                    case 'subset_bot' : clu_opt_idx = clu_idx[opt_units:]
-                    case 'subset_rand': clu_opt_idx = list(np.random.choice(clu_idx, opt_units, replace=False))
+                    case 'subset'     : clu_opt_idx = [clu_idx[opt_unit-1] for opt_unit in opt_units]
+                    case 'subset_top' : clu_opt_idx = clu_idx[:opt_units_]
+                    case 'subset_bot' : clu_opt_idx = clu_idx[(-1*opt_units_):]
+                    case 'subset_rand': clu_opt_idx = list(np.random.choice(clu_idx, opt_units_, replace=False))
                 
                 # Retrieve the non scoring units
                 clu_non_opt_idx = list(set(clu_idx).difference(clu_opt_idx))
-                
-                
                 
                 # Compute the non-cluster units as difference
                 non_cluster_idx = list(set(layer_idx).difference(clu_idx))
@@ -207,9 +219,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 ext_non_opt_idx = list(np.random.choice(non_cluster_idx, len(clu_non_opt_idx), replace=False))
                 
                 scoring_units = clu_opt_idx
-                
-                units_mapping   = lambda x: x
-                units_reduction = 'mean'
                 
                 activations_idx = {
                     "Cluster optimized"      : clu_opt_idx,
