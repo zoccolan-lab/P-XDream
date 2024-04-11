@@ -435,7 +435,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
     def _finish(self, msg : ZdreamMessage):
 
-        super()._finish(msg, close_logger=False)
+        super()._finish(msg)
 
         # Close screens
         if self._close_screen:
@@ -490,8 +490,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             )
         
         self._logger.info(mess='')
-        
-        self._logger.close()
         
         return msg
     
