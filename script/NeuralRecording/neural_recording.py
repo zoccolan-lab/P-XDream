@@ -142,14 +142,12 @@ class NeuralRecordingExperiment(Experiment):
     
     def _finish(self, msg : Message) -> Message:
         
-        msg = super()._finish(msg=msg, close_logger=False)
+        msg = super()._finish(msg=msg)
         
         # Save recordings
         out_fp = os.path.join(self.target_dir, 'recordings.npy')
         self._logger.info(f'Saving recordings to {out_fp}')
         np.save(out_fp, self._recording)
-        
-        self._logger.close()
 
         return msg
     

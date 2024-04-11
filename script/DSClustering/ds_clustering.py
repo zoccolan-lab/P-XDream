@@ -79,7 +79,7 @@ class DSClusteringExperiment(Experiment):
         
     def _finish(self, msg: Message) -> Message:
         
-        msg = super()._finish(msg, close_logger=False)
+        msg = super()._finish(msg)
         
         # Extract clusters
         clusters = self._clu_algo.clusters
@@ -109,7 +109,5 @@ class DSClusteringExperiment(Experiment):
         )
         
         self._logger.reset_formatting()
-        
-        self._logger.close()
         
         return msg
