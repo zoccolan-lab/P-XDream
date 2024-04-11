@@ -259,9 +259,6 @@ class Experiment(ABC):
         str_time = stringfy_time(sec=msg.elapsed_time)
         self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time}.")
         self._logger.info(mess="")
-        
-        # Close the terminal
-        self._logger.close()
 
         # NOTE: The method is also supposed to close logger screens
         #       However this is not implemented in the default version 
@@ -1082,6 +1079,8 @@ class MultiExperiment:
             out_fp = path.join(self.target_dir, 'data.pickle')
             self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
             store_pickle(data=self._data, path=out_fp)
+            
+        self._logger.close()
 
     def _run(self):
         '''
@@ -1095,6 +1094,7 @@ class MultiExperiment:
             exp = self._Exp.from_config(conf=conf)
             
             msg = exp.run()
+            exp._logger.close()
             
             self._progress(exp=exp, conf=conf, i=i, msg=msg)
 

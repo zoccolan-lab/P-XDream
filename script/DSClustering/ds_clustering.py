@@ -14,7 +14,7 @@ from zdream.message import Message
 
 class DSClusteringExperiment(Experiment):
     
-    EXPERIMENT_TITLE = 'DSClusteringExperiment'
+    EXPERIMENT_TITLE = 'DSClustering'
     
     def __init__(
         self,
@@ -29,8 +29,13 @@ class DSClusteringExperiment(Experiment):
         logger.info('Computing cosine similarity...')
         self._aff_mat   = PairwiseSimilarity(matrix=matrix).cosine_similarity
         
+        aff_mat_fp = path.join(self.target_dir, 'affinity_matrix.npy')
+        logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
+        np.save(file=aff_mat_fp, arr=self._aff_mat)
+        
         self._clu_algo = BaseDSClustering(
             aff_mat=self._aff_mat, 
+            min_elements=data['min_elements'],
             max_iter=data['max_iter'], 
             logger=self._logger
         )
@@ -49,7 +54,10 @@ class DSClusteringExperiment(Experiment):
         logger = LoguruLogger(conf=log_conf)
         
         # --- DATA ---
-        data = {'max_iter': clu_conf['max_iter']}
+        data = {
+            'min_elements': clu_conf['min_elements'],
+            'max_iter':     clu_conf['max_iter']
+        }
         
         return DSClusteringExperiment(
             matrix=matrix,
@@ -71,7 +79,7 @@ class DSClusteringExperiment(Experiment):
         
     def _finish(self, msg: Message) -> Message:
         
-        msg = super()._finish(msg)
+        msg = super()._finish(msg, close_logger=False)
         
         # Extract clusters
         clusters = self._clu_algo.clusters
@@ -101,5 +109,7 @@ class DSClusteringExperiment(Experiment):
         )
         
         self._logger.reset_formatting()
+        
+        self._logger.close()
         
         return msg

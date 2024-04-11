@@ -195,10 +195,11 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                     
                 # Get cluster indexes and sort them by score
                 # From high centrality to lower one
-                clu_idx: ScoringUnit = [
-                    int(obj.label)
-                    for obj in sorted(list(cluster), key=lambda obj: obj.rank) #type: ignore
-                ][::-1]
+                # clu_idx: ScoringUnit = [
+                #     int(obj.label)
+                #     for obj in sorted(list(cluster), key=lambda obj: obj.rank) #type: ignore
+                # ][::-1]
+                clu_idx: ScoringUnit = cluster.scoring_units  # NOTE: They are already sorted by descending rank
                 
                 clu_opt_idx: ScoringUnit
                 match clu_conf['scr_type']:
@@ -296,13 +297,13 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
                 # Add screen for synthetic images
                 logger.add_screen(
-                    screen=DisplayScreen(title=cls.GEN_IMG_SCREEN, display_size=(400, 400))
+                    screen=DisplayScreen(title=cls.GEN_IMG_SCREEN, display_size=(1200, 1200))
                 )
 
                 # Add screen for natural images if used
                 if use_nat:
                     logger.add_screen(
-                        screen=DisplayScreen(title=cls.NAT_IMG_SCREEN, display_size=(400, 400))
+                        screen=DisplayScreen(title=cls.NAT_IMG_SCREEN, display_size=(1200, 1200))
                     )
 
         # --- DATA ---
@@ -434,7 +435,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
     def _finish(self, msg : ZdreamMessage):
 
-        super()._finish(msg)
+        super()._finish(msg, close_logger=False)
 
         # Close screens
         if self._close_screen:
@@ -489,6 +490,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             )
         
         self._logger.info(mess='')
+        
+        self._logger.close()
         
         return msg
     
@@ -554,7 +557,7 @@ class _ClusteringOptimizationMultiExperiment(MultiExperiment):
         screens = [
             DisplayScreen(
                 title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
-                display_size=(400, 400)
+                display_size=(1200, 1200)
             )
         ]
 
@@ -566,7 +569,7 @@ class _ClusteringOptimizationMultiExperiment(MultiExperiment):
             screens.append(
                 DisplayScreen(
                     title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, 
-                    display_size=(400, 400)
+                    display_size=(1200, 1200)
                 )
             )
 
@@ -689,7 +692,7 @@ class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiEx
         # Compute average of final activation
         # as the average of the last column
         avg_activation = {
-            name: float(np.mean(np.stack(activations)[:, -1]))
+            name: float(np.mean(activations[-1]))
             for name, activations in exp._activations.items()
         }
         

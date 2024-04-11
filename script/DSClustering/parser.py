@@ -44,4 +44,6 @@ def get_parser(multirun: bool = False) -> ArgumentParser:
     # Clustering
     parser.add_argument('--recordings',      type=def_type(str),   help='Path to neural recordings file', default=neural_recordings)
     parser.add_argument('--max_iter',        type=def_type(int),   help='Maximum number of iterations')
+    parser.add_argument('--min_elements',    type=def_type(int),   help='Minimum cluster cardinality')
+    
     return parser

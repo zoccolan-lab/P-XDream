@@ -153,8 +153,12 @@ class DSCluster:
         '''
         
         self._w       = w
-        self._objects = [self.DSObject(label=label, rank=rank) for label, rank in zip(labels, ranks)]
         
+        # Objects with decreasing RANK
+        self._objects = [self.DSObject(label=label, rank=rank) for label, rank in zip(labels, ranks)]
+        self._objects.sort(key=lambda obj: obj.rank, reverse=True)
+    
+    
     # --- MAGIC METHODS ---
     
     def __str__ (self) -> str: return f'DSCluster[objects: {len(self)}, coherence: {self.W}]'

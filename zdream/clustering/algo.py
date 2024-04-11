@@ -334,6 +334,9 @@ class BaseDSClustering(DSClustering):
         if self._min_elements == 1:
             for singleton in DSCluster.extract_singletons(aff_mat=aff_mat):
                 self._clusters.add(cluster=singleton)
+        else:
+            wrn_msg = f'Excluding from the clustering {len(aff_mat)} singleton_elements'
+            self._logger.warn(wrn_msg)
                 
 class HierarchicalDSClustering(DSClustering):
     

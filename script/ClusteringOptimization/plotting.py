@@ -114,24 +114,39 @@ def plot_scr(
     }
     EDGE_COLOR = 'black'
     
+    # Lineplots points to be computed
+    linesX = {k: [] for k in STYLE}
+    linesY = {k: [] for k in STYLE}
+    
     # Organize
     out = defaultdict(lambda: defaultdict(list))
 
     for cluster_idx, scr_type, score in zip(cluster_idxs, scr_types, scores):
         out[cluster_idx][scr_type].append(float(score))
     
-    fig, ax = plt.subplots(figsize=(16, 8))
+    errorbars,   ax1 = plt.subplots(figsize=(16, 8))
+    violinplots, ax2 = plt.subplots(figsize=(16, 8))
     
     # Plot
     for cluster_idx, cluster_scores in out.items():
-        for scr_type, scores in cluster_scores.items():
+        for scr_type, y in cluster_scores.items():
             
             color, offset = STYLE[scr_type]
-            position = [cluster_idx + offset]
-    
-            violin_parts = ax.violinplot(
-                dataset=scores,
-                positions=position,
+            
+            # ERROR BARS
+            x = cluster_idx + offset * 0.2
+            y_bar = np.mean(y)
+            ax1.errorbar(x, y_bar, yerr=SEM(y), color=color, label=scr_type, ecolor=color, fmt='o', markersize=8, capsize=10)
+            
+            linesX[scr_type].append(x)
+            linesY[scr_type].append(y_bar)
+            
+            # VIOLIN PLOTS
+            x = cluster_idx + offset * 0.5
+
+            violin_parts = ax2.violinplot(
+                dataset=y,
+                positions=[x],
                 widths=0.1, 
                 showmeans=False,
                 showextrema=False
@@ -148,17 +163,28 @@ def plot_scr(
             [0], [0], color=color, lw=4, label=scr_type)
         for scr_type, (color, _) in STYLE.items()
     ]
-    ax.legend(handles=legend_labels, title='Scr Types')
-
-    ax.set_xlabel('Cluster Index')
-    ax.set_ylabel('Scores')
-    ax.set_title('Scoring Types comparison')
-
-    ax.set_xticks(list(out.keys()))
-
-    out_fp = path.join(out_dir, f'scr_types.png')
-    logger.info(mess=f'Saving plot to {out_fp}')
-    fig.savefig(out_fp)
+    
+    # Line plot for ERROR BARS
+    for name, (color, _) in STYLE.items():
+        ax1.plot(linesX[name], linesY[name], color=color, marker=',')
+    
+    # Customize axes
+    for ax in [ax1, ax2]:    
+        
+        ax.legend(handles=legend_labels, title='Scr Types')
+        ax.set_xlabel('Cluster Index')
+        ax.set_ylabel('Scores')
+        ax.set_title('Scoring Types comparison')
+        ax.set_xticks(list(out.keys()))
+        
+    # Save figures
+    for fig, name in [
+        (errorbars,   'errorbars'),
+        (violinplots, 'violins'), 
+    ]:
+        out_fp = path.join(out_dir, f'scr_types_{name}.png')
+        logger.info(mess=f'Saving plot to {out_fp}')
+        fig.savefig(out_fp)
 
 
 def plot_activations(
