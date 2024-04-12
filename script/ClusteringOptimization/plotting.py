@@ -1,4 +1,5 @@
 from collections import defaultdict
+import math
 from os import path
 from typing import Dict, List, Tuple
 
@@ -7,8 +8,11 @@ from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import NDArray
 
+from zdream.generator import Generator
 from zdream.logger import Logger, MutedLogger
-from zdream.utils.misc import SEM
+from zdream.message import ZdreamMessage
+from zdream.utils.misc import SEM, concatenate_images
+from zdream.utils.model import Codes
 
 
 def plot_weighted(
@@ -234,7 +238,8 @@ def plot_activations(
     out_fp = path.join(out_dir, f'subset_optimization.png')
     logger.info(mess=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
-    
+
+
 def plot_subsetting_optimization(
     clusters_activations: Dict[int, Dict[int, List[Dict[str, float]]]],
     out_dir: str,
@@ -340,3 +345,38 @@ def plot_subsetting_optimization(
             out_fp = path.join(out_dir, f'cluster_{cluster_idx}-{name}.png')
             logger.info(mess=f'Saving plot to {out_fp}')
             fig.savefig(out_fp)
+
+            
+def plot_cluster_best_stimuli(
+    cluster_codes: Dict[int, Dict[int, Tuple[float, Codes]]],
+    generator: Generator,
+    out_dir: str,
+    logger: Logger = MutedLogger()
+):
+    
+    cluster_stimuli = {
+    cluster_idx: [
+            generator(
+                data=(
+                    np.expand_dims(code, 0), # add batch size
+                    ZdreamMessage(mask=np.array([True]))
+                )
+            )[0][0] # first element of the tuple (the image)
+                    # and batch size removal
+            for _, code in codes.values()
+        ]
+        for cluster_idx, codes in cluster_codes.items()
+    }
+
+    cluster_grid = {
+        cluster_idx: concatenate_images(
+            img_list=stimuli, nrow = math.ceil(math.sqrt(len(stimuli)))
+        )
+        for cluster_idx, stimuli in cluster_stimuli.items()
+    }
+    
+    for cluster_idx, grid in cluster_grid.items():
+        
+        out_fp = path.join(out_dir, f'cluster_{cluster_idx}-best_stimuli.png')
+        logger.info(mess=f'Saving best cluster stimuli to {out_fp}')
+        grid.save(out_fp)

@@ -18,9 +18,9 @@ CLUSTER_CARDINALITY = {
 
 NAME = 'subsetting_optimization_alexnetfc8_singleunit_1clusters'
 
-CLUSTER_IDX   = list(range(1))
-ITER          = 200
-SAMPLE        = 15
+CLUSTER_IDX   = list(range(2))
+ITER          = 2
+SAMPLE        = 2
 
 
 def get_arguments_weighting(
@@ -74,9 +74,31 @@ def get_arguments_subset_optimization(
                     clu_idx,
                     str(np.random.randint(1000, 100000))
                 )
-                for _ in range(sample)
                 for clu_idx in cluster_idx 
                 for opt_unit in range(CLUSTER_CARDINALITY[clu_idx] + (0 if last else -1))
+                for _ in range(sample)
+        ]
+        
+        opt_units_str = '#'.join([str(a) for a, _, _ in triples])
+        clu_idx_str   = '#'.join([str(a) for _, a, _ in triples])
+        rnd_seed_str  = '#'.join([str(a) for _, _, a in triples])
+        
+        return clu_idx_str, opt_units_str, rnd_seed_str
+
+def get_arguments_best_stimuli(
+        cluster_idx:  List[int],
+        sample: int
+) -> Tuple[str, str, str]:
+        
+        triples = [ 
+                (
+                    opt_unit+1,
+                    clu_idx,
+                    str(np.random.randint(1000, 100000))
+                )
+                for clu_idx in cluster_idx 
+                for opt_unit in range(CLUSTER_CARDINALITY[clu_idx])
+                for _ in range(sample)
         ]
         
         opt_units_str = '#'.join([str(a) for a, _, _ in triples])
@@ -113,6 +135,11 @@ if __name__ == '__main__':
             'fun'  : partial(get_arguments_subset_optimization, last=False),
             'arg'  : 'opt_units',
             'file' : 'run_multiple_subset_optimization.py'
+        },
+        'best_stimuli': {
+            'fun'  : get_arguments_best_stimuli,
+            'arg'  : 'opt_units',
+            'file' : 'run_multiple_best_stimuli.py'
         }
     }
     
@@ -122,6 +149,8 @@ if __name__ == '__main__':
     print('[3] Subset optimization single unit')
     print('[4] Subset optimization top-k unit')
     print('[5] Subset optimization bottom-k unit')
+    print('[6] Best stimuli')
+    
     choice = int(input('Choice: '))
     
     values = list(choices.values())[choice-1]
@@ -140,7 +169,7 @@ if __name__ == '__main__':
         'random_seed'    : random_seed_str,
     }
     
-    if choice == 3:
+    if choice == 3 or choice == 6:
         args['scr_type'] = 'subset'
     if choice == 4:
         args['scr_type'] = 'subset_top'

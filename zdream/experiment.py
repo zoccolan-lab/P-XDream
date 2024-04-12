@@ -157,7 +157,7 @@ class Experiment(ABC):
     def __str__ (self)  -> str: return f'{self.EXPERIMENT_TITLE}[{self._name}]'
     def __repr__(self) -> str: return str(self)
 
-        
+
     # --- PROPERTIES ---
 
     @property
@@ -288,8 +288,10 @@ class Experiment(ABC):
         msg = self._run(msg)
         msg = self._finish(msg)
         
+        self._logger.close()
+        
         return msg
-    
+
 # --- ZDREAM ---
 
 @dataclass
@@ -1079,8 +1081,6 @@ class MultiExperiment:
             out_fp = path.join(self.target_dir, 'data.pickle')
             self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
             store_pickle(data=self._data, path=out_fp)
-            
-        self._logger.close()
 
     def _run(self):
         '''
@@ -1094,7 +1094,6 @@ class MultiExperiment:
             exp = self._Exp.from_config(conf=conf)
             
             msg = exp.run()
-            exp._logger.close()
             
             self._progress(exp=exp, conf=conf, i=i, msg=msg)
 
@@ -1117,4 +1116,5 @@ class MultiExperiment:
         self._elapsed_time = end_time - start_time
         
         self._finish()
-    
+        
+        self._logger.close()

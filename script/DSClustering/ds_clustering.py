@@ -27,11 +27,11 @@ class DSClusteringExperiment(Experiment):
         super().__init__(name, logger, data)
         
         logger.info('Computing cosine similarity...')
-        self._aff_mat   = PairwiseSimilarity(matrix=matrix).cosine_similarity
+        self._aff_mat = PairwiseSimilarity.cosine_similarity(matrix=matrix)
         
         aff_mat_fp = path.join(self.target_dir, 'affinity_matrix.npy')
         logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
-        np.save(file=aff_mat_fp, arr=self._aff_mat)
+        np.save(file=aff_mat_fp, arr=self._aff_mat.A)
         
         self._clu_algo = BaseDSClustering(
             aff_mat=self._aff_mat, 

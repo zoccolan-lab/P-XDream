@@ -13,7 +13,7 @@ from torchvision.transforms.functional import to_pil_image
 
 from PIL import Image
 
-from script.ClusteringOptimization.plotting import plot_activations, plot_scr, plot_subsetting_optimization, plot_weighted
+from script.ClusteringOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_scr, plot_subsetting_optimization, plot_weighted
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, InverseAlexGenerator
@@ -618,6 +618,7 @@ class UnitsWeightingMultiExperiment(_ClusteringOptimizationMultiExperiment):
             logger       = self._logger
         )
 
+
 class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperiment):
 
     def _init(self):
@@ -657,6 +658,7 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
             out_dir      = self.target_dir,
             logger       = self._logger
         )
+
 
 class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiExperiment):
 
@@ -718,6 +720,83 @@ class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiEx
             clusters_activations=self._data['cluster_activations'],
             logger=self._logger,
             out_dir=self.target_dir
+        )
+        
+        self._logger.info(mess='')
+
+
+class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment):
+
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'] = 'Grid of best images for each element in the cluster. '
+        
+        # Dictionary: cluster-idx: optimized_unit: (score, code)
+        self._data['best_codes'] = defaultdict(lambda: defaultdict(Tuple[float, Codes]))
+
+
+    def _progress(
+        self, 
+        exp: ClusteringOptimizationExperiment, 
+        conf: Dict[str, Any],
+        msg : ZdreamMessage,
+        i: int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        clu_conf = conf['clustering']
+        
+        cluster_idx  = clu_conf['cluster_idx']
+        cluster_unit = int(clu_conf['opt_units'])
+        
+        best: Tuple[float, Codes] = msg.stats_gen['best_score'], msg.solution[0]
+        
+        cluster_bests = self._data['best_codes'][cluster_idx]
+        
+        if cluster_unit not in cluster_bests:
+            cluster_bests[cluster_unit] = best
+        
+        else:
+            cluster_bests[cluster_unit] = max(
+                cluster_bests[cluster_unit],
+                best
+            )
+
+
+    def _finish(self):
+        
+        # Dictionary redefinition with no lambdas
+        # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
+        
+        self._data['best_codes'] = {
+            cluster_idx: {
+                cluster_unit: best
+                for cluster_unit, best in units.items()
+            }
+            for cluster_idx, units in self._data['best_codes'].items()
+        }
+        
+        super()._finish()
+        
+        stimuli_dir = path.join(self.target_dir, 'stimuli')
+        self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
+        self._logger.formatting = lambda x: f'> {x}'
+        
+        gen_conf = self._search_config[0]['generator']
+        
+        generator = InverseAlexGenerator(
+            root    = gen_conf['weights'],
+            variant = gen_conf['variant']
+        ).to(device)
+        
+        plot_cluster_best_stimuli(
+            cluster_codes=self._data['best_codes'],
+            generator=generator,
+            logger=self._logger,
+            out_dir=stimuli_dir
         )
         
         self._logger.info(mess='')

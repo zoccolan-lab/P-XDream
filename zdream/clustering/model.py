@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import Tuple
+from typing import Callable, Tuple
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
+from sklearn.metrics import adjusted_rand_score, rand_score
 from sklearn.metrics.pairwise import cosine_similarity
 
+from zdream.clustering.ds import DSClusters
 from zdream.logger import Logger, MutedLogger
 from zdream.utils.misc import default
 
@@ -200,28 +202,56 @@ class PairwiseSimilarity:
     Class for computing pairwise-similarities over a recordings.
     '''
     
-    def __init__(self, matrix: NDArray) -> None:
-        '''
-        Create a new instance of PairwiseSimilarity to compute over a 2-dimensional matrix.
-
-        :param recordings: Matrix NxM representing N objects as M-dimensional vectors
-        :type recordings: Recording
-        :param logger: Logger, defaults to None
-        :type logger: Logger | None, optional
-        '''
-        
-        self._matrix = matrix
-        
-    def __len__(self) -> int:
-        return self._matrix.shape[0]
-    
-    @property
-    def cosine_similarity(self) -> AffinityMatrix:
+    @staticmethod
+    def cosine_similarity(matrix: NDArray) -> AffinityMatrix:
         '''
         Compute pairwise similarity with cosine similarity
         '''
         
-        aff_mat = (cosine_similarity(self._matrix) + np.ones(len(self))) / 2
-        np.fill_diagonal(aff_mat, 0)
+        aff_mat = cosine_similarity(matrix) # in [-1, 1]
         
-        return AffinityMatrix(A=aff_mat) 
+        # Normalize
+        aff_mat += 1.                # in [0, 2]
+        aff_mat /= 2                 # in [0, 1]
+        np.fill_diagonal(aff_mat, 0) # zero columns
+        
+        return AffinityMatrix(A=aff_mat)
+    
+class RandIndex:
+    '''
+    Class for computing RandIndex score between two cluster labelings
+    see: https://en.wikipedia.org/wiki/Rand_index
+    '''
+    
+    @staticmethod
+    def _rand_index(
+        cluster1: DSClusters, 
+        cluster2: DSClusters,
+        score_fun: Callable[[ArrayLike, ArrayLike], float]
+    ) -> float:
+        
+        score = score_fun(
+            cluster1.labeling,
+            cluster2.labeling
+        )
+        
+        return float(score)
+    
+    @staticmethod
+    def rand_index(cluster1: DSClusters, cluster2: DSClusters) -> float:
+        
+        return RandIndex._rand_index(
+            cluster1=cluster1,
+            cluster2=cluster2,
+            score_fun=rand_score  # type: ignore
+        )
+        
+    
+    @staticmethod
+    def adj_rand_index(cluster1: DSClusters, cluster2: DSClusters) -> float:
+        
+        return RandIndex._rand_index(
+            cluster1=cluster1,
+            cluster2=cluster2,
+            score_fun=adjusted_rand_score
+        )

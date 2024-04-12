@@ -292,6 +292,19 @@ class DSClusters:
         
         return sum([element * count for element, count in self.clusters_counts.items()])
     
+    @property
+    def labeling(self) -> NDArray[np.int32]:
+        
+        labeling = np.zeros(self.obj_tot_count, dtype=np.int32) - 1
+        
+        for i, cluster in enumerate(self):   # type: ignore
+            labeling[cluster.labels] = int(i)
+        
+        assert not np.any(labeling == -1)
+        
+        return labeling
+        
+    
     # --- UTILITIES ---
     
     def empty(self):
