@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import os
-from typing import Callable, Tuple
+from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
-from sklearn.metrics import adjusted_rand_score, rand_score
 from sklearn.metrics.pairwise import cosine_similarity
 
-from zdream.clustering.ds import DSClusters
 from zdream.logger import Logger, MutedLogger
 from zdream.utils.misc import default
 
@@ -217,41 +215,3 @@ class PairwiseSimilarity:
         
         return AffinityMatrix(A=aff_mat)
     
-class RandIndex:
-    '''
-    Class for computing RandIndex score between two cluster labelings
-    see: https://en.wikipedia.org/wiki/Rand_index
-    '''
-    
-    @staticmethod
-    def _rand_index(
-        cluster1: DSClusters, 
-        cluster2: DSClusters,
-        score_fun: Callable[[ArrayLike, ArrayLike], float]
-    ) -> float:
-        
-        score = score_fun(
-            cluster1.labeling,
-            cluster2.labeling
-        )
-        
-        return float(score)
-    
-    @staticmethod
-    def rand_index(cluster1: DSClusters, cluster2: DSClusters) -> float:
-        
-        return RandIndex._rand_index(
-            cluster1=cluster1,
-            cluster2=cluster2,
-            score_fun=rand_score  # type: ignore
-        )
-        
-    
-    @staticmethod
-    def adj_rand_index(cluster1: DSClusters, cluster2: DSClusters) -> float:
-        
-        return RandIndex._rand_index(
-            cluster1=cluster1,
-            cluster2=cluster2,
-            score_fun=adjusted_rand_score
-        )

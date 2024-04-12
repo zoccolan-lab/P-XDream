@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from functools import cache
 from os import path
 from statistics import mean
-from typing import Any, Counter, Dict, Iterable, List, Set, Tuple, cast
+from typing import Any, Callable, Counter, Dict, Iterable, List, Set, Tuple, cast
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import NDArray, ArrayLike
+from sklearn.metrics import adjusted_rand_score, rand_score
 
 from zdream.clustering.model import AffinityMatrix, Label, Labels
 from zdream.logger import Logger, MutedLogger
@@ -237,6 +238,7 @@ class DSCluster:
             for lbl in aff_mat.labels
         ]
 
+
 class DSClusters:
     '''
     Class for manipulating a set of `DSCluster` objects
@@ -380,3 +382,25 @@ class DSClusters:
             )
             
         return clusters
+    
+    # --- SCORE ---
+    
+    @staticmethod
+    def rand_index(
+        cluster1: DSClusters, 
+        cluster2: DSClusters
+    ) -> float:
+        
+        score = rand_score(
+            cluster1.labeling,
+            cluster2.labeling
+        )
+        
+        return float(score)
+    
+    def rand_index_(self, cluster: DSClusters) -> float:
+        
+        return DSClusters.rand_index(
+            cluster1=self,
+            cluster2=cluster
+        )
