@@ -1,3 +1,7 @@
+'''
+This is a general purpose file containing utility functions that are used across the entire Zdream framework.
+'''
+
 from copy import deepcopy
 import re
 from subprocess import PIPE, Popen
@@ -16,7 +20,7 @@ from pandas import DataFrame
 from numpy.typing import NDArray
 
 
-from .model import RFBox
+from .types import RFBox
 
 # --- TYPING ---
 
@@ -55,7 +59,7 @@ def fit_bbox(
         (x1_min, x1_max, x2_min, x2_max, ...)
     :rtype: Tuple of ints
     '''
-    if data is None: return (0, 0, 0, 0)
+    if data is None: return 0, 0, 0, 0  # type: ignore
     
     # Get non-zero coordinates of gradient    
     coords = data.nonzero() 
@@ -97,6 +101,18 @@ def to_numpy(data: List | Tuple | Tensor | DataFrame) -> NDArray:
 
 # Default device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+class InputLayer(nn.Module):
+    ''' Class representing a trivial input layer for an ANN '''
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+
+    def forward(self, x : Tensor) -> Tensor:
+        return x
+
+    def _get_name(self) -> str:
+        return 'Input'
 
 def unpack(model : nn.Module) -> nn.ModuleList:
     '''
