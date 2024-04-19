@@ -752,18 +752,21 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         cluster_idx  = clu_conf['cluster_idx']
         cluster_unit = int(clu_conf['opt_units'])
         
-        best: Tuple[float, Codes] = msg.stats_gen['best_score'], msg.solution[0]
+        best_score : float = msg.stats_gen['best_score']
+        best_code  : Codes = msg.solution[0]
         
         cluster_bests = self._data['best_codes'][cluster_idx]
         
         if cluster_unit not in cluster_bests:
-            cluster_bests[cluster_unit] = best
+        
+            cluster_bests[cluster_unit] = best_score, best_code
         
         else:
-            cluster_bests[cluster_unit] = max(
-                cluster_bests[cluster_unit],
-                best
-            )
+            
+            clu_best_score, _ = cluster_bests[cluster_unit]
+            
+            if best_score > clu_best_score:
+                cluster_bests[cluster_unit] = best_score, best_code
 
 
     def _finish(self):
@@ -783,7 +786,7 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         
         stimuli_dir = path.join(self.target_dir, 'stimuli')
         self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
-        self._logger.formatting = lambda x: f'> {x}'
+        os.makedirs(stimuli_dir)
         
         gen_conf = self._search_config[0]['generator']
         
@@ -792,11 +795,13 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
             variant = gen_conf['variant']
         ).to(device)
         
+        self._logger.formatting = lambda x: f'> {x}'
         plot_cluster_best_stimuli(
             cluster_codes=self._data['best_codes'],
             generator=generator,
             logger=self._logger,
             out_dir=stimuli_dir
         )
+        self._logger.reset_formatting()
         
         self._logger.info(mess='')

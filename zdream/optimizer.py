@@ -143,7 +143,7 @@ class Optimizer(ABC):
         :rtype: Tuple[Score, ZdreamMessage]
         ''' 
         
-        self._codes, msg = data
+        self._codes, msg = self._step(data)
 
         return self.codes, msg
     
