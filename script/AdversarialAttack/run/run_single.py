@@ -7,7 +7,7 @@ from os import path
 
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import overwrite_dict
-from zdream.utils.model import DisplayScreen
+from zdream.utils.logger import DisplayScreen
 from script.AdversarialAttack.parser import get_parser
 from script.AdversarialAttack.adversarial_attack import AdversarialAttackExperiment
 
