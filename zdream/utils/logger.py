@@ -20,6 +20,7 @@ from os import path
 import logging
 import tkinter as tk
 from typing import Callable, Dict, List, Tuple
+from rich.console import Console
 
 from PIL import Image, ImageTk
 import loguru
@@ -41,6 +42,8 @@ class Logger:
 	- handling display screens;
 	- organize directory foldering for saving results.
 	'''
+
+	CONSOLE = Console(color_system=None, stderr=None)  # type: ignore
 
 	def __init__(self, path: Dict[str, str] | str  = '.') -> None:
 		'''
@@ -324,7 +327,13 @@ class LoguruLogger(Logger):
 
 		# Initialize logger with unique ID
 		self._logger = loguru.logger.bind(id=self._id)
-		
+
+		self._logger.remove()  # Remove default 'stderr' handler
+
+		# We need to specify end=''" as log message already ends with \n (thus the lambda function)
+		# Also forcing 'colorize=True' otherwise Loguru won't recognize that the sink support colors
+		self._logger.add(lambda m: self.CONSOLE.print(m, end=""), colorize=True)
+
 		# File logging
 		if on_file:
 

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Tuple, Type, cast
 
 import numpy as np
 from numpy.typing import NDArray
+from rich.progress import Progress
 
 from script.cmdline_args import Args
 from zdream.utils.dataset import NaturalStimuliLoader
@@ -1033,9 +1034,9 @@ class MultiExperiment:
         NOTE: This is made to make all experiments share and reuse the same
         screen and prevent screen instantiation overhead and memory leaks.
 
-        NOTE: The method is not a property because it would be pre-executed to simulate
-              attribute behavior even if not explicitly called and we want to avoid
-              the creation of the `DisplayScreen` with no usage. 
+        NOTE:   The method is not a property because it would be pre-executed to simulate
+                attribute behavior even if not explicitly called and we want to avoid
+                the creation of the `DisplayScreen` with no usage. 
         '''
 
         # In the default version we have no screen
@@ -1114,15 +1115,20 @@ class MultiExperiment:
         Run the actual multi-run by executing all experiments in 
         the provided configurations.
         '''
-        for i, conf in enumerate(self._search_config):
-            
-            self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
-            
-            exp = self._Exp.from_config(conf=conf)
-            
-            msg = exp.run()
-            
-            self._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        with Progress(console=Logger.CONSOLE) as progress:
+        
+            for i, conf in progress.track(
+                enumerate(self._search_config), 9
+            ):
+                
+                self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
+                
+                exp = self._Exp.from_config(conf=conf)
+                
+                msg = exp.run()
+                
+                self._progress(exp=exp, conf=conf, i=i, msg=msg)
 
     def run(self):
         '''
