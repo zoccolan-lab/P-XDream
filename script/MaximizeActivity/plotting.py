@@ -1,20 +1,203 @@
 from os import path
-from typing import Any, Dict, List, Tuple, cast
 from collections import defaultdict
-from matplotlib.axes import Axes
-from pandas import DataFrame
-import seaborn as sns
+from typing import Any, Dict, Literal, List, Tuple, cast
 
-from matplotlib import cm, pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
-from zdream.logger import Logger, MutedLogger
+import seaborn as sns
+from pandas import DataFrame
+from matplotlib import cm, pyplot as plt
+from matplotlib.axes import Axes
+
+from zdream.utils.misc import default
+from zdream.utils.logger import Logger, SilentLogger
 from zdream.optimizer import Optimizer
-from zdream.utils.dataset import MiniImageNet
+from zdream.utils.dataset import ExperimentDataset, MiniImageNet
 from zdream.utils.misc import SEM, default
-from zdream.utils.plotting import customize_axes_bounds, set_default_matplotlib_params, subplot_same_lims
+
+# --- DEFAULT PLOTTING PARAMETERS ----
+
+_Shapes = Literal['square', 'rect_tall', 'rect_wide']
+_ax_selection = Literal['x', 'y', 'xy']
+
+def _get_appropriate_fontsz(xlabels: List[str], figure_width: float | int | None = None) -> float:
+    '''
+    Dynamically compute appropriate fontsize for xticks 
+    based on the number of labels and figure width.
+    
+    :param labels: Labels in the abscissa ax.
+    :type labels: List[str]
+    :param figure_width: Figure width in inches. If not specified using default figure width.
+    :type figure_width: float | int | None
+    
+    :return: Fontsize for labels ticks in abscissa ax.
+    :rtype: float
+    '''
+    
+    # Compute longest label length
+    max_length = max(len(label) for label in xlabels)
+    
+    # In case where figure_width not specified, use default figsize
+    figure_width_: int | float = default(figure_width, plt.rcParams['figure.figsize'][0])
+        
+    # Compute the appropriate fontsize to avoid overlaps 
+    # NOTE: Ratio factor 0.0085 was found empirically
+    fontsz = figure_width_ / len(xlabels) / max_length / 0.0085 
+    
+    return fontsz
 
 
+def subplot_same_lims(axes: NDArray, sel_axs:_ax_selection = 'xy'):
+    """set xlim, ylim or both to be the same in all subplots
+
+    :param axes: array of Axes objects (one per subplot)
+    :type axes: NDArray
+    :param sel_axs: axes you want to set same bounds, defaults to 'xy'
+    :type sel_axs: _ax_selection, optional
+    """
+    #lims is a array containing the lims for x and y axes of all subplots
+    lims = np.array([[ax.get_xlim(), ax.get_ylim()] for ax in axes.flatten()])
+    #get the extremes for x and y axis respectively among subplots
+    xlim = [np.min(lims[:,0,:]), np.max(lims[:,0,:])] 
+    ylim = [np.min(lims[:,1,:]), np.max(lims[:,1,:])]
+    #for every Axis obj (i.e. for every subplot) set the extremes among all subplots
+    #depending on the sel_axs indicated (either x, y or both (xy))
+    #NOTE: we could also improve this function by allowing the user to change the
+    #limits just for a subgroup of subplots
+    for ax in axes.flatten():
+        ax.set_xlim(xlim) if 'x' in sel_axs else None
+        ax.set_ylim(ylim) if 'y' in sel_axs else None   
+        
+        
+def set_default_matplotlib_params(
+    l_side  : float     = 15,
+    shape   : _Shapes   = 'square', 
+    xlabels : List[str] = []
+) -> Dict[str, Any]:
+    '''
+    Set default Matplotlib parameters.
+    
+    :param l_side: Length of the lower side of the figure, default to 15.
+    :type l_side: float
+    :param shape: Figure shape, default is `square`.
+    :type shape: _Shapes
+    :param xlabels: Labels lists for the abscissa ax.
+    :type xlabels: list[str]
+    
+    :return: Default graphic parameters.
+    :rtype: Dict[str, Any]
+    '''
+    
+    # Set other dimension sides based on lower side dimension and shape
+    match shape:
+        case 'square':    other_side = l_side
+        case 'rect_wide': other_side = l_side * (2/3)
+        case 'rect_tall': other_side = l_side * (3/2)
+        case _: raise TypeError(f'Invalid Shape. Use one of {_Shapes}')
+    
+    # Default params
+    fontsz           = 35
+    standard_lw      = 4
+    box_lw           = 3
+    box_c            = 'black'
+    subplot_distance = 0.3
+    axes_lw          = 3
+    tick_length      = 6
+    
+    # If labels are given compute appropriate fontsz is the minimum
+    # between the appropriate fontsz and the default fontsz
+    if xlabels:
+        fontsz =  min(
+            _get_appropriate_fontsz(xlabels=xlabels, figure_width=l_side), 
+            fontsz
+        )
+    
+    # Set new params
+    params = {
+        'figure.figsize'                : (l_side, other_side),
+        'font.size'                     : fontsz,
+        'axes.labelsize'                : fontsz,
+        'axes.titlesize'                : fontsz,
+        'xtick.labelsize'               : fontsz,
+        'ytick.labelsize'               : fontsz,
+        'legend.fontsize'               : fontsz,
+        'axes.grid'                     : False,
+        'grid.alpha'                    : 0.4,
+        'lines.linewidth'               : standard_lw,
+        'lines.linestyle'               : '-',
+        'lines.markersize'              : 20,
+        'xtick.major.pad'               : 5,
+        'ytick.major.pad'               : 5,
+        'errorbar.capsize'              : standard_lw,
+        'boxplot.boxprops.linewidth'    : box_lw,
+        'boxplot.boxprops.color'        : box_c,
+        'boxplot.whiskerprops.linewidth': box_lw,
+        'boxplot.whiskerprops.color'    : box_c,
+        'boxplot.medianprops.linewidth' : 4,
+        'boxplot.medianprops.color'     : 'red',
+        'boxplot.capprops.linewidth'    : box_lw,
+        'boxplot.capprops.color'        : box_c,
+        'axes.spines.top'               : False,
+        'axes.spines.right'             : False,
+        'axes.linewidth'                : axes_lw,
+        'xtick.major.width'             : axes_lw,
+        'ytick.major.width'             : axes_lw,
+        'xtick.major.size'              : tick_length,
+        'ytick.major.size'              : tick_length,
+        'figure.subplot.hspace'         : subplot_distance,
+        'figure.subplot.wspace'         : subplot_distance
+    }
+    
+    plt.rcParams.update(params)
+
+    return params
+
+# --- STYLING --- 
+
+def customize_axes_bounds(ax: Axes):
+    '''
+    Modify axes bounds based on the data type.
+
+    For numeric data, the bounds are set using the values of the second and second-to-last ticks.
+    For categorical data, the bounds are set using the indices of the first and last ticks.
+
+    :param ax: Axes object to be modified.
+    :type ax: Axes
+    '''
+    
+    # Get tick labels
+    tick_positions_x = ax.get_xticklabels()
+    tick_positions_y = ax.get_yticklabels()
+    
+    # Compute new upper and lower bounds for both axes
+    t1x = tick_positions_x[ 1].get_text()
+    t2x = tick_positions_x[-2].get_text()
+    t1y = tick_positions_y[ 1].get_text()
+    t2y = tick_positions_y[-2].get_text()
+    
+    # Set new axes bound according to labels type (i.e. numeric or categorical)
+    for side, (low_b, up_b) in zip(['left', 'bottom'], ((t1y, t2y), (t1x, t2x))):
+        
+        # Case 1: Numeric - Set first and last thicks bounds as floats
+        if low_b.replace('−', '').replace('.', '').isdigit():
+            low_b = float(low_b.replace('−','-'))
+            up_b  = float( up_b.replace('−','-'))
+            
+            # Remove ticks outside bounds
+            ticks = tick_positions_y if side == 'left' else tick_positions_x
+            ticks = [float(tick.get_text().replace('−','-')) for tick in ticks 
+                     if low_b <= float(tick.get_text().replace('−','-')) <= up_b]
+            
+            ax.set_yticks(ticks) if side == 'left' else ax.set_xticks(ticks)
+            
+        # Case 2: Categorical - Set first and last thicks bounds as index
+        else:
+            ticks = tick_positions_y if side == 'left' else tick_positions_x
+            low_b = 0
+            up_b  = len(ticks)-1
+        
+        ax.spines[side].set_bounds(low_b, up_b)
+        
 
 def plot_scores(
     scores: Tuple[NDArray, NDArray],
@@ -55,7 +238,7 @@ def plot_scores(
     scores_gen, scores_nat = scores
     stats_gen,  stats_nat  = stats
 
-    logger = default(logger, MutedLogger())
+    logger = default(logger, SilentLogger())
 
     # Plot nat
     use_nat = len(scores_nat) != 0 or stats_nat
@@ -73,7 +256,7 @@ def plot_scores(
 
     # We replicate the same reasoning for the two subplots by accessing 
     # the different key of the score dictionary whether referring to max or mean.
-    for i, k in enumerate(['best_shist', 'mean_shist']):
+    for i, k in enumerate(['best_gens', 'mean_gens']):
         
         # Lineplot of both synthetic and natural scores
         ax[i].plot(stats_gen[k], label=lbl_gen, color=col_gen)
@@ -81,15 +264,15 @@ def plot_scores(
             ax[i].plot(stats_nat[k], label=lbl_nat, color=col_nat)
         
         # When plotting mean values, add SEM shading
-        if k =='mean_shist':
+        if k =='mean_gens':
             for stat, col in zip(
                 [stats_gen, stats_nat] if use_nat else [stats_gen], 
                 [  col_gen,   col_nat] if use_nat else [  col_gen]
             ):
                 ax[i].fill_between(
                     range(len(stat[k])),
-                    stat[k] - stat['sem_shist'],
-                    stat[k] + stat['sem_shist'], 
+                    stat[k] - stat['sem_gens'],
+                    stat[k] + stat['sem_gens'], 
                     color=col, alpha=def_params['grid.alpha']
                 )
                 
@@ -185,10 +368,10 @@ def plot_scores(
         fig_hist.savefig(out_fp, bbox_inches="tight")
 
 
-def plot_scores_by_cat(
+def plot_scores_by_label(
     scores: Tuple[NDArray, NDArray], 
     lbls: List[int], 
-    dataset: MiniImageNet,
+    dataset: ExperimentDataset,
     k: int = 3, 
     gens_window: int = 5,
     out_dir: str | None = None,
@@ -221,7 +404,7 @@ def plot_scores_by_cat(
     # Preprocessing input
     scores_gen, scores_nat = scores 
 
-    logger = default(logger, MutedLogger())
+    logger = default(logger, SilentLogger())
     
     # Cast scores and labels as arrays.
     # NOTE: `nat_scores` are flattened to be more easily 
@@ -360,7 +543,7 @@ def plot_optimizing_units(
         return el[0]
 
     # Default logger
-    logger = default(logger, MutedLogger())
+    logger = default(logger, SilentLogger())
 
     # Check same gen
     all_gen = set(multiexp_data['iter'])
@@ -453,7 +636,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
     :type metrics: str | list[str], optional
     """
     # Default logger
-    logger = default(logger, MutedLogger())
+    logger = default(logger, SilentLogger())
     
     set_default_matplotlib_params(shape='rect_wide')
     # Define custom color palette with as many colors as layers
