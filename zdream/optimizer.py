@@ -1,3 +1,10 @@
+'''
+This file contains the implementation of the `Optimizer` class and its subclasses.
+It provides a set of classes that implement different optimization strategies:
+- `GeneticOptimizer`: Optimizer that implements a genetic optimization strategy.
+- `CMAESOptimizer`: Optimizer that implements a Covariance Matrix Adaptation Evolution Strategy.
+'''
+
 from abc import ABC, abstractmethod
 from typing import Callable, Literal, Tuple
 
@@ -6,20 +13,18 @@ from numpy.typing import NDArray
 from scipy.special import softmax
 from cma import CMAEvolutionStrategy
 
-from .utils.model import Codes, Score
+from .utils.types import Codes, Scores
 from .utils.misc import default
-from .message import ZdreamMessage
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']
 ''' 
-Name of distributions for random initial codes
+Name of distributions for random codes initializations
 '''
 
 class Optimizer(ABC):
     '''
-    Abstract class for a generic optimizer.
-    It implements a function `step()` to produce a new set of
-    codes based on a scoring input.
+    Abstract class for a generic optimizer intended to maximize an objective.
+    It implements a function `step()` to produce a new set of codes based on a scoring input.
     '''
     
     '''
@@ -58,7 +63,7 @@ class Optimizer(ABC):
         rnd_scale   : float = 1.
     ) -> None:
         '''
-        Instantiate a  gradient-free optimizer.
+        Initialize a new gradient free optimizer with proper population size and codes shape.
 
         :param pop_size: Number of initial codes.
         :type pop_size: int
@@ -95,21 +100,24 @@ class Optimizer(ABC):
     def codes(self) -> Codes:
         '''
         Returns codes produced in the last step.
+        It raises an error in the case no codes are available.
+        
+        Codes are internally linearized, the property
+        handles codes reshaping to the expected to the expected shape.
         
         :return: Last produced codes.
         :rtype: Codes
         '''
         
-        # TODO: Codes are optimized in 1 dimension
-        # TODO: Handle ravel/unravel using `self._codes_shape`
-        # TODO: Ignoring batch dimensions
-        
+        # Codes not available check
         if self._codes is None:
             err_msg = 'No codes available. Use `init()` method to generate the first codes.'
             raise ValueError(err_msg)
         
+        # Extract population size
         pop_size, *_ = self._codes.shape
         
+        # Reshape codes to the expected shape
         codes_ = np.reshape(self._codes, (pop_size, *self._codes_shape))
 
         return codes_.copy()
@@ -119,51 +127,55 @@ class Optimizer(ABC):
     def pop_size(self) -> int:
         ''' 
         Number of codes the optimizer is optimizing for.
-        NOTE: The number of codes can change dynamically 
-            during the optimization process
+        NOTE:   The number of codes can change dynamically 
+                during the optimization process
         '''
         
         try:
             pop_size, *_ = self.codes.shape
             return pop_size
+        
         except ValueError:
             return self._init_n_codes
     
     # --- STEP ---
     
-    def step(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def step(self, scores: Scores) -> Codes:
         '''
         Wrapper for actual step implementation in `_step()` that automatizes 
-        saving of last generation codes in `_codes`.
+        saving of last generation codes in `self_codes`.
         
-        :param data: Tuple containing the score associated to each old code and
-                     a generic message.
-        :type data: Tuple[Score, ZdreamMessage]
-        :return: Set of new codes to be used to improve future states scores and a message.
-        :rtype: Tuple[Score, ZdreamMessage]
+        :param scores: Tuple containing the score associated to each old code.
+        :type scores: Score
+        :return: Set of new codes supposed to produce an higher value of the objective.
+        :rtype: Codes
         ''' 
         
-        self._codes, msg = data
-
-        return self.codes, msg
+        self._codes = self._step(scores=scores)
+        
+        return self._codes
+    
     
     @abstractmethod
-    def _step(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _step(self, scores: Scores) -> Codes:
         '''
         Abstract step method.
         The `step()` method receives the scores associated to the
         last produced codes and uses them to produce a new set of codes.
         
-        :param data: Tuple containing the score associated to each old code and
-                     a generic message.
-        :type data: Tuple[Score, ZdreamMessage]
-        :return: Set of new codes to be used to improve future states scores and a message.
-        :rtype: Tuple[Score, ZdreamMessage]
+        By defaults it only checks if codes are available.
+        
+        :param scores: Tuple containing the score associated to each old code.
+        :type scores: Scores
+        :return: Set of new codes to be used to improve future states scores.
+        :rtype: Codes
         '''        
         
         if self._codes is None:
             err_msg = 'No codes provided, use `init()` to generate first ones. '
             raise ValueError(err_msg)
+        
+        pass
     
     
     # --- CODE INITIALIZATION ---
@@ -183,8 +195,8 @@ class Optimizer(ABC):
         :param init_codes: Initial codes for optimizations, optional.
         :type init_codes: NDArray | None.
         :param kwargs: Parameters that are passed to the random
-                       generator to sample from the chosen distribution
-                       (e.g. loc=0, init_cond=normal).
+            generator to sample from the chosen distribution
+            (e.g. loc=0, init_cond=normal).
         '''
         
         # Codes provided
@@ -193,8 +205,8 @@ class Optimizer(ABC):
             # Check shape consistency
             exp_shape = (self.pop_size, *self._codes_shape)
             if init_codes.shape != exp_shape:
-                err_msg = f'Provided initial codes have shape: {init_codes.shape}, '\
-                          f'do not match expected shape {exp_shape}'
+                err_msg =   f'Provided initial codes have shape: {init_codes.shape}, '\
+                            f'do not match expected shape {exp_shape}'
                 raise Exception(err_msg)
             
             # Use input codes as first codes
@@ -209,6 +221,13 @@ class Optimizer(ABC):
         return self.codes
     
     def _rnd_codes_generation(self, **kwargs):
+        '''
+        Generate random codes using the specified distribution.
+        It uses additional parameters passed as kwargs to the random generator.
+        
+        :return: Randomly generated codes.
+        :rtype: Codes
+        '''
         
         return self._rnd_sample(
             size=(self._init_n_codes, *self._codes_shape),
@@ -250,9 +269,9 @@ class GeneticOptimizer(Optimizer):
     
     - The top_k performing solution are left unaltered
     - The rest of the population pool are recombined to produce novel
-      candidate solutions via breeding and random mutations
+        candidate solutions via breeding and random mutations
     - The n_parents contributing to a single offspring are selected
-      via importance sampling based on parents fitness scores
+        via importance sampling based on parents fitness scores
     - Mutations rate and sizes can be adjusted independently 
     '''
     
@@ -281,7 +300,7 @@ class GeneticOptimizer(Optimizer):
         :param rnd_seed: Random state for pseudo-random numbers generation.
         :type rnd_seed: None | int, optional
         :param rnd_distr: Nature of the random distribution for initial
-                          random codes generation, defaults to `normal`.
+            random codes generation, defaults to `normal`.
         :type rnd_distr: RandomDistribution
         :param rnd_scale: Scale for initial codes generation, defaults to 1.
         :type rnd_scale: float
@@ -290,22 +309,24 @@ class GeneticOptimizer(Optimizer):
         :param mut_size: Probability of single-point mutation, defaults to 0.3
         :type mut_size: float, optional
         :param mut_rate: Scale of punctual mutations (how big the effect of 
-                              mutation can be), defaults to 0.1
+            mutation can be), defaults to 0.1
         :type mut_rate: float, optional
         :param n_parents: Number of parents contributing their genome
-                          to a new individual, defaults to 2
+            to a new individual, defaults to 2
         :type n_parents: int, optional
         :param allow_clones: If a code can occur as a parent multiple times when more 
-                             than two parents are used, default to False.
+            than two parents are used, default to False.
         :type allow_clones: bool, optional
         :param temp: Temperature for controlling the softmax conversion
-                     from scores to fitness (the actual prob. to sample 
-                     a given parent for breeding), defaults to 1.
+            from scores to fitness (the actual prob. to sample 
+            a given parent for breeding), defaults to 1.
         :type temp: float, optional
         :param temp_factor: Multiplicative factor for temperature increase (`temp_factor` > 1)  
-                            or decrease (0 < `temp_factor` < 1). Defaults to 1. indicating no change.
+            or decrease (0 < `temp_factor` < 1). Defaults to 1. indicating no change.
         :type temp: float, optional
         '''
+        
+        # TODO Parameter domain sanity check
         
         super().__init__(
             pop_size=pop_size,
@@ -323,11 +344,13 @@ class GeneticOptimizer(Optimizer):
         self._topk         = topk
         self._temp         = temp
         self._temp_factor  = temp_factor
+        
+    # --- STRING REPRESENTATION ---
     
     def __str__(self) -> str:
         ''' Return a string representation of the object for logging'''
         
-        return f'GeneticOptimizer['\
+        return  f'GeneticOptimizer['\
                 f'mut_size: {self._mut_size}'\
                 f'mut_rate: {self._mut_rate}'\
                 f'n_parents: {self._n_parents}'\
@@ -335,32 +358,30 @@ class GeneticOptimizer(Optimizer):
                 f'topk: {self._topk}'\
                 f'temp: {self._temp}'\
                 f'temp_factor: {self._temp_factor}'\
-               ']'
+                ']'
     
     def __repr__(self) -> str: return str(self)
+    ''' Return a string representation of the object''' 
     
     def _step(
         self,
-        data : Tuple[Score, ZdreamMessage],
-        out_pop_size: int | None = None  
-    ) -> Tuple[Codes, ZdreamMessage]:
+        scores : Scores,
+        out_pop_size : int | None = None  
+    ) -> Codes:
         '''
         Optimizer step function that uses an associated score
         to each code to produce a new set of stimuli.
 
-        :param data: Scores associated to each code and message.
-        :type data: Tuple[Score, ZdreamMessage]
+        :param scores: Scores associated to each code.
+        :type scores: Score
         :param out_pop_size: Population size for the next generation. 
-                             Defaults to old one.
+            Defaults to old one.
         :type out_pop_size: int | None, optional
-        :return: Optimized set of codes and a message.
-        :rtype: Tuple[Score, ZdreamMessage]
+        :return: Optimized set of codes.
+        :rtype: Score
         '''
         
-        super()._step(data=data)
-        
-        # Extract score and message
-        scores, msg = data
+        super()._step(scores=scores)
         
         # Use old population size as default
         pop_size = default(out_pop_size, self.pop_size)      
@@ -403,7 +424,7 @@ class GeneticOptimizer(Optimizer):
         
         self._codes = codes_new.copy()
         
-        return codes_new, msg
+        return codes_new
 
     def _breed(
         self,
@@ -417,10 +438,10 @@ class GeneticOptimizer(Optimizer):
         :param population: Population to breed using the fitness.
         :type population: NDArray.
         :param pop_fitness: Population fitness (i.e. probability to be selected
-                            as parents for the next generation).
+            as parents for the next generation).
         :type pop_fitness: NDArray.
         :param num_children: Number of children in the new population, defaults to the
-                             total number of codes (no parent preserved)
+            total number of codes (no parent preserved)
         :type num_children: int | None, optional
         
         :return: Breed population.
@@ -433,12 +454,20 @@ class GeneticOptimizer(Optimizer):
         # i.e. no elements in the previous generation survives in the new one
         num_children = default(num_children, self.pop_size)
         
+        # We use clones if specified and if the number of parents is greater than 2
+        use_clones = self._allow_clones and self._n_parents > 2
+        
+        # Select parents for each child with the two strategies
+        
+        # In the case of clones we do sampling with replacement
         families = self._rng.choice(
             a=self.pop_size,
             size=(num_children, self._n_parents),
             p=pop_fitness,
-            replace=True
-        ) if self._allow_clones and self._n_parents > 2 else np.stack([
+            replace=True 
+        # Otherwise we sample one element at a time without replacement
+        # and combine them to form the family
+        ) if use_clones else np.stack([
             self._rng.choice(
                 a = self.pop_size,
                 size=self._n_parents,
@@ -454,8 +483,10 @@ class GeneticOptimizer(Optimizer):
             replace=True
         )
         
+        # Generate empty children
         children = np.empty(shape=(num_children, np.prod(self._codes_shape)))
 
+        # Fill children with genes from selected parents
         for child, family, lineage in zip(children, families, parentage):
             for i, parent in enumerate(family):
                 genes = lineage == i
@@ -484,6 +515,7 @@ class GeneticOptimizer(Optimizer):
             replace=True
         )
 
+        # Apply mutation
         population[mut_loc] += self._rnd_sample(
             scale=self._mut_size, 
             size=mut_loc.sum()
@@ -502,43 +534,75 @@ class CMAESOptimizer(Optimizer):
         rnd_distr  : RandomDistribution = 'normal',
         rnd_scale  : float = 1.,
         x0         : NDArray | None = None,
-        sigma0     : float = 2,
+        sigma0     : float = 1.,
     ) -> None:
+        '''
+        Initialize a new CMAESOptimizer with initial Multivariate gaussian
+        mean vector and variance for the covariance matrix as initial parameters.
+
+        :param pop_size: Number of initial codes.
+        :type pop_size: int
+        :param codes_shape: Codes shape. If one dimensional the single dimension supported.
+        :type codes_shape: int | Tuple[int, ...]
+        :param rnd_seed: Random state for pseudo-random numbers generation.
+        :type rnd_seed: None | int, optional
+        :param rnd_distr: Nature of the random distribution for initial
+        :type rnd_distr: RandomDistribution, optional
+        :param rnd_scale: Scale for initial codes generation, defaults to 1.
+        :type rnd_scale: float, optional
+        :param x0: Initial mean vector for the multivariate gaussian distribution, defaults to None that 
+            is a zero mean vector.
+        :type x0: NDArray | None, optional
+        :param sigma0: Initial variance for the covariance matrix, defaults to 1.
+        :type sigma0: float, optional
+        '''
         
         super().__init__(
-            pop_size = pop_size, 
-            codes_shape = codes_shape,
-            rnd_seed = rnd_seed, 
-            rnd_distr = rnd_distr,
-            rnd_scale = rnd_scale
+            pop_size=pop_size, 
+            codes_shape=codes_shape,
+            rnd_seed=rnd_seed, 
+            rnd_distr=rnd_distr,
+            rnd_scale=rnd_scale
         )
         
+        # Save variance for the covariance matrix
         self._sigma0 = sigma0
         
+        # Use zero mean vector if not provided
         x0 = default(x0, np.zeros(shape=np.prod(self._codes_shape)))
         
+        # Create dictionary for CMA-ES settings
         inopts = {'popsize': pop_size}
         if rnd_seed: inopts['seed'] = rnd_seed
         
+        # Initialize CMA-ES optimizer
         self._es = CMAEvolutionStrategy(
             x0     = x0,
             sigma0 = sigma0,
             inopts = inopts
         )
-        
+    
+    # --- STRING REPRESENTATION ---
     def __str__ (self) -> str: return f'CMAESOptimizer[sigma0: {self._sigma0}]'
+    ''' Return a string representation of the object '''
+    
     def __repr__(self) -> str: return str(self)
-    
-    def _rnd_codes_generation(self, **kwargs) -> Codes:
-        
-        return np.stack(self._es.ask())
+    ''' Return a string representation of the object '''
 
-    
-    def _step(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+
+    # --- STEP ---
+
+    def _step(self, scores: Scores) -> Codes:
+        '''
+        Perform a step of the optimization process using the CMA-ES optimizer.
+
+        :param scores: Tuple containing the score associated to each old code.
+        :type scores: Scores
+        :return: New set of codes.
+        :rtype: Codes
+        '''
         
-        super()._step(data=data)
-        
-        scores, msg  = data
+        super()._step(scores=scores)
         
         self._es.tell(
             solutions=list(self._codes.copy()), # type: ignore
@@ -547,4 +611,14 @@ class CMAESOptimizer(Optimizer):
         
         self._codes = np.stack(self._es.ask())
         
-        return self._codes, msg
+        return self._codes
+    
+    def _rnd_codes_generation(self, **kwargs) -> Codes:
+        '''
+        Override super method to generate random codes using the CMA-ES optimizer.
+
+        :return: Randomly generated codes using current CMA-ES optimizer state.
+        :rtype: Codes
+        '''
+        
+        return np.stack(self._es.ask())

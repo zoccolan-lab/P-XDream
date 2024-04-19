@@ -1,7 +1,15 @@
+'''
+This file contains the main classes for running experiments in the Zdream framework.
+It consists of two different kind of running experiments:
+- Single experiment: a single instance of an experiment class.
+- Multi experiment: multiple instances of the same experiment class with different hyperparameters.
+'''
+
+
 from __future__ import annotations
 
-from os import path
 import os
+from os import path
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -10,17 +18,18 @@ from typing import Any, Dict, List, Tuple, Type, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from .utils.io_ import read_json, save_json, store_pickle
+from script.cmdline_args import Args
+from zdream.utils.dataset import NaturalStimuliLoader
 
-from .logger import Logger, MutedLogger
-
+from .utils.logger import DisplayScreen, Logger, SilentLogger
 from .generator import Generator
-from .utils.model import Codes, DisplayScreen, MaskGenerator, Stimuli, Score, State
+from .utils.message import Message, ZdreamMessage
 from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
+from .utils.io_ import read_json, save_json, store_pickle
+from .utils.types import Codes, MaskGenerator, Stimuli, Scores, States
 from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
-from .message import Message, ZdreamMessage
 
 # --- EXPERIMENT ABSTRACT CLASS ---
 
@@ -49,7 +58,7 @@ class Experiment(ABC):
     def __init__(
         self,    
         name   : str = 'experiment',
-        logger : Logger = MutedLogger(),
+        logger : Logger = SilentLogger(),
         data   : Dict[str, Any] = dict(),
     ) -> None:
         
@@ -152,20 +161,23 @@ class Experiment(ABC):
         '''
         pass
     
-    # --- MAGIC METHODS ---
+    # --- STRING REPRESENTATION ---
     
     def __str__ (self)  -> str: return f'{self.EXPERIMENT_TITLE}[{self._name}]'
+    ''' Return a string representation of the experiment. '''
+    
     def __repr__(self) -> str: return str(self)
-
+    ''' Return a string representation of the experiment.'''
 
     # --- PROPERTIES ---
 
     @property
-    def target_dir(self) -> str:
+    def dir(self) -> str:
         ''' 
         Experiment target directory is the Logger one.
         '''
-        return self._logger.target_dir
+        
+        return self._logger.dir
     
     @property
     def _components(self) -> List[Tuple[str, Any]]:
@@ -173,6 +185,7 @@ class Experiment(ABC):
         List of experiment components with their name.
         The method is using for logging purposes.
         '''
+        
         return []
     
     # --- RUN ---
@@ -200,7 +213,7 @@ class Experiment(ABC):
         '''
 
         # Create experiment directory
-        self._logger.create_target_dir()
+        self._logger.create_dir()
 
         # Save and log parameters
         if hasattr(self, '_param_config'):
@@ -220,7 +233,7 @@ class Experiment(ABC):
             self._logger.info(mess=f'')
 
             # Save
-            config_param_fp = path.join(self.target_dir, 'params.json')
+            config_param_fp = path.join(self.dir, 'params.json')
             self._logger.info(f"Saving param configuration to: {config_param_fp}")
             save_json(data=self._param_config, path=config_param_fp)
 
@@ -304,6 +317,18 @@ class ZdreamExperimentState:
     The class can be instantiated either by providing an `ZdreamExperiment` object
     or by the folder path containing dumped states.
     '''
+    
+    FILES = [
+        ('mask',       'npy'),
+        ('labels',     'npy'),
+        ('states',     'npz'),
+        ('codes',      'npy'),
+        ('scores_gen', 'npy'),
+        ('scores_nat', 'npy'),
+        ('rec_units',  'npz'),
+        ('scr_units',  'npz'),
+        ('rf_maps',    'npz'),
+    ]
 
     # NOTE: We don't use the defined type aliases `Codes`, `State`, ...
     #       as they refer to a single step in the optimization process, while
@@ -350,7 +375,7 @@ class ZdreamExperimentState:
         )
 
     @classmethod
-    def from_path(cls, in_dir: str, logger: Logger = MutedLogger()):
+    def from_path(cls, in_dir: str, logger: Logger = SilentLogger()):
         '''
         Load an experiment state from a folder where the experiment
         was dumped. If raises a warning for not present states.
@@ -358,27 +383,14 @@ class ZdreamExperimentState:
         :param in_dir: Directory where states are dumped.
         :type in_dir: str
         :param logger: Logger to log i/o information. If not specified
-                       a `MutedLogger` is used. 
+            a `SilentLogger` is used. 
         :type logger: Logger | None, optional
         '''
-
-        # File to load an their extension
-        to_load = [
-            ('mask',       'npy'),
-            ('labels',     'npy'),
-            ('states',     'npz'),
-            ('codes',      'npy'),
-            ('scores_gen', 'npy'),
-            ('scores_nat', 'npy'),
-            ('rec_units',  'npz'),
-            ('scr_units',  'npz'),
-            ('rf_maps',    'npz'),
-        ]
 
         logger.info(f'Loading experiment state from {in_dir}')
 
         loaded = dict()
-        for name, ext in to_load:
+        for name, ext in cls.FILES:
 
             # File path
             fp = path.join(in_dir, f'{name}.{ext}')
@@ -411,41 +423,30 @@ class ZdreamExperimentState:
         )
 
 
-    def dump(self, out_dir: str, logger: Logger = MutedLogger(), store_states: bool = False):
+    def dump(self, out_dir: str, logger: Logger = SilentLogger(), store_states: bool = False):
         '''
         Dump experiment state to an output directory.
-        NOTE: Dumping the subject state is optional as typically memory demanding;
-              This is why is only for this variable is present an flag to indicate if to store them.
+        NOTE:   Dumping the subject state is optional as typically memory demanding;
+                This is why is only for this variable is present an flag to indicate if to store them.
 
         :param out_dir: Directory where to dump states.
         :type out_dir: str
-        :param logger: Logger to log i/o information. If not specified
-                       a `MutedLogger` is used. 
+        :param logger: Logger to log i/o information. If not specified a `SilentLogger` is used. 
         :type logger: Logger | None, optional
         :param store_states: If to dump subject states.
         :type store_states: bool
         '''
-
-        # File to load an their extension
-        to_load = [
-            ('mask',       'npy'),
-            ('labels',     'npy'),
-            ('codes',      'npy'),
-            ('scores_gen', 'npy'),
-            ('scores_nat', 'npy'),
-            ('rec_units',  'npz'),
-            ('scr_units',  'npz'),
-            ('rf_maps',    'npz'),
-        ]
+        
+        loads = self.FILES
         
         if store_states:
-            to_load.append(('states','npz'))
+            loads.append(('states','npz'))
 
         # Output directory
         logger.info(f'Dumping experiment to {out_dir}')
         os.makedirs(out_dir, exist_ok=True)
 
-        for name, ext in to_load:
+        for name, ext in loads:
 
             # File path
             fp = path.join(out_dir, f'{name}.{ext}')
@@ -495,8 +496,8 @@ class ZdreamExperiment(Experiment):
         scorer:         Scorer,
         optimizer:      Optimizer,
         iteration:      int,
-        logger:         Logger = MutedLogger(),
-        mask_generator: MaskGenerator | None = None,
+        logger:         Logger = SilentLogger(),
+        nat_img_loader: NaturalStimuliLoader = NaturalStimuliLoader(),
         data:           Dict[str, Any] = dict(),
         name:           str = 'zdream-experiment'
     ) -> None:
@@ -515,14 +516,11 @@ class ZdreamExperiment(Experiment):
         :param iteration: Number of iteration (generation steps) to perform in the experiment.
         :type iteration: int
         :param logger: Logger instance to log information, warnings and errors,
-                       to handle directory paths and to display screens.
+            to handle directory paths and to display screens.
         :type logger: Logger
-        :param mask_generator: Function for mask generation. The boolean mask discriminates between synthetic
-                               and natural images in the stimuli. A new mask is potentially generated at 
-                               each iteration for a varying number of synthetic stimuli: the function
-                               maps their number to a valid mask (i.e. as many True values as synthetic stimuli).
-                               Defaults to synthetic-only mask.
-        :type mask_generator: MaskGenerator | None
+        :param nat_img_loader: Loader for natural images to be used in the experiment.
+            If not given it defaults to a trivial `NaturalStimuliLoader` that loads no natural image.
+        :type nat_img_loader: NaturalStimuliLoader, optional
         :param data: General purpose attribute to allow the inclusion of any additional type of information.
         :type data: Dict[str, Any]
         :type config: ExperimentConfig
@@ -540,19 +538,14 @@ class ZdreamExperiment(Experiment):
         self._name = name
         
         # Configuration attributes
-        self._generator = generator
-        self._subject   = subject
-        self._scorer    = scorer
-        self._optimizer = optimizer
-        self._logger    = logger
-        self._iteration = iteration
-        
-        # Defaults mask generator to a None mask, which is handled 
-        # by the generator as a synthetic-only stimuli.
-        self._mask_generator = cast(
-            MaskGenerator,
-            default(mask_generator, lambda x: np.array([], dtype=np.bool_))
-        )
+        self._generator      = generator
+        self._subject        = subject
+        self._scorer         = scorer
+        self._optimizer      = optimizer
+        self._logger         = logger
+        self._iteration      = iteration
+        self._nat_img_loader = nat_img_loader
+
 
     def _set_param_configuration(self, param_config: Dict[str, Any]):
         '''
@@ -565,7 +558,7 @@ class ZdreamExperiment(Experiment):
         # NOTE: We remove from the configuration file 
         #       the display screens potentially present from
         #       multi-experiment configuration
-        param_config.pop('display_screens', None)
+        param_config.pop(str(Args.DisplayScreens), None)
         
         super()._set_param_configuration(param_config=param_config)
 
@@ -597,17 +590,34 @@ class ZdreamExperiment(Experiment):
     
     @property
     def optimizer(self) -> Optimizer:       return self._optimizer
-
-    # TODO @Paolo, can you document why this?
+    
     @property
-    def num_imgs(self) -> int:
-        return self._optimizer.pop_size
+    def iteration(self) -> int:             return self._iteration
+    
+    @property
+    def components(self) -> List[Tuple[str, Any]]:
+        '''
+        List of experiment components with their name.
+        '''
+        
+        return [
+            ('Generator', self.generator),
+            ('Subject',   self.subject),
+            ('Scorer',    self.scorer),
+            ('Optimizer', self.optimizer)
+        ]
+    
+    @property
+    def num_imgs(self) -> int: return self._optimizer.pop_size
+    ''' 
+    TODO @Paolo    
+    '''
     
     # --- DATAFLOW METHODS ---
     
     # The following methods implements the main experiment data pipeline:
     #
-    # Codes --Generator--> Stimuli --Subject--> State --Scorer--> Score --Optimizer--> Codes
+    # Codes --[Generator]-> Stimuli --[Subject]-> State --[Scorer]-> Score --[Optimizer]-> Codes
     #
     # Along with component-specific data, a Message travels all along the pipeline. 
     # It allows for a generic data passing between components to communicate an information 
@@ -633,14 +643,28 @@ class ZdreamExperiment(Experiment):
         # Generate the mask based on the number of codes 
         # produced by the optimizer.
         codes, msg = data
-        msg.mask = self._mask_generator(self.num_imgs)
-        msg.masks_history.append(msg.mask)
         
-        data = (codes, msg)
+        # Produce synthetic images
+        gen_img = self.generator(codes=codes)
         
-        return self.generator(data)
+        # Create synthetic stimuli
+        num_gen_img, *_ = gen_img.shape
+        nat_img, labels, mask = self._nat_img_loader.load_natural_images(num_gen_img=num_gen_img)
+        
+        # Interleave the synthetic and natural images
+        stimuli = NaturalStimuliLoader.interleave_gen_nat_stimuli(
+            gen_img=gen_img,
+            nat_img=nat_img,
+            mask=mask
+        )
+        
+        # Update message info
+        msg.masks_history .append(mask)
+        msg.labels_history.append(labels)
+        
+        return stimuli, msg
     
-    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
+    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[States, ZdreamMessage]:
         '''
         The method collects the Subject responses to a presented set of stimuli.
 
@@ -650,8 +674,10 @@ class ZdreamExperiment(Experiment):
         :rtype: Tuple[State, Message]
         '''
         
+        stimuli, msg = data
+        
         # Subject step
-        states, msg = self.subject(data=data)
+        states = self.subject(stimuli=stimuli)
         
         # NOTE: By default we decide not not save subject states
         #       as they can be memory demanding if in terms of RAM memory
@@ -662,7 +688,7 @@ class ZdreamExperiment(Experiment):
     
         return states, msg
     
-    def _states_to_scores(self, data: Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -672,8 +698,10 @@ class ZdreamExperiment(Experiment):
         :rtype: Tuple[Score, Message]
         '''
         
+        states, msg = data
+        
         # Scorer step
-        scores, msg = self.scorer(data=data)
+        scores = self.scorer.__call__(states=states)
     
         # Update message scores history (synthetic and natural)
         msg.scores_gen_history.append(scores[ msg.mask])
@@ -681,13 +709,13 @@ class ZdreamExperiment(Experiment):
         
         return scores, msg
     
-    def _scores_to_codes(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         '''
         The method uses the scores for each stimulus to optimize the images
         in the latent coded space, resulting in a new set of codes.
         
-        NOTE: Depending on the specific Optimizer implementation the number of 
-              codes at each iteration is possibly varying.
+        NOTE:   Depending on the specific Optimizer implementation the number of 
+                codes at each iteration is possibly varying.
 
         :param data: Score associated to the score and a Message 
         :type data: Tuple[Score, Message]
@@ -698,10 +726,10 @@ class ZdreamExperiment(Experiment):
         scores, msg = data
         
         # Filter scores only for synthetic images
-        scores = scores[msg.mask]
+        scores_ = scores[msg.mask]
         
         # Optimizer step
-        codes, msg = self.optimizer._step(data=(scores, msg))
+        codes = self.optimizer.step(scores=scores_)
     
         # Update the message codes history
         msg.codes_history.append(codes)
@@ -747,7 +775,7 @@ class ZdreamExperiment(Experiment):
         state = ZdreamExperimentState.from_msg(msg=msg)
         
         state.dump(
-            out_dir=path.join(self.target_dir, 'state'),
+            out_dir=path.join(self.dir, 'state'),
             logger=self._logger
         )
 
@@ -834,7 +862,6 @@ class MultiExperiment:
     and a default hyperparameters settings.
     '''
     
-    RENDER_PARAM = 'render'
     ''' Parameter flag to render screens'''
     
     # --- INIT ---
@@ -908,7 +935,7 @@ class MultiExperiment:
         self._name    = exp_names[0]
 
         return self._logger_type(
-            conf = {
+            path = {
                 'out_dir': out_dirs[0],
                 'title'  : self._Exp.EXPERIMENT_TITLE,
                 'name'   : self._name
@@ -920,8 +947,8 @@ class MultiExperiment:
     def _logger_type(self) -> Type[Logger]:
         '''
         Returns multi-experiment level logger type. 
-        NOTE: Subclasses that want to change the logger type only need
-              to override this property.
+        NOTE:   Subclasses that want to change the logger type only need
+                to override this property.
         '''
         return Logger
     
@@ -995,7 +1022,7 @@ class MultiExperiment:
     # --- PROPERTIES ---
 
     @property
-    def target_dir(self) -> str: return self._logger.target_dir
+    def target_dir(self) -> str: return self._logger.dir
     
     # --- UTILITIES ---
 
@@ -1036,15 +1063,15 @@ class MultiExperiment:
         #       to the configuration dictionary.
 
         # Add screens if at least one experiment has `render` flag on
-        if any(conf.get(self.RENDER_PARAM, False) for conf in self._search_config):
+        if any(conf.get(str(Args.Render), False) for conf in self._search_config):
 
             self._main_screen = DisplayScreen.set_main_screen() # keep reference
             self._screens     = self._get_display_screens()
 
             # Add screens to configuration to experiments with `render` flag on
             for conf in self._search_config:
-                if conf.get(self.RENDER_PARAM, False):
-                    conf['display_screens'] = self._screens
+                if conf.get(str(Args.Render), False):
+                    conf[str(Args.DisplayScreens)] = self._screens
 
         # Data dictionary
         # NOTE: This is a general purpose data-structure where to save
