@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from script.ClusteringOptimization.parser import LOCAL_SETTINGS
+from script.cmdline_args import LOCAL_SETTINGS
 from zdream.clustering.ds import DSClusters
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import copy_exec
@@ -16,7 +16,7 @@ CLUSTER_CARDINALITY = {
     for i, cluster in enumerate(DSClusters.from_file(CLUSTER_FILE)) # type: ignore
 }
 
-NAME = 'subsetting_optimization_alexnetfc8_singleunit_1clusters'
+NAME = 'trial'
 
 CLUSTER_IDX   = list(range(2))
 ITER          = 2
@@ -28,14 +28,16 @@ def get_arguments_weighting(
         sample: int
 ) -> Tuple[str, str, str]:
         
-        tot_examples = len(cluster_idx) * sample * 2
+        args = [
+            ( str(clu_idx), 'True' if weighted else '', str(np.random.randint(1000, 100000)) )
+            for clu_idx in cluster_idx
+            for weighted in [True, False]
+            for _ in range(sample)
+        ]
         
-        cluster_idx_str =    '#'.join([str(clu_idx) for clu_idx in cluster_idx for _ in range(sample)]*2)
-        
-        weighted_score_str = '#'.join(['' for _ in range(tot_examples//2)] + ['True' for _ in range(tot_examples//2)])
-        weighted_score_str = f'"{weighted_score_str}"'
-        
-        random_seed_str =    '#'.join([str(np.random.randint(1000, 100000)) for _ in range(tot_examples)])
+        cluster_idx_str =    '#'.join([a for a, _, _ in args])
+        weighted_score_str = '#'.join([a for _, a, _ in args])
+        random_seed_str =    '#'.join([a for _, _, a in args])
         
         return cluster_idx_str, weighted_score_str, random_seed_str
     
@@ -45,19 +47,16 @@ def get_arguments_scoring(
         sample: int
 ) -> Tuple[str, str, str]:
         
-        tot_examples = len(cluster_idx) * sample * 3
+        args = [
+            ( str(clu_idx), scr_type, str(np.random.randint(1000, 100000)) )
+            for clu_idx in cluster_idx
+            for scr_type in ['cluster', 'random', 'random_adj']
+            for _ in range(sample)
+        ]
         
-        cluster_idx_str =    '#'.join([str(clu_idx) for clu_idx in cluster_idx for _ in range(sample)]*3)
-        
-        weighted_score_str = '#'.join(
-            ['cluster'    for _ in range(tot_examples//3)] +\
-            ['random'     for _ in range(tot_examples//3)] +\
-            ['random_adj' for _ in range(tot_examples//3)]
-        )
-        weighted_score_str = f'"{weighted_score_str}"'
-        
-        
-        random_seed_str =    '#'.join([str(np.random.randint(1000, 100000)) for _ in range(tot_examples)])
+        cluster_idx_str    = '#'.join([a for a, _, _ in args])
+        weighted_score_str = '#'.join([a for _, a, _ in args])
+        random_seed_str    = '#'.join([a for _, _, a in args])
         
 
         return cluster_idx_str, weighted_score_str, random_seed_str
@@ -68,7 +67,7 @@ def get_arguments_subset_optimization(
         last: bool = True
 ) -> Tuple[str, str, str]:
         
-        triples = [ 
+        args = [ 
                 (
                     opt_unit+1,
                     clu_idx,
@@ -79,9 +78,9 @@ def get_arguments_subset_optimization(
                 for _ in range(sample)
         ]
         
-        opt_units_str = '#'.join([str(a) for a, _, _ in triples])
-        clu_idx_str   = '#'.join([str(a) for _, a, _ in triples])
-        rnd_seed_str  = '#'.join([str(a) for _, _, a in triples])
+        opt_units_str = '#'.join([str(a) for a, _, _ in args])
+        clu_idx_str   = '#'.join([str(a) for _, a, _ in args])
+        rnd_seed_str  = '#'.join([str(a) for _, _, a in args])
         
         return clu_idx_str, opt_units_str, rnd_seed_str
 
@@ -90,7 +89,7 @@ def get_arguments_best_stimuli(
         sample: int
 ) -> Tuple[str, str, str]:
         
-        triples = [ 
+        args = [ 
                 (
                     opt_unit+1,
                     clu_idx,
@@ -101,9 +100,9 @@ def get_arguments_best_stimuli(
                 for _ in range(sample)
         ]
         
-        opt_units_str = '#'.join([str(a) for a, _, _ in triples])
-        clu_idx_str   = '#'.join([str(a) for _, a, _ in triples])
-        rnd_seed_str  = '#'.join([str(a) for _, _, a in triples])
+        opt_units_str = '#'.join([str(a) for a, _, _ in args])
+        clu_idx_str   = '#'.join([str(a) for _, a, _ in args])
+        rnd_seed_str  = '#'.join([str(a) for _, _, a in args])
         
         return clu_idx_str, opt_units_str, rnd_seed_str
 
