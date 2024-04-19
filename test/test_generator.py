@@ -10,10 +10,10 @@ import numpy as np
 from typing import List, Tuple, Dict, Any
 from zdream.utils.dataset import RandomImageDataset
 from zdream.utils.io_ import read_json
-from zdream.utils.model import Mask
-from zdream.utils.model import Stimuli
-from zdream.generator import InverseAlexGenerator
-from zdream.utils.model import Message
+from zdream.utils.types import Mask
+from zdream.utils.types import Stimuli
+from zdream.generator import DeePSiMGenerator
+from zdream.utils.types import Message
 from torch.utils.data import Dataset, DataLoader
 from torch import Tensor
 from zdream.utils.misc import device
@@ -45,7 +45,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         
     def run_mock_inp(
             self, 
-            generator : InverseAlexGenerator, 
+            generator : DeePSiMGenerator, 
             mask: Mask | None = None
         ) -> Tuple[Stimuli, Message]:
         
@@ -59,12 +59,12 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self,
         n_img : int, 
         batch_size : int
-    ) -> InverseAlexGenerator:
+    ) -> DeePSiMGenerator:
         
         # Create a generator with a data loader, for which  
         # number of images, images size and batch size are required.
         
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='fc8'
         ).to(device)
@@ -84,7 +84,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         return generator
     
     def test_loading_fc8(self):
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='fc8'
         ).to(device)
@@ -95,7 +95,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.assertTrue(all(msg.mask))
     
     def test_loading_fc7(self):
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='fc7'
         ).to(device)
@@ -106,7 +106,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.assertTrue(all(msg.mask))
 
     def test_loading_conv(self):
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='conv4'
         ).to(device)
@@ -117,7 +117,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.assertTrue(all(msg.mask))
 
     def test_loading_norm1(self):
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='norm1'
         ).to(device)
@@ -129,7 +129,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
 
     
     def test_loading_norm2(self):
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='norm2'
         ).to(device)
@@ -140,7 +140,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         self.assertTrue(all(msg.mask))
     
     def test_loading_pool(self):
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='pool5'
         ).to(device)
@@ -196,7 +196,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         # We check an error is raised if the mask requires 
         # natural images but no dataloader is provided
         
-        generator_no_dataloader = InverseAlexGenerator(
+        generator_no_dataloader = DeePSiMGenerator(
             root=self.root,
             variant='fc8'
         ).to(device)
@@ -209,7 +209,7 @@ class InverseAlexGeneratorTest(unittest.TestCase):
         # We check an error is raised in the case natural
         # and synthetic images have different shapes.
         
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root=self.root,
             variant='fc8'
         ).to(device)

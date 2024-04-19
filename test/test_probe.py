@@ -6,9 +6,9 @@ import torch
 import unittest
 import numpy as np
 
-from zdream.utils.model import Message
-from zdream.probe import InfoProbe
-from zdream.subject import NetworkSubject
+from zdream.utils.types import Message
+from zdream.utils.probe import InfoProbe
+from zdream.subject import TorchNetworkSubject
 
 class InfoProbeTest(unittest.TestCase):
 
@@ -28,7 +28,7 @@ class InfoProbeTest(unittest.TestCase):
 
     def test_shape_recovery(self):
 
-        subject = NetworkSubject(
+        subject = TorchNetworkSubject(
             network_name=self.network_name,
             record_probe=None,
             pretrained=self.pretrained,
@@ -69,7 +69,7 @@ class InfoProbeTest(unittest.TestCase):
         self.assertEqual(shapes[layers[20]], (self.num_imgs, 1000)) # third  linear
 
     def test_forward_receptive_field(self):
-        subject = NetworkSubject(
+        subject = TorchNetworkSubject(
             network_name=self.network_name,
             record_probe=None,
             pretrained=self.pretrained,
@@ -120,7 +120,7 @@ class InfoProbeTest(unittest.TestCase):
         self.assertListEqual(fields[(inp, last)], [(0, w, 0, h)] * self.num_unit)
         
     def test_backward_receptive_field(self):
-        subject = NetworkSubject(
+        subject = TorchNetworkSubject(
             network_name=self.network_name,
             record_probe=None,
             pretrained=self.pretrained,

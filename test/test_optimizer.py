@@ -5,10 +5,10 @@ Collection of codes for testing the workings of zdream optimizers
 import unittest
 import numpy as np
 from numpy.typing import NDArray
-from zdream.utils.model import Codes
+from zdream.utils.types import Codes
 from zdream.optimizer import GeneticOptimizer, RandomDistribution
 
-from zdream.utils.model import Message
+from zdream.utils.types import Message
 
 from typing import cast
 
