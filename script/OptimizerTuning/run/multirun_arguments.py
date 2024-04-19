@@ -14,19 +14,23 @@ NAME = 'opt_comparison_cluster'
 VALUES         = [0.1, 0.5, 1., 2., 5., 10., 20., 50.]
 HYPERPARAMETER = 'sigma0'
 TYPE           = 'cmaes'
-UNITS          = "21=[470 503 504 505 572 618 619 626 631 666 696 710 711 720 725 737 773 804 813 828 846 849 855 859 868 883 898 899 907 910 966 968]"
-ITER           = 200
-SAMPLE         = 15
+UNITS          = '21=[1 2 3]'
+ITER           = 2
+SAMPLE         = 2
 
 
 def get_arguments_opt_comparison(
     sample: int
 ) -> Tuple[str, str]:
         
-        tot_examples =  sample * 2
+        args = [
+            ( opt, str(np.random.randint(1000, 100000)) )
+            for opt in ['genetic', 'cmaes']
+            for _   in range(sample)
+        ]
         
-        optimizer_str   = '#'.join([opt for opt in ['genetic', 'cmaes'] for _ in range(sample)])
-        random_seed_str = '#'.join([str(np.random.randint(1000, 100000)) for _ in range(tot_examples)])
+        optimizer_str   = '#'.join([a for a, _ in args])
+        random_seed_str = '#'.join([a for _, a in args])
         
         return optimizer_str, random_seed_str
 
@@ -34,11 +38,15 @@ def get_arguments_layer_comparison(
     values: List[Any],
     sample: int
 ) -> Tuple[str, str]:
+    
+        args = [
+            (v, str(np.random.randint(1000, 100000)) )
+            for v in values
+            for _ in range(sample)
+        ]
         
-        tot_examples =  sample * len(values)
-        
-        values_str      = '#'.join([str(v) for v in values for _ in range(sample)])
-        random_seed_str = '#'.join([str(np.random.randint(1000, 100000)) for _ in range(tot_examples)])
+        values_str      = '#'.join([str(a) for a, _ in args])
+        random_seed_str = '#'.join([a for _, a in args])
         
         return values_str, random_seed_str
 

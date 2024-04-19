@@ -1,23 +1,23 @@
-from script.OptimizerTuning.parser import get_parser
-from script.OptimizerTuning.optimizer_tuning import OptimizationTuningExperiment, HyperparameterTuningMultiExperiment
-from zdream.utils.io_ import read_json
-from zdream.utils.misc import flatten_dict
+
+from script.cmdline_args import Args
+from script.OptimizerTuning.args import ARGS
+from script.OptimizerTuning.optimizer_tuning import OptimizationTuningExperiment, OptimizerComparisonMultiExperiment
+
 
 if __name__ == '__main__':
     
-    parser = get_parser(multirun=True)
+    parser = Args.get_parser(args=ARGS, multirun=True)
+    parser.add_argument('--hyperparameter', type=str, default=1)
+    args   = vars(parser.parse_args())
     
-    parser.add_argument('--hyperparameter', type=str)
-    
-    args = vars(parser.parse_args())
-    
-    hyperparameter = args.pop('hyperparameter')
+    hyperparameter = args['hyperparameter']
+    args.pop('hyperparameter')
 
-    mrun_experiment = HyperparameterTuningMultiExperiment.from_args(
-        args=args,
+    mrun_experiment = OptimizerComparisonMultiExperiment.from_args(
+        args=args, 
         exp_type=OptimizationTuningExperiment
     )
     
-    mrun_experiment.hyperparameter = hyperparameter
+    setattr(mrun_experiment, 'hyperparameter', hyperparameter)
 
     mrun_experiment.run()
