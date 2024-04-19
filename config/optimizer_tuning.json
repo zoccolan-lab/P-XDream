@@ -15,8 +15,8 @@
     },
     "optimizer": {
         "optimizer_type": "genetic",
-        "rnd_distr": "normal",
-        "rnd_scale": 1.0,
+        "random_distr": "normal",
+        "random_scale": 1.0,
         "pop_size": 50,
         "mut_size": 0.5,
         "mut_rate": 0.5,
