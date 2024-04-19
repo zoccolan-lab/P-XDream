@@ -6,11 +6,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from script.DSClustering.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
+from script.cmdline_args import Args
+from script.script_utils import make_dir
 from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
 from zdream.clustering.algo import BaseDSClustering
 from zdream.experiment import Experiment
-from zdream.logger import Logger, LoguruLogger, MutedLogger
-from zdream.message import Message
+from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
+from zdream.utils.message import Message
 
 class DSClusteringExperiment(Experiment):
     
@@ -20,19 +22,22 @@ class DSClusteringExperiment(Experiment):
         self,
         matrix  : NDArray,
         name    : str = 'ds_clustering', 
-        logger  : Logger = MutedLogger(),
+        logger  : Logger = SilentLogger(),
         data    : Dict[str, Any] = dict()
     ) -> None:
         
         super().__init__(name, logger, data)
         
+        # Compute cosine similarity
         logger.info('Computing cosine similarity...')
         self._aff_mat = PairwiseSimilarity.cosine_similarity(matrix=matrix)
         
-        aff_mat_fp = path.join(self.target_dir, 'affinity_matrix.npy')
+        # Save affinity matrix
+        aff_mat_fp = path.join(self.dir, 'affinity_matrix.npy')
         logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
         np.save(file=aff_mat_fp, arr=self._aff_mat.A)
         
+        # Define clustering algorithm
         self._clu_algo = BaseDSClustering(
             aff_mat=self._aff_mat, 
             min_elements=data['min_elements'],
@@ -47,28 +52,27 @@ class DSClusteringExperiment(Experiment):
         log_conf = conf['logger']
         
         # --- MATRIX ---
-        matrix = np.load(clu_conf['recordings'])
+        matrix = np.load(clu_conf[str(Args.Recordings)])
         
         # --- LOGGER ---
-        log_conf['title'] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(conf=log_conf)
+        log_conf[str(Args.ExperimentTitle)] = cls.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=log_conf)
         
         # --- DATA ---
         data = {
-            'min_elements': clu_conf['min_elements'],
-            'max_iter':     clu_conf['max_iter']
+            'min_elements': clu_conf[str(Args.MinElements)],
+            'max_iter':     clu_conf[str(Args.MaxIterations)]
         }
         
         return DSClusteringExperiment(
             matrix=matrix,
             logger=logger,
-            name=log_conf['name'],
+            name=log_conf[str(Args.ExperimentName)],
             data=data
         )
-        
+    
     @property
-    def _components(self) -> List[Tuple[str, Any]]:
-        return [('AffinityMatrix', self._aff_mat)]
+    def _components(self) -> List[Tuple[str, Any]]: return [('AffinityMatrix', self._aff_mat)]
 
 
     def _run(self, msg: Message) -> Message:
@@ -86,25 +90,25 @@ class DSClusteringExperiment(Experiment):
         
         # Save
         clusters.dump(
-            out_fp=self.target_dir,
+            out_fp=self.dir,
             logger=self._logger
         )
         
         # Plots
-        plot_dir = path.join(self.target_dir, 'plots')
-        self._logger.info(f'Saving plots to {plot_dir}')
+        
+        plot_dir = make_dir(path=path.join(self.dir, 'plots'), logger=self._logger)
         
         self._logger.formatting = lambda x: f'> {x}'
-        
+
         plot_cluster_extraction_trend(
             clusters=clusters,
-            out_dir=self.target_dir,
+            out_dir=plot_dir,
             logger=self._logger
         )
         
         plot_cluster_ranks(
             clusters=clusters,
-            out_dir=self.target_dir,
+            out_dir=plot_dir,
             logger=self._logger
         )
         
