@@ -1,5 +1,6 @@
 # IDE local files
 *.vscode
+*.idea
 
 # Local packages
 *egg*
@@ -14,7 +15,6 @@ result/
 out/
 
 # Jupyter
-*.ipynb
 
 # Local settings - include example files
 *local_settings*
