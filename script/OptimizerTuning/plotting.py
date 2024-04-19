@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
-from zdream.logger import Logger, MutedLogger
+from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.misc import SEM
 
 
@@ -15,7 +15,7 @@ def plot_hyperparam(
     values: List[Any],
     scores: List[List[NDArray]],
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     COLORS = [
@@ -85,7 +85,7 @@ def plot_optim_type_comparison(
     opt_types   : List[str],
     scores  : List[List[NDArray]],
     out_dir : str,
-    logger  : Logger = MutedLogger()
+    logger  : Logger = SilentLogger()
 ):
     
     COLORS = {

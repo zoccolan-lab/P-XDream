@@ -1,21 +1,13 @@
-"""
-TODO Experiment description
-"""
-
-import matplotlib
-
-from script.OptimizerTuning.parser import get_parser
-from script.OptimizerTuning.optimizer_tuning import OptimizationTuningExperiment
+from script.cmdline_args import Args
 from script.script_utils import run_single
+from script.OptimizerTuning.args import ARGS
+from script.OptimizerTuning.optimizer_tuning import OptimizationTuningExperiment
 
-matplotlib.use('TKAgg')
 
 if __name__ == '__main__':
 
-    parser = get_parser()
+    parser = Args.get_parser(args=ARGS)
     args = vars(parser.parse_args())
     
-    run_single(
-        args=args,
-        exp_type=OptimizationTuningExperiment
-    )
+    run_single(args=args, exp_type=OptimizationTuningExperiment)
+

@@ -1,7 +1,7 @@
 from copy import copy
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.clustering.model import AffinityMatrix
-from zdream.logger import Logger, MutedLogger
+from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.misc import default
 
 
@@ -49,7 +49,7 @@ class DSClustering(ABC):
         :type delta_eps: float, optional
         :param zero_eps: Approximation bound for probabilities zero flattening, defaults to 1e-12.
         :type zero_eps: float, optional
-        :param logger: Logger to log clustering progress. If not given MutedLogger is set.
+        :param logger: Logger to log clustering progress. If not given SilentLogger is set.
         :type logger: Logger | None, optional
         '''
 
@@ -63,7 +63,7 @@ class DSClustering(ABC):
         self._zero_eps     = zero_eps
 
         # Default logger
-        self._logger = default(logger, MutedLogger())
+        self._logger = default(logger, SilentLogger())
 
         # Clusters
         self._clusters: DSClusters = DSClusters()

@@ -5,13 +5,13 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from zdream.clustering.ds import DSClusters
-from zdream.logger import Logger, MutedLogger
+from zdream.utils.logger import Logger, SilentLogger
 
 
 def plot_cluster_extraction_trend(
     clusters: DSClusters,
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     # Extract clusters cardinalities
@@ -51,7 +51,7 @@ def plot_cluster_extraction_trend(
 def plot_cluster_ranks(
     clusters: DSClusters,
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     fig, ax = plt.subplots(figsize=(20, 8))

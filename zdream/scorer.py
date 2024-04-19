@@ -1,22 +1,26 @@
+'''
+This file implements the Scorer, a class for computing stimuli scores given subject states.
+A Scorer perform mapping and reducing operation across units and layers and returns a float score for each state.
+
+The file implements three main classes:
+1. TargetScorer: A class for computing the MSE between the subject state and a fixed target.
+2. ActivityScorer: A class for computing the activity of units in different layers.
+3. WeightedPairSimilarityScorer: A class for computing weighted similarities between groups of subject states.
+'''
+
 from _collections_abc import dict_keys
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable, Dict, List, Tuple, cast, Literal
 
 import numpy as np
-from einops import rearrange
-from einops import reduce
-from einops.einops import Reduction
 from numpy.typing import NDArray
+from einops import rearrange, reduce
+from einops.einops import Reduction
 from scipy.spatial.distance import pdist
 
-from zdream.utils.model import UnitsReduction, UnitsMapping
-
-from .utils.model import LayerReduction, ScoringUnit, UnitsMapping
-from .utils.model import Score
-from .utils.model import State
+from .utils.types import LayerReduction, ScoringUnit, Scores, States, UnitsReduction, UnitsMapping
 from .utils.misc import default
-from .message import ZdreamMessage
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
 #       which we need to redefine for issues with importing private variables from modules.
@@ -36,18 +40,17 @@ class Scorer(ABC):
     '''
     Abstract class for computing stimuli scores given subject states. 
 
-    The score is break in three steps:
+    The scoring process is break up in three steps:
 
     1. Mapping activations - a function for activation element-wise mapping for each layer.
-    2. Reducing unit - a function that reduces multiple units of a single layer into
-                       a single score for that specific layer.
+    2. Reducing unit  - a function that reduces multiple units of a single layer into
+                        a single score for that specific layer.
     3. Reducing layer - a function that reduces scores for different layer into a single
                         score associated to a particular stimulus.
     '''
     
     # Name used in string object representation
     _NAME = 'Scorer'
-
 
     def __init__(
         self,
@@ -56,54 +59,60 @@ class Scorer(ABC):
         units_map    : UnitsMapping = lambda x: x,
     ) -> None:
         '''
-        Initialize a scoring by defining its three basic operations.
+        Initialize a scorer by defining the three main transformations.
 
-        :param units_reduce: Function implementing the logic for computing
-                             the score of a single layer across different units.
-        :param layer_reduction: Reducing function across layer scores.
-        :param units_map: Mapping function across activation units, defaults to identity.
+        :param units_reduce: Function to reduce units activations.
+        :type units_reduce: UnitsReduction
+        :param layer_reduce: Function to reduce layer scores.
+        :type layer_reduce: LayerReduction
+        :param units_map: Function to map units activations.
+        :type units_map: UnitsMapping
         '''
 
+        # Save input transformation functions
         self._units_map    : UnitsMapping   = units_map
         self._layer_reduce : LayerReduction = layer_reduce
         self._units_reduce : UnitsReduction = units_reduce
 
 
-    def __call__(self, data : Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
+    def __call__(self, states : States) -> Scores:
         '''
         Compute the subject scores given a subject state by 
-        using the mapping and reducing functions.
+        using the proper mapping and reducing functions.
 
-        :param data: The state of the subject and the message.
-        :type state: State
-        :return: Array of stimuli scores and the message.
-        :rtype: Score
+        :param states: Tuple containing the subject state.
+        :type states: State
+        :return: Tuple containing the scores associated to input stimuli.
+        :rtype: Scores
         '''
-        
-        state, msg = data
 
         # 1. Mapping activations
-        state_mapped: State  = {
+        state_mapped: States  = {
             layer: self._units_map(act.copy())
-            for layer, act in state.items()
+            for layer, act in states.items()
         }
         
         # 2. Performing units reduction
-        layer_scores: Dict[str, Score] = self._units_reduce(state_mapped)
+        layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
         
         # 3. Performing layer reduction
         scores = self._layer_reduce(layer_scores)
         
-        return (scores, msg)
+        return scores
     
-    # --- MAGIC METHODS ---
+    # --- STRING REPRESENTATION ---
         
     def __str__(self) -> str:
+        ''' Return a string representation of the scorer. '''
         
+        # Get the dimensions of the target for different layers
         dims = ", ".join([f"{k}: {len(v)} units" for k, v in self.scoring_units.items()])
+        
         return f'{self._NAME}[target size: ({dims})]'
     
     def __repr__(self) -> str: return str(self)
+    ''' Return a string representation of the scorer. '''
+    
 
     # --- PROPERTIES ---
 
@@ -111,8 +120,8 @@ class Scorer(ABC):
     @abstractmethod
     def scoring_units(self) -> Dict[str, ScoringUnit]:
         '''
-        Returns the scoring units associated to each layer
-        The units are referred to index in the activation
+        Returns the scoring units associated to each layer.
+        Units index refers to activations in the layer.
 
         :return: Scoring units across layers.
         :rtype: Dict[str, ScoringUnit]
@@ -124,8 +133,8 @@ class Scorer(ABC):
         ''' 
         Returns the total number of scoring units
 
-        :return: 
-        :rtype:
+        :return: Total number of scoring units.
+        :rtype: int
         '''
 
         return sum(
@@ -148,12 +157,12 @@ class Scorer(ABC):
         
     def _check_key_consistency(self, scoring: dict_keys, state: dict_keys):
         '''
-        Check subject state to contains at least the target keys for computing the scores of interest. 
+        Check subject state to contain at least the target keys for computing the scores of interest. 
         Additional keys in subject (i.e. layers only for recording) will be ignored by the scorer.
 
-        :param scoring: Scoring layers
+        :param scoring: Scoring layers.
         :type scoring: dict_keys
-        :param state: State layers
+        :param state: State layers.
         :type state: dict_keys
         :raises ValueError: If scoring layers were not recorded.
         '''
@@ -172,40 +181,46 @@ class MSEScorer(Scorer):
     
     def __init__(
         self,
-        target          : State,
+        target          : States,
         layer_reduction : Reduction = 'mean'
     ) -> None:
         '''
-        The constructor only requires the target and the scoring function.
-        The mapping function is the MSE form the target.
+        Initialize the MSE scorer as a neuron which preferred stimulus is fixed 
+        as a target state. The MSE is computed as the mean squared error between
+        the subject state and the fixed target.
 
-        :param target: Target state for the neuron.
+        :param target: Fixed target state.
         :type target: State
-        :param layer_reduction: Reducing function across layer scores.
+        :param layer_reduction: Reducing function across layer scores, defaults to the mean.
         :type layer_reduction: ScoringReducing
         '''
         
-        self._target : State = target
+        self._target : States = target
         
-        # The mapping function is the MSE between the subject state
-        # and the fixed target. 
-        units_reduce: UnitsReduction = partial(self._mse_map, target=self._target)
+        # The mapping function is the MSE between the 
+        # subject state and the fixed target. 
+        units_reduce: UnitsReduction = partial(self._mse_reduction, target=self._target)
 
+        # The layer reduction function is the input reducing function across layers
         layer_reduce: LayerReduction = partial(
             self._dict_values_reduction,
             reduction=layer_reduction
         )
         
+        # Initialize the parent class providing the two reductions
         super().__init__(
             units_reduce=units_reduce,
             layer_reduce=layer_reduce
         )
         
-    def _mse_map(self, state: State, target: State) -> Dict[str, Score]:
+        
+    # --- MSE ---    
+    
+    def _mse_reduction(self, state: States, target: States) -> Dict[str, Scores]:
         '''
-        Compute MSE across layer between state and target.
+        Compute the MSE between the subject state and the fixed target.
 
-        :param state: Recorded subject state.
+        :param state: Subject state.
         :type state: State
         :param target: Fixed target.
         :type target: State
@@ -216,6 +231,9 @@ class MSEScorer(Scorer):
         # Check for layer name consistency
         self._check_key_consistency(scoring=target.keys(), state=state.keys())
         
+        # Compute the MSE between the subject state and the fixed target
+        # NOTE: The minus sign is used to have the best score (0 distance) 
+        #       as the maximum value, as the employed optimizer is a maximizer.
         scores = {
             layer: - self.mse(state[layer], target[layer]) for layer in state.keys()
             if layer in target
@@ -233,34 +251,57 @@ class MSEScorer(Scorer):
 
         return np.mean(np.square(a - b), axis=1).astype(np.float32)
     
+    # --- PROPERTIES ---
+    
     @property
-    def target(self) -> State:
-        return self._target
+    def target(self) -> States: return self._target
+    ''' Fixed target state for the MSE scorer. '''
     
     @property
     def scoring_units(self) -> Dict[str, ScoringUnit]:
+        '''
+        Return the target units for each layer as the product of the target shapes.
+
+        :return: Target units for each layer.
+        :rtype: Dict[str, ScoringUnit]
+        '''
 
         return {k: list(range(np.prod(v.shape))) for k, v in self._target.items()}
 
-    
+        ...
 class ActivityScorer(Scorer):
     '''
-    Scorer class to compute a single cross 
-    aggregating across multiple units in different layers
+    A Scorer class to compute a single cross aggregating across multiple units in different layers.
+    
+    This class is used to score the activity of units in different layers. 
+    
+    It takes a dictionary of scoring units, which maps layer names to the indices of the units to be scored in that layer. 
+    It also supports different reduction methods for aggregating the scores across units and layers.
     '''
     
     name = 'ActivityScorer'
     
     def __init__(
         self, 
-        scoring_units: Dict[str, ScoringUnit],
-        units_reduction: Reduction = 'mean',
-        layer_reduction: Reduction = 'mean',
-        units_map:    UnitsMapping = lambda x: x
+        scoring_units   : Dict[str, ScoringUnit],
+        units_reduction : Reduction = 'mean',
+        layer_reduction : Reduction = 'mean',
+        units_map       : UnitsMapping = lambda x: x
     ) -> None:
+        '''
+        Initialize the Scorer object.
+
+        :param scoring_units: Units to score for each layer.
+        :type scoring_units: Dict[str, ScoringUnit]
+        :param units_reduction: Reduction method to be applied to the scoring units. Defaults to 'mean'.
+        :type units_reduction:  Reduction, optional
+        :param layer_reduction: Reduction method to be applied to the layers. Defaults to 'mean'.
+        :type layer_reduction: Reduction, optional
+        :param units_map: Mapping function for the scoring units. Defaults to identity function.
+        :type units_map: UnitsMapping, optional
+        '''
         
-        
-        # Units used for scoring
+        # Save units involved in scoring
         self._scoring_units = scoring_units
         
         # Units reducing function
@@ -274,18 +315,22 @@ class ActivityScorer(Scorer):
             )
         )
 
+        # Layer reducing function
         layer_reduce: LayerReduction = partial(
             self._dict_values_reduction,
             reduction=layer_reduction
         )
         
+        # Initialize the parent class providing the three main functions
         super().__init__(
             units_reduce=units_reduce, 
             layer_reduce=layer_reduce,
             units_map=units_map
         )
+        
+    # --- UNITS REDUCTION ----
     
-    def _units_reducing(self, state: State, reduce: Callable[[NDArray], NDArray]) -> Dict[str, Score]:
+    def _units_reducing(self, state: States, reduce: Callable[[NDArray], NDArray]) -> Dict[str, Scores]:
         '''
         Perform aggregation over units across layers
 
@@ -297,60 +342,82 @@ class ActivityScorer(Scorer):
         :rtype: Dict[str, Score]
         '''
         
+        # Check for layer name consistency
         self._check_key_consistency(scoring=self.scoring_units.keys(), state=state.keys())
         
+        # Compute the scores for each layer
         scores = {
-            layer: reduce(activations[:, self.scoring_units[layer] if self.scoring_units[layer] else slice(None)])
+            
+            # Compute the reduction of the units activations
+            # supporting all-units encoding
+            layer: reduce(
+                activations[:,
+                    self.scoring_units[layer]     # Specified scoring units for that layer if any 
+                    if self.scoring_units[layer]
+                    else slice(None)              # In the case of no units specified, all units are considered
+                ]
+            )
             for layer, activations in state.items()
             if layer in self.scoring_units
+            
         }
         
-        return scores    
+        return scores 
+    
+    # --- PROPERTIES ---
     
     @property
     def scoring_units(self) -> Dict[str, ScoringUnit]:
-        ''' How many units involved in optimization '''
+        '''
+        Return the scoring units associated to each layer.
+
+        :return: Scoring units across layers.
+        :rtype: Dict[str, ScoringUnit]
+        '''
 
         return self._scoring_units
-    
-    
+
+
 class WeightedPairSimilarityScorer(Scorer):
     '''
-    This scorer computes weighted similarities (negative distances)
-    between groups of subject states. Weights can either be positive
-    or negative. Groups are defined via a grouping function. 
+    The scorer computes weighted similarities between groups of subject states.
+    It uses negative distances so that identic object will have the maximum score of 0.
+    in a logic of optimizer maximization.
+    
+    Each layer is associated with a weight, that can be either positive or negative,
+    which is used to compute the final score.
     '''
     
     name = 'WeightedPairSimilarityScorer'
 
-    # TODO: We are considering all recorded neurons
     def __init__(
         self,
-        signature : Dict[str, float],
-        trg_neurons: Dict[str, ScoringUnit], 
-        metric : _MetricKind = 'euclidean',
-        dist_reduce_fn  : Callable[[NDArray], NDArray] | None = None,
-        layer_reduce_fn : Callable[[NDArray], NDArray] | None = None
+        layer_weights : Dict[str, float],
+        trg_neurons   : Dict[str, ScoringUnit], 
+        metric        : _MetricKind = 'euclidean',
+        dist_reduce   : Callable[[NDArray], NDArray] | None = None,
+        layer_reduce  : Callable[[NDArray], NDArray] | None = None
     ) -> None: 
         '''
-        
-        :param signature: Dictionary containing for each recorded state
-            (the str key in the dict) the corresponding weight (a float)
-            to be used in the final aggregation step. Positive weights
-            (> 0) denote desired similarity, while negative weights (< 0)
-            denote desired dissimilarity.
-        :type signature: Dictionary of string with float values
-        :param metric: Which kind of distance to use. Should be one of
-            the supported scipy.spatial.distance function
+
+
+        :param layer_weights: Dictionary mapping each recorded layer 
+            (dict key) the corresponding weight (a float) to be used in the 
+            final aggregation step. Positive weights (> 0) denote desired similarity, 
+            while negative weights (< 0) denote desired dissimilarity.
+        :type layer_weights: Dict[str, float]
+        :param metric: Distance metric to be used in the similarity computation.
         :type metric: string
         :param pair_fn: Grouping function defining (within a given state,
             i.e. a given recorded layer) which set of activations should be
             compared against.
+            
             Default: Odd-even pairing, i.e. given the subject state:
                 state = {
                     'layer_1' : [+0, +1, -1, +3, +2, +4],
                     'layer_2' : [-4, -5, +9, -2, -7, +8],
                 }
+                
             the default pairing build the following pairs:
                 'layer_1' : {
                     'l1_pair_1: [+0, -1, +2],
@@ -360,79 +427,117 @@ class WeightedPairSimilarityScorer(Scorer):
                     'l2_pair_1': [-4, +9, -7],
                     'l2_pair_2': [-5, -2, +8],
                 }
+            
             so that the similarities will be computed as:
                 'layer_1' : similarity(l1_pair_1, l1_pair_2)
                 'layer_2' : similarity(l2_pair_1, l2_pair_2)
+        
         :type pair_fn: Callable[[NDArray], Tuple[NDArray, NDArray]] | None
         '''
         
+        # Save input parameters
+        self._signature   = layer_weights
+        self._trg_neurons = trg_neurons
         
         # If grouping function is not given use even-odd split as default
-        dist_reduce_fn  = default(dist_reduce_fn,  np.mean)
-        layer_reduce_fn = default(layer_reduce_fn, partial(np.mean, axis=0))
+        dist_reduce  = default(dist_reduce,  np.mean)
+        layer_reduce = default(layer_reduce, partial(np.mean, axis=0))
         
         # If similarity function is not given use euclidean distance as default
         self._metric = partial(pdist, metric=metric)
         self._metric_name = metric
         
-        criterion: UnitsReduction = partial(
+        # Define reducing function across units using the given distance function
+        units_reduce: UnitsReduction = partial(
             self._score,
-            reduce_fn=dist_reduce_fn,
-            neuron_targets=trg_neurons,   
+            reduce=dist_reduce,
+            trg_neurons=trg_neurons,   
         )
-        aggregate: LayerReduction = partial(
+        
+        # Define reducing function across layers using the given distance 
+        # function and the layer weights
+        layer_reduce_: LayerReduction = partial(
             self._dotprod,
-            signature=signature,
-            reduce_fn=layer_reduce_fn    
+            weights=layer_weights,
+            reduce=layer_reduce    
         )
         
-        self._signature = signature
-        
-        self._trg_neurons = trg_neurons
-
+        # Initialize the parent class providing the two reductions
         super().__init__(
-            units_reduce=criterion,
-            layer_reduce=aggregate
+            units_reduce=units_reduce,
+            layer_reduce=layer_reduce_
         )
         
+    # --- STRING REPRESENTATION ---
+    
     def __str__(self) -> str:        
-        return f'WeightedPairSimilarityScorer[metric: {self._metric_name}; signature: {self._signature}]'
-
-    @property
-    def n_scoring_units(self) -> int:
-        ''' How many units involved in optimization '''
-        return 0
+        ''' Return a string representation of the scorer including also the signature '''
+        return f'{super()}[signature: {self._signature}]'
+    
+    # --- REDUCTIONS ---
 
     def _score(
         self,
-        state : State,
-        reduce_fn : Callable[[NDArray], NDArray],
-        neuron_targets : Dict[str, ScoringUnit],
+        state       : States,
+        reduce      : Callable[[NDArray], NDArray],
+        trg_neurons : Dict[str, ScoringUnit],
     ) -> Dict[str, NDArray]:
+        '''
+        Compute the similarity scores between groups of activations in the subject state.
+
+        :param state: Subject state.
+        :type state: State
+        :param reduce: Reducing function across groups of activations.
+        :type reduce: Callable[[NDArray], NDArray]
+        :param trg_neurons: Target neurons for each layer.
+        :type trg_neurons: Dict[str, ScoringUnit]
+        :return: Similarity scores between groups of activations.
+        :rtype: Dict[str, NDArray]
+        '''
         
         scores = {
             layer: np.array([
-                reduce_fn(-self._metric(group))
-                for group in activations[..., neuron_targets[layer] if neuron_targets[layer] else slice(None)]
+                reduce(-self._metric(group))
+                for group in activations[..., 
+                    trg_neurons[layer]    # Specified scoring units for that layer
+                    if trg_neurons[layer]
+                    else slice(None)      # In the case of no units specified, all units are considered
+                ]
             ])
             for layer, activations in state.items()
-            if layer in neuron_targets
+            if layer in trg_neurons
         }
         
         return scores
 
     def _dotprod(
         self,
-        state : Dict[str, Score],
-        signature : Dict[str, float],
-        reduce_fn : Callable[[NDArray], NDArray],     
-    ) -> Score:
+        state     : Dict[str, Scores],
+        weights   : Dict[str, float],
+        reduce    : Callable[[NDArray], NDArray],     
+    ) -> Scores:
+        '''
+        Compute the dot product of the state and weights, and reduce the result using the given reduce function.
+
+        :param state: A dictionary containing the state values.
+        :type state: Dict[str, Score]
+        :param weights: A dictionary containing the weight values.
+        :type weights: Dict[str, float]
+        :param reduce: A function used to reduce the result of the dot product.
+        :type reduce: Callable[[NDArray], NDArray]
+        :return: The result of the dot product after reducing.
+        :rtype: Score
+        '''
+        
         return cast(
-            Score,
-            reduce_fn(
-                np.stack([v * state[k] for k, v in signature.items()])
+            Scores,
+            reduce(
+                # Multiply each layer score by the corresponding weight
+                np.stack([v * state[k] for k, v in weights.items()])
             )
         )
+        
+    # --- PROPERTIES ---
         
     @property
     def scoring_units(self) -> Dict[str, ScoringUnit]:
