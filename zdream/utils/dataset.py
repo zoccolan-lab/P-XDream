@@ -205,7 +205,7 @@ class NaturalStimuliLoader:
         # Interleave the images according to the mask
         mask_ten = torch.tensor(mask, device=device)
         stimuli  = torch.zeros(num_nat_img + num_gen_img, *gen_img_shape, device=device)
-        stimuli[ mask_ten] = gen_img
+        stimuli[ mask_ten] = gen_img.to(device)
         stimuli[~mask_ten] = nat_img
         
         return stimuli

@@ -1119,7 +1119,8 @@ class MultiExperiment:
         with Progress(console=Logger.CONSOLE) as progress:
         
             for i, conf in progress.track(
-                enumerate(self._search_config), 9
+                enumerate(self._search_config),
+                total=len(self._search_config)
             ):
                 
                 self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
