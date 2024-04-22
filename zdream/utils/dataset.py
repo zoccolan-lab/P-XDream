@@ -68,7 +68,7 @@ class MiniImageNet(ImageFolder):
         }
         
     @staticmethod
-    def resize_dataset(in_dir: str, out_dir: str | None = None, target_size: tuple=(256, 256), logger: Logger | None = None):
+    def resize_dataset(in_dir: str, out_dir: str | None = None, target_size: tuple=(224, 224), logger: Logger | None = None):
         '''
         Resizes mini-Imagenet dataset images to the target_size and stores them in a new folder.
         This is made to avoid the overhead of on-line resizing.
@@ -78,7 +78,7 @@ class MiniImageNet(ImageFolder):
         :param out_dir: Directory where to save the resized dataset.
                         If not given suffix `resized` is added to input directory.
         :type out_dir: str | None, optional
-        :param target_size: Desired new size (H x W) of the images, defaults to (256, 256)
+        :param target_size: Desired new size (H x W) of the images, defaults to (224, 224) (i.e. the input size for AlexNet)
         :type target_size: tuple, optional
         :param logger: Optional logger to log resizing information. If non given defaults to MutedLogger.
         :type target_size: Logger | None
