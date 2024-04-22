@@ -258,7 +258,7 @@ class MiniImageNet(ImageFolder, ExperimentDataset):
         self,
         root: str,
         transform: Callable[..., Tensor] = transforms.Compose([
-            transforms.Resize((256, 256)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor()
         ]),
         target_transform: Callable[[Tensor], Tensor] | None = None
@@ -269,7 +269,7 @@ class MiniImageNet(ImageFolder, ExperimentDataset):
         :param root: The root directory where the dataset is stored.
         :type root: str
         :param transform: The transformation to apply to the images, 
-            defaults to a resize to 256x256 and conversion to tensor.
+            defaults to a resize to 224x224 and conversion to tensor.
         :type transform: Callable[..., Tensor], optional
         :param target_transform: Function to transform the target, 
             defaults to None in which case the target is not transformed.
