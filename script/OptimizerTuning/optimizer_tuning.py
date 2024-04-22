@@ -10,33 +10,34 @@ from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
 from script.OptimizerTuning.plotting import plot_hyperparam, plot_optim_type_comparison
+from script.cmdline_args import Args
+from script.script_utils import make_dir
 from zdream.experiment import ZdreamExperiment, MultiExperiment
-from zdream.generator import Generator, InverseAlexGenerator
-from zdream.logger import Logger, LoguruLogger
+from zdream.generator import Generator, DeePSiMGenerator
+from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
 from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
-from zdream.subject import InSilicoSubject, NetworkSubject
-from zdream.probe import RecordingProbe
-from zdream.utils.model import DisplayScreen, MaskGenerator
+from zdream.subject import InSilicoSubject, TorchNetworkSubject
+from zdream.utils.probe import RecordingProbe
+from zdream.utils.types import MaskGenerator
 from zdream.utils.misc import device
-from zdream.utils.parsing import parse_recording, parse_scoring
-from zdream.message import ZdreamMessage
+from script.parsing import parse_recording, parse_scoring
+from zdream.utils.message import ZdreamMessage
 
 # --- EXPERIMENT CLASS ---
 
 class OptimizationTuningExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = "OptimizationTuning"
-
     GEN_IMG_SCREEN = 'Best Synthetic Image'
     
     # Define specific components to activate their behavior    
 
     @property
-    def scorer(self)  -> ActivityScorer: return cast(ActivityScorer, self._scorer) 
+    def scorer(self)  -> ActivityScorer:      return cast(ActivityScorer,      self._scorer) 
 
     @property
-    def subject(self) -> NetworkSubject: return cast(NetworkSubject, self._subject) 
+    def subject(self) -> TorchNetworkSubject: return cast(TorchNetworkSubject, self._subject) 
 
     @classmethod
     def _from_config(cls, conf : Dict[str, Any]) -> 'OptimizationTuningExperiment':
@@ -49,29 +50,29 @@ class OptimizationTuningExperiment(ZdreamExperiment):
         log_conf = conf['logger']
 
         # Set numpy random seed
-        np.random.seed(conf['random_seed'])
+        np.random.seed(conf[str(Args.RandomSeed)])
 
         # --- GENERATOR ---
 
-        generator = InverseAlexGenerator(
-            root           = gen_conf['weights'],
-            variant        = gen_conf['variant']
+        generator = DeePSiMGenerator(
+            root           = gen_conf[str(Args.GenWeights)],
+            variant        = gen_conf[str(Args.GenVariant)],
         ).to(device)
 
 
         # --- SUBJECT ---
 
         # Create a on-the-fly network subject to extract all network layer names
-        layer_info: Dict[str, Tuple[int, ...]] = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
+        layer_info: Dict[str, Tuple[int, ...]] = TorchNetworkSubject(network_name=sbj_conf[str(Args.NetworkName)]).layer_info
 
         # Probe
-        record_target = parse_recording(input_str=sbj_conf['rec_layers'], net_info=layer_info)
+        record_target = parse_recording(input_str=sbj_conf[str(Args.RecordingLayers)], net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
 
         # Subject with attached recording probe
-        sbj_net = NetworkSubject(
+        sbj_net = TorchNetworkSubject(
             record_probe=probe,
-            network_name=sbj_conf['net_name']
+            network_name=sbj_conf[str(Args.NetworkName)]
         )
         
         sbj_net.eval()
@@ -80,65 +81,66 @@ class OptimizationTuningExperiment(ZdreamExperiment):
 
         # Target neurons
         scoring_units = parse_scoring(
-            input_str=scr_conf['scr_layers'], 
+            input_str=scr_conf[str(Args.ScoringLayers)], 
             net_info=layer_info,
             rec_info=record_target
         )
 
         scorer = ActivityScorer(
             scoring_units=scoring_units,
-            units_reduction=scr_conf['units_reduction'],
-            layer_reduction=scr_conf['layer_reduction'],
+            units_reduction=scr_conf[str(Args.UnitsReduction)],
+            layer_reduction=scr_conf[str(Args.LayerReduction)],
         )
 
         # --- OPTIMIZER ---
         
-        match opt_conf['optimizer_type']:
+        opt_type = opt_conf[str(Args.OptimType)]
+        match opt_type:
             
             case 'genetic':
         
                 optim =  GeneticOptimizer(
                     codes_shape  = generator.input_dim,
-                    rnd_seed     =     conf['random_seed'],
-                    rnd_distr    = opt_conf['rnd_distr'],
-                    rnd_scale    = opt_conf['rnd_scale'],
-                    pop_size     = opt_conf['pop_size'],
-                    mut_size     = opt_conf['mut_size'],
-                    mut_rate     = opt_conf['mut_rate'],
-                    n_parents    = opt_conf['n_parents'],
-                    allow_clones = opt_conf['allow_clones'],
-                    topk         = opt_conf['topk'],
-                    temp         = opt_conf['temperature'],
-                    temp_factor  = opt_conf['temperature_factor']
+                    rnd_seed     =     conf[str(Args.RandomSeed)],
+                    rnd_distr    = opt_conf[str(Args.RandomDistr)],
+                    rnd_scale    = opt_conf[str(Args.RandomScale)],
+                    pop_size     = opt_conf[str(Args.PopulationSize)],
+                    mut_size     = opt_conf[str(Args.MutationSize)],
+                    mut_rate     = opt_conf[str(Args.MutationRate)],
+                    n_parents    = opt_conf[str(Args.NumParents)],
+                    allow_clones = opt_conf[str(Args.AllowClones)],
+                    topk         = opt_conf[str(Args.TopK)],
+                    temp         = opt_conf[str(Args.Temperature)],
+                    temp_factor  = opt_conf[str(Args.TemperatureFactor)]
                 )
                 
             case 'cmaes': 
                 
                 optim = CMAESOptimizer(
                     codes_shape  = generator.input_dim,
-                    rnd_seed     =     conf['random_seed'],
-                    rnd_distr    = opt_conf['rnd_distr'],
-                    rnd_scale    = opt_conf['rnd_scale'],
-                    pop_size     = opt_conf['pop_size'],
-                    sigma0       = opt_conf['sigma0']
+                    rnd_seed     =     conf[str(Args.RandomSeed)],
+                    rnd_distr    = opt_conf[str(Args.RandomDistr)],
+                    rnd_scale    = opt_conf[str(Args.RandomScale)],
+                    pop_size     = opt_conf[str(Args.PopulationSize)],
+                    sigma0       = opt_conf[str(Args.Sigma0)],
                 )
                 
             case _: 
                 
-                raise ValueError(f'Invalid optimizer: {opt_conf["optim_type"]}')
+                raise ValueError(f'Invalid optimizer: {opt_type}')
 
         #  --- LOGGER --- 
 
-        log_conf['title'] = OptimizationTuningExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(conf=log_conf)
+        log_conf[str(Args.ExperimentTitle)] = OptimizationTuningExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=log_conf)
         
         # In the case render option is enabled we add display screens
-        if conf['render']:
+        if conf[str(Args.Render)]:
 
             # In the case of multi-experiment run, the shared screens
-            # are set in `display_screens` entry
-            if 'display_screens' in conf:
-                for screen in conf['display_screens']:
+            # are set in `str(Args.DisplayScreens)` entry
+            if str(Args.DisplayScreens) in conf:
+                for screen in conf[str(Args.DisplayScreens)]:
                     logger.add_screen(screen=screen)
 
             # If the key is not set it is the case of a single experiment
@@ -180,9 +182,8 @@ class OptimizationTuningExperiment(ZdreamExperiment):
         optimizer:      Optimizer,
         iteration:      int,
         logger:         Logger,
-        mask_generator: MaskGenerator | None = None,
         data:           Dict[str, Any] = dict(),
-        name:           str = 'clustering-optimization'
+        name:           str = 'optmizer-tuning'
     ) -> None:
 
         super().__init__(
@@ -192,7 +193,6 @@ class OptimizationTuningExperiment(ZdreamExperiment):
             optimizer      = optimizer,
             iteration      = iteration,
             logger         = logger,
-            mask_generator = mask_generator,
             data           = data,
             name           = name,
         )
@@ -227,13 +227,14 @@ class OptimizationTuningExperiment(ZdreamExperiment):
 
         super()._progress(i, msg)
 
-        # Get best stimuli
-        best_code = msg.solution
-        best_synthetic, _ = self.generator(data=(best_code, ZdreamMessage(mask=np.array([True]))))
-        best_synthetic_img = to_pil_image(best_synthetic[0])
             
         # Update screen
         if self._render:
+            
+            # Get best stimuli
+            best_code = msg.solution
+            best_synthetic = self.generator(codes=best_code)
+            best_synthetic_img = to_pil_image(best_synthetic[0])
 
             self._logger.update_screen(
                 screen_name=self.GEN_IMG_SCREEN,
@@ -247,17 +248,13 @@ class OptimizationTuningExperiment(ZdreamExperiment):
         # Close screens
         if self._close_screen:
             self._logger.close_all_screens()
-            
-        # 1) SAVING BEST STIMULI
 
         # Save visual stimuli (synthetic and natural)
-        img_dir = path.join(self.target_dir, 'images')
-        os.makedirs(img_dir, exist_ok=True)
-        self._logger.info(mess=f"Saving images to {img_dir}")
+        img_dir = make_dir(path=path.join(self.dir, 'images'), logger=self._logger)
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen, _ = self.generator(data=(msg.solution, ZdreamMessage(mask=np.array([True]))))
+        best_gen = self.generator(codes=msg.solution)
 
         # Saving images
         to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen[0]), 'best synthetic')]
@@ -315,9 +312,15 @@ class OptimizerComparisonMultiExperiment(_OptimizerTuningMultiExperiment):
         self._data['scores'    ] = list()  # Scores across generation
 
 
-    def _progress(self, exp: OptimizationTuningExperiment, msg : ZdreamMessage, i: int):
+    def _progress(
+        self, 
+        exp  : OptimizationTuningExperiment, 
+        conf : Dict[str, Any],
+        msg  : ZdreamMessage, 
+        i    : int
+    ):
 
-        super()._progress(exp, i, msg = msg)
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
 
         self._data['optim_type'].append(exp._optim_type)
         self._data['scores']    .append(msg.scores_gen_history)   
@@ -356,9 +359,15 @@ class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
         self._data['values'    ] = list()  # Cluster idx in the clustering
         self._data['scores'    ] = list()  # Scores across generation
 
-    def _progress(self, exp: OptimizationTuningExperiment, msg : ZdreamMessage, i: int):
+    def _progress(
+        self, 
+        exp  : OptimizationTuningExperiment, 
+        conf : Dict[str, Any],
+        msg  : ZdreamMessage, 
+        i    : int
+    ):
 
-        super()._progress(exp, i, msg = msg)
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
 
         self._data['values'].append(exp.optimizer.__getattribute__(f'_{self.hyperparameter}'))
         self._data['scores'].append(msg.scores_gen_history)   

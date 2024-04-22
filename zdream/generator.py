@@ -1,69 +1,61 @@
+'''
+This file contains the implementation of the generators used to produce synthetic images.
+It provides the implementation of two generators: DeePSiM and BigGAN.
+'''
+
 import os
 import re
-import warnings
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from pathlib import Path
-from typing import List, Dict, cast, Callable, Tuple, Literal
-from pytorch_pretrained_biggan import BigGAN
-
-import numpy as np
-import torch
-import torch.nn as nn
-from numpy.typing import NDArray
-from PIL import Image
-from einops import rearrange
-from einops.layers.torch import Rearrange
-from torch import Tensor
-from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from typing import Dict, cast, Callable, Tuple, Literal
 from tqdm.auto import trange
 
-from .utils.model import Stimuli
-from .utils.model import Codes
-from .utils.model import Mask
+import torch
+import torch.nn as nn
+from torch import Tensor
+from torch.optim import AdamW
+from einops import rearrange
+from einops.layers.torch import Rearrange
+from pytorch_pretrained_biggan import BigGAN
+
+from zdream.utils.logger import Logger, SilentLogger
+
+from .utils.types import Stimuli
+from .utils.types import Codes
 from .utils.misc import default, device
-from .message import ZdreamMessage
 
 
-""" 
-Possible variants for the InverseAlexNetGenerator.
+'''
+Possible variants for the DeePSiM
 They refer to the specific .pt file with trained model weights.
 The weights are available at [https://drive.google.com/drive/folders/1sV54kv5VXvtx4om1c9kBPbdlNuurkGFi]
-"""
-InverseAlexVariant = Literal[
+'''
+DeePSIMVariant = Literal[
     'conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8'
 ]
 
 class Generator(ABC, nn.Module):
     '''
     Base class for generic generators.
-    A generator implements its generative logic in 
-    the `_forward()`  method that converts latent
-    codes (i.e. parameters from optimizers) into images.
     
-    A Generator allows to interleave synthetic images
-    with natural images by the specification of a mask.
+    A generator implements its generative logic in the `_forward()` method that converts 
+    latent codes (i.e. latent representations of images) into actual visual stimuli.
     '''
 
     def __init__(
         self,
         name : str,
         output_pipe : Callable[[Tensor], Tensor] | None = None,
-        nat_img_loader: DataLoader | None = None,
     ) -> None:
         '''
         Create a new instance of a generator
 
         :param name: Generator name identifying a pretrained architecture.
         :type name: str
-        :param output_pipe: Pipeline of postprocessing operation to be applied to 
-                            raw generated images.
+        :param output_pipe: Pipeline of postprocessing operation to be applied to raw generated images.
+            If not specified, the raw images are returned without any transformation.
         :type output_pipe: Callable[[Tensor], Tensor] | None, optional
-        :param nat_img_loader: Dataloader for natural images to be interleaved with synthetic ones.
-                               In the case it is not specified at initialization time it can be
-                               set or changed with a proper setter method.
-        :type nat_img_loader: DataLoader | None, optional
         '''
         
         super().__init__()
@@ -73,37 +65,36 @@ class Generator(ABC, nn.Module):
         # If no output pipe is provided, no raw transformation is used
         self._output_pipe = default(output_pipe, cast(Callable[[Tensor], Tensor], lambda x : x))
         
-        # Setting dataloader
-        self.set_nat_img_loader(nat_img_loader=nat_img_loader)
-        
         # Underlying torch module that generates images
         # NOTE: The network defaults to None. Subclasses are asked to 
         #       provide the specific instance 
         self._network = None
-
-    def set_nat_img_loader(self, nat_img_loader : DataLoader | None) -> None:
-        '''
-        Set a new data loader for natural images. 
-        It also instantiates a new iterator.
-
-        :param data_loader: Data loader for natural images.
-        :type data_loader: DataLoader | None
-        '''
         
-        # When no dataloader is set both variables takes None value
-        self._nat_img_loader = nat_img_loader
-        self._nat_img_iter   = iter(self._nat_img_loader) if self._nat_img_loader else None
-        self._lbls_nat_presented = []
-        self._nat_ds = self._nat_img_loader.dataset if self._nat_img_loader else None
+    # --- CODE MANIPULATION ---
 
     def find_code(
         self,
         target   : Tensor,
         num_iter : int = 500,
         rel_tol  : float = 1e-1,
+        logger   : Logger = SilentLogger()
     ) -> Tuple[Tensor, Tuple[Tensor, Tensor]]:
         '''
+        Optimization process to retrieve the latent code that generates a target image.
         
+        This function is intended to evaluate the quality of the Generator, and to
+        study it's ability 
+
+        :param target: Target generated image.
+        :type target: Tensor
+        :param num_iter: Maximum number of optimization steps, defaults to 500
+        :type num_iter: int, optional
+        :param rel_tol: Pixel level distance tolerance to find solution, defaults to 1e-1
+        :type rel_tol: float, optional
+        :param logger: Logger object to print messages, defaults to SilentLogger()
+        :type logger: Logger, optional
+        :return: Tuple containing the latent code and the generated image and the error.
+        :rtype: Tuple[Tensor, Tuple[Tensor, Tensor]]
         '''
         
         # Check if network is specified
@@ -116,17 +107,21 @@ class Generator(ABC, nn.Module):
         # to have three dimension with unpacking
         b, _, _, _ = target.shape
 
+        # Initialize the loss and the latent code
         loss = nn.MSELoss()
         code = torch.zeros(b, *self.input_dim, device=self.device, requires_grad=True)
 
+        # Define the optimizer
         optim = AdamW(
             [code],
             lr=1e-3,
         )
 
+        # Run optimization loop
         epoch = 0
         found_solution = False
         progress = trange(num_iter, desc='Code retrieval | avg. err: --- | rel. err: --- |')
+        
         while not found_solution and (epoch := epoch + 1) < num_iter:
             optim.zero_grad()
 
@@ -135,320 +130,182 @@ class Generator(ABC, nn.Module):
             imgs = self._network(code)
             imgs = self._output_pipe(imgs)
 
+            # Compute the loss and backpropagate
             errs : Tensor = loss(imgs, target)
             errs.backward()
-
             optim.step()
 
+            # Compute the average and relative error
             a_errs = errs.mean()
             r_errs = a_errs / imgs.mean()
+            
+            # Update the progress bar
             p_desc = f'Code retrieval | avg. err: {a_errs:.2f} | rel. err: {r_errs:.4f}'
             progress.set_description(p_desc)
             progress.update()
 
+            # Check if images are within the relative tolerance
             if torch.all(errs / imgs.mean() < rel_tol):
                 found_solution = True
         
         progress.close()
 
+        #If the optimization process has not found a solution within the specified
         if not found_solution:
-            warnings.warn(
-                'Cannot find codes within specified relative tolerance'
-            )
-
+            logger.warn('Cannot find codes within specified relative tolerance')
 
         return code, (imgs.detach(), errs)
 
     @abstractmethod
     def load(self, path : str | Path) -> None:
         '''
+        Function to load the weights of the generator from a file.
+        
+        :param path: Path to the file containing the weights.
+        :type path: str | Path
         '''
         pass
-    
-    def _masking_sanity_check(
-        self, 
-        mask : Mask | None, 
-        num_gen_img : int
-    ) -> Mask:
-        '''
-        The method is an auxiliary routine for the forward method
-        responsible for checking consistency of the masking for 
-        synthetic and natural images, possibly raising errors.
 
-        :param mask: Binary mask specifying the order of synthetic and natural images
-                        in the stimuli (True for synthetic, False for natural).
-        :type mask: Mask | None
-        :param num_gen_img: Number of synthetic images.
-        :type num_gen_img: int
-        :return: Sanitized binary mask.
-        :rtype: Mask
-        '''
-        
-        # In the case the mask contains only True values or it's a
-        # no empty list no natural image is expected. This condition should
-        # be activated by no specifying a mask at all.
-        # In the case the mask length is coherent with the number of
-        # synthetic images we reset default condition, that is the mask to be None,
-        # otherwise we raise an error.
-        if mask is not None and all(mask):
-            if len(mask) == num_gen_img or len(mask) == 0: 
-                mask = None # default condition
-            else:
-                err_msg = f'{num_gen_img} images were generated, but {len(mask)} were indicated in the mask'
-                raise ValueError(err_msg)
-        
-        # If natural images are expected but no dataloader is 
-        # available we raise an error
-        if mask is not None and ~all(mask) and self._nat_img_loader is None:
-            err_msg =   'Mask for natural images were provided but no dataloader is available. '\
-                        'Use `set_nat_img_loader()` to set one.'
-            raise AssertionError(err_msg)
-    
-        # If the mixing mask was not specified we set the trivial one.     
-        if mask is None or not mask.size:
-            mask = np.array([True] * num_gen_img, dtype=np.bool_)
-        
-        # If the number of True values in the mask doesn't match 
-        # the number of synthetic images we raise a error.
-        if sum(mask) != num_gen_img:
-            err_msg = f'Mask expects {num_gen_img} True values, but {sum(mask)} were provided'
-            raise ValueError(err_msg)
-            
-        return mask
-    
-    def _load_natural_images(self, 
-            num_nat_img: int, 
-            gen_img_shape: Tuple[int, ...]
-        ) -> Tuple[Stimuli, List[int]]:
-        '''
-        The method is an auxiliary routine for the forward method
-        responsible for loading a specified number of natural 
-        images from the dataloader.
-
-        :param num_nat_img: Number of natural images to load. 
-                            It also allow for zero natural images to be loaded
-                            resulting in an empty set of stimuli.
-        :type num_nat_img: int
-        :param gen_img_shape: Shape of synthetic images used to ensure size consistency
-                                for generated and natural images.
-        :type gen_img_shape: Tuple[int, ...]
-        :return: Loaded natural images stimuli and associated labels.
-        :rtype: Stimuli and corresponding labels.
-        '''
-        
-        if num_nat_img > 0:
-            
-            # NOTE: At this point of the execution flow the dataloader in ensured
-            #       to be not None after sanitization checks. The extra check 
-            #       is made for the type checker.
-            if not self._nat_img_loader or not self._nat_img_iter:
-                err_msg = 'No available data loader for natural images'
-                raise ValueError(err_msg)
-            
-            # We create a new iterator on the fly to check shape consistency
-            # between synthetic and natural images, we raise an error if they disagree.
-            nat_img_shape = next(iter(self._nat_img_loader))['imgs'].shape[1:]
-            
-            if nat_img_shape != gen_img_shape:
-                err_msg = f'Natural images have shape {nat_img_shape}, '\
-                          f'but synthetic ones have shape {gen_img_shape}.'
-                raise ValueError(err_msg)
-
-            # List were to save batches of images
-            nat_img_list : List[Tensor] = []
-            labels_list  : List[int] = []
-            
-            # We continue extracting batches of natural images
-            # until the required number
-            batch_size = cast(int, self._nat_img_loader.batch_size)
-            while len(nat_img_list) * batch_size < num_nat_img:
-                try:
-                    batch = next(self._nat_img_iter)
-                    nat_img_list.append(batch['imgs'])
-                    labels_list .extend(batch['lbls'])
-                except StopIteration:
-                    # Circular iterator: when all images are loaded, we start back again.
-                    self.set_nat_img_loader(nat_img_loader=self._nat_img_loader)
-                    
-            # We combine the extracted batches in a single tensor
-            # NOTE: Since we necessary extract images in batches,
-            #       we can have extracted more than required, for this purpose
-            #       we may need to chop out the last few to match required number
-            nat_img = torch.cat(nat_img_list)[:num_nat_img].to(self.device)
-            labels  = labels_list[:num_nat_img]
-        
-        # In the case of no natural images we create an empty stimuli
-        else:
-            nat_img = torch.empty((0,) + gen_img_shape, device=self.device)
-            labels  = []
-            
-        return nat_img, labels
-    
-    def __call__(
-        self, 
-        data: Tuple[Codes, ZdreamMessage],
-    ) -> Tuple[Stimuli, ZdreamMessage]:
-        
-        stimuli, msg = self.forward(
-            data
-        )
-
-        return stimuli, msg
-
+    @abstractmethod
+    @torch.no_grad()
     def forward(
         self, 
-        data: Tuple[Codes, ZdreamMessage],
-        mask : Mask | None = None
-    ) -> Tuple[Stimuli, ZdreamMessage]:
-        # TODO: Update documentation
+        codes: Codes
+    ) -> Stimuli:
         '''
-        Produce the stimuli using latent image codes, along with some
-        auxiliary information in the form of a message.
-        The method of the possibility to specify a mask for interleaving 
-        synthetic images with natural ones.
+        Generate stimuli from latent codes and return the stimuli.
 
         :param codes: Latent images code for synthetic images generation.
         :type codes: Codes
-        :param mask: Binary mask specifying the order of synthetic and natural images
-                        in the stimuli (True for synthetic, False for natural).
-        :type mask: Mask | None, optional
-        :return: Produced stimuli set and auxiliary information in the form of a message.
-        :rtype: Tuple[Stimuli, Message]
+        :return: Produced stimuli set.
+        :rtype: Stimuli
         '''
         
-        codes, msg = data
-        
-        # Extract the number of codes from batch size
-        num_gen_img, *_ = codes.shape
-
-        # Mask sanity check
-        mask = self._masking_sanity_check(mask=msg.mask, num_gen_img=num_gen_img)
-
-        # Get synthetic images form the _forward method
-        # which is specific for each subclass architecture
-        gen_img, msg = self._forward(data)
-        gen_img.to(self.device)
-        
-        # Count synthetic and natural
-
-        num_gen_img = sum( mask)
-        num_nat_img = sum(~mask)
-        
-        # Extract synthetic images shape
-        _, *gen_img_shape = gen_img.shape
-        gen_img_shape = tuple(gen_img_shape)
-        
-        # Load natural images
-        nat_img, labels = self._load_natural_images(num_nat_img=num_nat_img, gen_img_shape=gen_img_shape)
-        
-        # Interleave synthetic and generated according to the mask
-        mask_ten = torch.tensor(mask, device = self.device)
-        out = torch.empty(num_nat_img + num_gen_img, *gen_img_shape, device=self.device)
-        out[ mask_ten] = gen_img
-        out[~mask_ten] = nat_img
-        
-        # Attach information to the message
-        msg.mask  = mask
-        msg.label = labels
-        msg.labels_history.append(labels)
-        
-        return out, msg
-    
-    @torch.no_grad()
-    @abstractmethod 
-    def _forward(
-        self, 
-        data : Tuple[Codes, ZdreamMessage],
-    ) -> Tuple[Stimuli, ZdreamMessage]:
-        '''
-        The abstract method will be implemented in each 
-        subclass that need to specify the architecture logic of 
-        image generation from a latent code.
-
-        :param codes: Latent images code for synthetic images generation.
-        :type codes: Tensor | NDArray
-        :return: Generated stimuli set and auxiliary information in the form of a message.
-        :rtype: Tuple[Stimuli, Message]
-        '''
         pass
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
     
-    @property
-    def dtype(self) -> torch.dtype:
-        return next(self.parameters()).dtype
-
+    # --- PROPERTIES ---
+    
     @property
     @abstractmethod
     def input_dim(self) -> Tuple[int, ...]:
-        pass
+        '''
+        Abstract property that returns the dimension of the latent code.
 
-class InverseAlexGenerator(Generator):
+        :return: Dimension of the latent code.
+        :rtype: Tuple[int, ...]
+        '''
+        pass
+    
+    @property
+    def device(self): return next(self.parameters()).device
+    ''' Return device where the generator is running. '''
+    
+    @property
+    def dtype(self) -> torch.dtype: return next(self.parameters()).dtype
+    ''' Return the data type of the generator. '''
+
+
+class DeePSiMGenerator(Generator):
 
     def __init__(
         self,
         root : str,
-        variant : InverseAlexVariant = 'fc8',
-        output_pipe : Callable[[Tensor], Tensor] | None = None,
-        nat_img_loader : DataLoader | None = None,
+        variant : DeePSIMVariant = 'fc8',
+        output_pipe : Callable[[Tensor], Tensor] | None = None
     ) -> None:
+        '''
+        Create a new instance of a DeePSiM generator.
+        
+        See: Generating Images with Perceptual Similarity Metrics based on Deep Networks [https://arxiv.org/abs/1602.02644]
+        
+        :param root: Path to the root folder containing the pretrained network weights.
+        :type root: str
+        :param variant: DeepSiM variant to use, i.e. the version of the latent code. Defaults to 'fc8'.
+        :type variant: DeePSIMVariant, optional
+        :param output_pipe: Pipeline of postprocessing operation to be applied to raw generated images.
+        :type output_pipe: Callable[[Tensor], Tensor] | None, optional
+        '''
         
         # Get the networks paths based on provided root folder
         nets_path = self._get_net_paths(base_nets_dir=root)
+        self._variant = variant
         
-        self.variant = variant
-        
-        output_pipe = default(output_pipe, self._get_pipe(self.variant))
+        # If not provided the default output pipe depends on the variant
+        output_pipe = default(output_pipe, self._get_pipe(self._variant))
         
         super().__init__(
-            name='inv_alexnet',
-            output_pipe=output_pipe,
-            nat_img_loader=nat_img_loader
+            name='DeePSiM',
+            output_pipe=output_pipe
         )
         
         # Build the network layers based on provided generator variant
-        self._network = self._build(self.variant)
-        
-        # Load the corresponding checkpoint
-        self.load(nets_path[self.variant])
+        # and load it's checkpoint
+        self._network = self._build(self._variant)
+        self.load(nets_path[self._variant])
 
-        # Put the generator in evaluate mode by default
+        # Put the generator in evaluate mode
         self.eval()
         
+    # --- STRING REPRESENTATION ---
+        
     def __str__(self) -> str:
-        return f'InverseAlexNetGenerator[variant: {self.variant}; in-dim: {self.input_dim}; out-dim: {self.output_dim}]'
+        ''' Return a string representation of the generator. '''
+        return f'DeePSiMGenerator[variant: {self._variant}; in-dim: {self.input_dim}; out-dim: {self.output_dim}]'
     
     def __repr__(self) -> str: return str(self)
+    ''' Returns a string representation of the generator. '''
+    
+    # --- LOADING ---
 
     def load(self, path : str | Path) -> None:
         '''
         Load generator neural networks weights from file.
 
-        Args:
-        - path (str): Path to the network weights.
+        :param path: Path to the file containing the weights.
+        :type path: str | Path
         '''
         
-        self._network.load_state_dict(
-            torch.load(path, map_location=self.device)
-        )
+        self._network.load_state_dict(torch.load(path, map_location=self.device))
+    
+    def _get_net_paths(self, base_nets_dir : str) -> Dict[str, Path]:
+        '''
+        Retrieves the paths of the files of the weights of TORCH neural nets within a base directory. 
+        
+        It returns a dictionary where the keys are the file names  and the values are the full paths to those files.
+
+        :param base_nets_dir: Path to the root folder containing the pretrained network weights.
+        :type base_nets_dir: str
+        :return: Dictionary containing the paths to the weights of the networks.
+        :rtype: Dict[str, Path]
+        '''
+        
+        # Get the paths of the files with the weights of the networks
+        root = Path(base_nets_dir)
+        
+        # Get the paths of the files with the weights of the networks
+        nets_dict = {
+            Path(file).stem : Path(base, file)
+            for base, _, files in os.walk(root)
+            for file in files if file.endswith(('.pt', 'pth'))
+        }
+        
+        return nets_dict 
+    
+    # --- IMAGE GENERATION ---
         
     @torch.no_grad()
-    def _forward(
+    def forward(
         self, 
-        data : Tuple[Codes, ZdreamMessage],
-    ) -> Tuple[Stimuli, ZdreamMessage]:
+        codes : Codes,
+    ) -> Stimuli:
         '''
         Generated synthetic images starting with their latent code
 
         :param codes: Latent images code for synthetic images generation.
         :type codes: Tensor | NDArray
-        :return: Generated stimuli set and auxiliary information in the form of a message.
-        :rtype: Tuple[Stimuli, Message]
+        :return: Generated stimuli set.
+        :rtype: Stimuli
         '''
-        
-        codes, msg = data
         
         # NOTE: We convert numpy codes to tensors as input for the generator
         codes_ = torch.from_numpy(codes).to(self.device).to(self.dtype)
@@ -457,14 +314,19 @@ class InverseAlexGenerator(Generator):
         gens = self._network(codes_)
         gens = self._output_pipe(gens)
 
-        if self.type_net in ['conv','norm']:
+        # Dimension conversion
+        if self.type_net in ['conv', 'norm']:
             gens *= 255
 
-        return gens, msg
+        return gens
+    
+    # --- PROPERTIES ---
 
     @property
     def input_dim(self) -> Tuple[int, ...]:
-        match self.variant:
+        ''' Return the dimension of the latent code depending on the Generator variant. '''
+        
+        match self._variant:
             case 'fc8':   return (1000,)
             case 'fc7':   return (4096,)
             case 'fc6':   return (4096,)
@@ -473,17 +335,23 @@ class InverseAlexGenerator(Generator):
             case 'norm1': return (96, 27, 27)
             case 'norm2': return (256, 13, 13)
             case 'pool5': return (256, 6, 6)
-            case _: raise ValueError(f'Unsupported variant {self.variant}')
+            case _: raise ValueError(f'Unsupported variant {self._variant}')
 
     @property
     def output_dim(self) -> Tuple[int, int, int]:
-        match self.variant:
+        ''' Return the dimension of the output image depending on the Generator variant. '''
+        
+        match self._variant:
             case 'norm1': return (3, 240, 240)
             case 'norm2': return (3, 240, 240)
-            case _: return (3, 256, 256)
+            case _      : return (3, 256, 256)
             
-    def _get_pipe(self, variant : InverseAlexVariant) -> Callable[[Tensor], Tensor]:
+    def _get_pipe(self, variant : DeePSIMVariant) -> Callable[[Tensor], Tensor]:
+        ''' Return the output pipe for the generator variant. '''
+        
         def _opt1(imgs : Tensor) -> Tensor:
+            ''' Default output pipe for the generator.'''
+            
             mean = torch.tensor((104.0, 117.0, 123.0), device=imgs.device)
             mean = rearrange(mean, 'c -> c 1 1')
             imgs = imgs + mean
@@ -492,25 +360,35 @@ class InverseAlexGenerator(Generator):
             return imgs.clamp(0, 1)
         
         def _opt2(imgs : Tensor) -> Tensor:
+            ''' Output pipe for norm and conv variants of the generator.'''
+            
             return 0.5 * (1 + imgs)
         
         match variant:    
             case 'norm1' | 'norm2': return _opt2
             case 'conv3' | 'conv4': return _opt2
             case _: return _opt1 
+            
+    # --- NETWORK ARCHITECTURE ---
 
-    def _build(self, variant : str = 'fc8') -> nn.Module:
+    def _build(self, variant : str) -> nn.Module:
+        '''
+        Build the network architecture based on the variant of the generator.
+
+        :param variant: Variant of the generator.
+        :type variant: str
+        '''
 
         # Get type of network (i.e: norm, conv, pool, fc)
         # by separating the layer name from unit count
         self.type_net, _ = re.match(r'([a-zA-Z]+)(\d+)', variant).groups() # type: ignore
 
         match variant:
-            case 'fc8': num_inputs = 1000
-            case 'fc7': num_inputs = 4096
-            case 'fc6': num_inputs = 4096
-            case 'norm1': inp_par = ( 96, 128, 3, 2)
-            case 'norm2': inp_par = (256, 256, 3, 1)
+            case 'fc8'  : num_inputs = 1000
+            case 'fc7'  : num_inputs = 4096
+            case 'fc6'  : num_inputs = 4096
+            case 'norm1': inp_par    = ( 96, 128, 3, 2)
+            case 'norm2': inp_par    = (256, 256, 3, 1)
             case _: pass
             
         templates = {
@@ -622,91 +500,97 @@ class InverseAlexGenerator(Generator):
             }
         
         return templates[self.type_net]() 
-            
-    def _get_net_paths(self, base_nets_dir : str) -> Dict[str, Path]:
-        """
-        Retrieves the paths of the files of the weights of pytorch neural nets within a base directory and returns a dictionary
-        where the keys are the file names and the values are the full paths to those files.
 
-        Args:
-            base_nets_dir (str): The path of the base directory (i.e. the dir that contains all nn files). Default is '/content/drive/MyDrive/XDREAM'.
-
-        Returns:
-            Dict[str, str]: A dictionary where the keys are the nn file names and the values are the full paths to those files.
-        """
-        root = Path(base_nets_dir)
-        nets_dict = {
-            Path(file).stem : Path(base, file)
-            for base, _, files in os.walk(root)
-            for file in files if file.endswith(('.pt', 'pth'))
-        }
-        
-        return nets_dict  
 
 class BigGANGenerator(Generator):
-    '''_summary_
-
-    :param Generator: _description_
-    :type Generator: _type_
+    '''
+    Generator using pretrained BigGAN from PYTORCH.
     '''
     
     CLASS_VECTOR = 1000
+    ''' Number of classes in the BigGAN model.'''
+    
     NOISE_VECTOR =  128
+    ''' Length of the noise vector in the BigGAN model.'''
+    
+    NAME = 'biggan-deep-256'
+    ''' Model name '''
+    
     
     def __init__(
         self, 
         output_pipe: Callable[[Tensor], Tensor] | None = None,
-        nat_img_loader: DataLoader | None = None
     ) -> None:
-        
-        name = 'biggan-deep-256'
+        '''
+        Create a new instance of a BigGAN generator.
+
+        :param output_pipe: Pipeline of postprocessing operation to be applied to raw generated images.
+        :type output_pipe: Callable[[Tensor], Tensor] | None, optional
+        '''
         
         super().__init__(
             name='biggan-deep-256', 
             output_pipe=output_pipe, 
-            nat_img_loader=nat_img_loader
         )
         
-        self.load(path=name)
+        self.load(path=self.NAME)
         self._model.to(device)
         
+    # --- LOADING ---
+        
     def load(self, path : str | Path) -> None:
+        '''
+        Load the BigGAN model from a file.
+
+        :param path: Path to the file containing the weights.
+        :type path: str | Path
+        '''
     
         self._model = BigGAN.from_pretrained(path)
         
+    # --- DIMENSIONS PROPERTIES ---
+    
     @property
     def input_dim(self) -> Tuple[int, ...]:
+        '''
+        We use the concatenated class and noise vectors as a unique code.
+
+        :return: Dimension of the latent code.
+        :rtype: Tuple[int, ...]
+        '''
         
         return ((self.CLASS_VECTOR + self.NOISE_VECTOR), )
     
-    # TODO We should put 
-    @property
-    def output_dim(self) -> Tuple[int, ...]:
-        
-        return (3, 256, 256)
     
-    def _forward(
+    @property
+    def output_dim(self) -> Tuple[int, ...]: return (3, 256, 256)
+    
+    # --- IMAGE GENERATION ---
+    
+    def forward(
         self, 
-        data: Tuple[Codes | ZdreamMessage]
-    ) -> Tuple[Tensor | ZdreamMessage]:
+        codes: Codes
+    ) -> Stimuli:
+        '''
+        Generate stimuli from latent codes and return the stimuli.
+
+        :param codes: Latent images code for synthetic images generation.
+        :type codes: Codes
+        :return: Produced stimuli set.
+        :rtype: Stimuli
+        '''
         
-        codes, msg = data
-        
+        # TODO Control vector with input parameters
+        t            = 0.4
         noise_vector =      torch.tensor(codes[:, :self.NOISE_VECTOR], dtype=torch.float32, device=device)
         class_vector = .5 * torch.tensor(codes[:, self.NOISE_VECTOR:], dtype=torch.float32, device=device)
 
         # Generate an image
         with torch.no_grad():
-            output = self._model(noise_vector, class_vector, 0.4)
+            stimuli = self._model(noise_vector, class_vector, t)
             
         # TODO Put in output pipeline
-        output += 1
-        output *= 0.5
+        stimuli += 1
+        stimuli *= 0.5
             
-        return output, msg
-    
-    
-
-# TODO: This is @Paolo's job!
-class SDXLTurboGenerator(Generator):
-    pass
+        return stimuli

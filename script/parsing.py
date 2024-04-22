@@ -3,8 +3,8 @@ from itertools import product, starmap
 from typing import Dict, List, Tuple, Callable
 import warnings
 
-from .model import RecordingUnit, ScoringUnit
-from .io_ import neurons_from_file
+from zdream.utils.types import RecordingUnit, ScoringUnit
+from zdream.utils.io_ import neurons_from_file
 
 import numpy as np
 

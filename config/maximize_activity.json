@@ -2,11 +2,11 @@
     "config": "",
     "generator": {
         "weights": "",
-        "mini_inet": "",
-        "batch_size": 2,
         "variant": "fc8"
     },
-    "mask_generator": {
+    "natural_stimuli_loader": {
+        "dataset": "",
+        "batch_size": 2,
         "template": "TFFFF",
         "shuffle": false
     },
@@ -21,12 +21,9 @@
     },
     "optimizer": {
         "pop_size": 20,
-        "mut_rate": 0.3,
-        "mut_size": 0.3,
-        "n_parents": 3,
-        "temperature": 1.0,
-        "topk": 2,
-        "rnd_distr": "normal"
+        "random_distr": "normal",
+        "random_scale": 1.0,
+        "sigma0": 1.0
     },
     "logger": {
         "out_dir": "",

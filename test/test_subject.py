@@ -6,10 +6,10 @@ import torch
 import unittest
 import numpy as np
 
-from zdream.utils.model import Message
-from zdream.utils.model import State
-from zdream.probe import RecordingProbe
-from zdream.subject import NetworkSubject
+from zdream.utils.types import Message
+from zdream.utils.types import States
+from zdream.utils.probe import RecordingProbe
+from zdream.subject import TorchNetworkSubject
 
 class NetworkSubjectTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -21,7 +21,7 @@ class NetworkSubjectTest(unittest.TestCase):
         self.msg = Message(mask=np.ones(self.num_imgs, dtype=bool))
 
     def test_forward_no_probe_cpu(self):
-        subject = NetworkSubject(
+        subject = TorchNetworkSubject(
             network_name=self.network_name,
             record_probe=None,
             pretrained=self.pretrained,
@@ -37,7 +37,7 @@ class NetworkSubjectTest(unittest.TestCase):
             _ = subject((mock_inp, self.msg))
 
     def test_forward_with_probe_cpu(self):
-        subject = NetworkSubject(
+        subject = TorchNetworkSubject(
             network_name=self.network_name,
             record_probe=None,
             pretrained=self.pretrained,
@@ -57,7 +57,7 @@ class NetworkSubjectTest(unittest.TestCase):
         mock_inp = torch.randn(self.num_imgs, *self.img_shape, device=subject.device)
 
         # We expect to see an assertion error raised here
-        feat : State
+        feat : States
         msg : Message
         feat, msg = subject((mock_inp, self.msg))
 

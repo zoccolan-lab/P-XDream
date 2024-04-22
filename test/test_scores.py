@@ -6,9 +6,9 @@ import unittest
 import numpy as np
 
 from itertools import combinations
-from zdream.utils.model import State
+from zdream.utils.types import States
 
-from zdream.utils.model import Message
+from zdream.utils.types import Message
 from zdream.scorer import MSEScorer, WeightedPairSimilarityScorer, ActivityScorer
 
 class MSEScorerTest(unittest.TestCase):
@@ -106,7 +106,7 @@ class WeightedPairSimilarityScorerTest(unittest.TestCase):
 
         # Initialize scorer and create mock up data to test
         score = WeightedPairSimilarityScorer(
-            signature=signature,
+            layer_weights=signature,
             metric='euclidean',
             filter_distance_fn=None,
         )
@@ -152,7 +152,7 @@ class MaxActivityScorerTest(unittest.TestCase):
             aggregate=lambda x: np.sum(np.stack(list(x.values())), axis=0).astype(np.float32)
         )
         
-        mock_activations: State = {
+        mock_activations: States = {
             'one': np.random.randn(self.num_imgs, 200),
             'two': np.random.randn(self.num_imgs, 200),
             'three': np.random.randn(self.num_imgs, 200),

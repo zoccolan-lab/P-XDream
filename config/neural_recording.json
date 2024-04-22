@@ -5,7 +5,7 @@
         "rec_layers": "19=[]"
     },
     "dataset": {
-        "mini_inet": "",
+        "dataset": "",
         "image_ids": ""
     },
     "logger": {
@@ -13,5 +13,5 @@
         "name": "experiment",
         "version": 0
     },
-    "log_chk": 1000
+    "log_chk": 1
 }

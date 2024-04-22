@@ -1,16 +1,16 @@
-from script.OptimizerTuning.parser import get_parser
+
+from script.cmdline_args import Args
+from script.OptimizerTuning.args import ARGS
 from script.OptimizerTuning.optimizer_tuning import OptimizationTuningExperiment, OptimizerComparisonMultiExperiment
-from zdream.utils.io_ import read_json
-from zdream.utils.misc import flatten_dict
+
 
 if __name__ == '__main__':
     
-    parser = get_parser(multirun=True)
-    
-    args = vars(parser.parse_args())
+    parser = Args.get_parser(args=ARGS, multirun=True)
+    args   = vars(parser.parse_args())
 
     mrun_experiment = OptimizerComparisonMultiExperiment.from_args(
-        args=args,
+        args=args, 
         exp_type=OptimizationTuningExperiment
     )
 

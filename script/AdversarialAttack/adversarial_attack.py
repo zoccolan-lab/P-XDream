@@ -11,18 +11,18 @@ from typing import Any, Dict, List, Tuple, cast
 from torchvision.transforms.functional import to_pil_image
 
 from zdream.experiment import ZdreamExperiment
-from zdream.generator import Generator, InverseAlexGenerator
-from zdream.logger import Logger, LoguruLogger
+from zdream.generator import Generator, DeePSiMGenerator
+from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.scorer import Scorer, WeightedPairSimilarityScorer
-from zdream.subject import InSilicoSubject, NetworkSubject
-from zdream.probe import RecordingProbe
+from zdream.subject import InSilicoSubject, TorchNetworkSubject
+from zdream.utils.probe import RecordingProbe
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.dataset import MiniImageNet
-from zdream.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
-from zdream.utils.model import Codes, DisplayScreen, MaskGenerator, ScoringUnit, Stimuli, Score, State, mask_generator_from_template
-from zdream.message import ZdreamMessage
+from script.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
+from zdream.utils.types import Codes, MaskGenerator, ScoringUnit, Stimuli, Scores, States, mask_generator_from_template
+from zdream.utils.message import ZdreamMessage
 
 from numpy.typing import NDArray
 
@@ -37,7 +37,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
     def scorer(self)  -> WeightedPairSimilarityScorer: return cast(WeightedPairSimilarityScorer, self._scorer) 
 
     @property
-    def subject(self) -> NetworkSubject:    return cast(NetworkSubject, self._subject) 
+    def subject(self) -> TorchNetworkSubject:    return cast(TorchNetworkSubject, self._subject) 
     
     @property
     def num_imgs(self) -> int: return self._n_group * self._optimizer.pop_size
@@ -75,7 +75,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             dataloader = DataLoader(dataset, batch_size=gen_conf['batch_size'], shuffle=True)
 
         # Instance
-        generator = InverseAlexGenerator(
+        generator = DeePSiMGenerator(
             root           = gen_conf['weights'],
             variant        = gen_conf['variant'],
             nat_img_loader = dataloader if use_nat else None
@@ -85,14 +85,14 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         # --- SUBJECT ---
 
         # Create a on-the-fly network subject to extract all network layer names
-        layer_info: Dict[str, Tuple[int, ...]] = NetworkSubject(network_name=sbj_conf['net_name']).layer_info
+        layer_info: Dict[str, Tuple[int, ...]] = TorchNetworkSubject(network_name=sbj_conf['net_name']).layer_info
 
         # Probe
         record_target = parse_recording(input_str=sbj_conf['rec_layers'], net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
 
         # Subject with attached recording probe
-        sbj_net = NetworkSubject(
+        sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=sbj_conf['net_name']
         )
@@ -115,11 +115,11 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         )
 
         scorer = WeightedPairSimilarityScorer(
-            signature=signature,
+            layer_weights=signature,
             trg_neurons=scoring_units,
             metric=scr_conf['metric'],
-            dist_reduce_fn=None,
-            layer_reduce_fn=None,
+            dist_reduce=None,
+            layer_reduce=None,
         )
 
         # --- OPTIMIZER ---
@@ -137,16 +137,16 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         #  --- LOGGER --- 
 
-        log_conf['title'] = AdversarialAttackExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(conf=log_conf)
+        log_conf[str(Args.ExperimentTitle)] = AdversarialAttackExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(path_=log_conf)
         
         # In the case render option is enabled we add display screens
         if conf['render']:
 
             # In the case of multi-experiment run, the shared screens
-            # are set in `display_screens` entry
-            if 'display_screens' in conf:
-                for screen in conf['display_screens']:
+            # are set in `str(Args.DisplayScreens)` entry
+            if str(Args.DisplayScreens) in conf:
+                for screen in conf[str(Args.DisplayScreens)]:
                     logger.add_screen(screen=screen)
 
             # If the key is not set it is the case of a single experiment
@@ -316,7 +316,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         # 1. Save visual stimuli (synthetic and natural)
 
-        img_dir = path.join(self.target_dir, 'images')
+        img_dir = path.join(self.dir, 'images')
         os.makedirs(img_dir, exist_ok=True)
         self._logger.info(mess=f"Saving images to {img_dir}")
 
@@ -354,7 +354,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         
         # 2. Save plots
 
-        plots_dir = path.join(self.target_dir, 'plots')
+        plots_dir = path.join(self.dir, 'plots')
         os.makedirs(plots_dir, exist_ok=True)
         self._logger.info(mess=f"Saving plots to {plots_dir}")
         
@@ -389,7 +389,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         
         return super()._codes_to_stimuli(data=data_)
 
-    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[State, ZdreamMessage]:
+    def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[States, ZdreamMessage]:
 
         # We save the last set of stimuli
         stimuli, msg = data
@@ -400,7 +400,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         return super()._stimuli_to_states(data)
     
 
-    def _states_to_scores(self, data: Tuple[State, ZdreamMessage]) -> Tuple[Score, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -432,7 +432,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         
         return scores, msg
 
-    def _scores_to_codes(self, data: Tuple[Score, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         stm_score, msg = data
         

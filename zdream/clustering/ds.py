@@ -10,13 +10,13 @@ from numpy.typing import NDArray, ArrayLike
 from sklearn.metrics import adjusted_rand_score, rand_score
 
 from zdream.clustering.model import AffinityMatrix, Label, Labels
-from zdream.logger import Logger, MutedLogger
+from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.io_ import read_json, save_json
 from zdream.utils.misc import default
 
 from functools import cache
 
-from zdream.utils.model import LayerReduction, Score, ScoringUnit, State, UnitsMapping
+from zdream.utils.types import LayerReduction, Scores, ScoringUnit, States, UnitsMapping
 
 class DS:
     '''
@@ -25,6 +25,7 @@ class DS:
     '''
     
     def __init__(self, aff_mat: AffinityMatrix) -> None:
+        
         self._aff_mat = aff_mat
         
         
@@ -329,7 +330,7 @@ class DSClusters:
 
         :param out_fp: Output file path where to save clustering information
         :type out_fp: str
-        :param logger: Logger to log i/o operation. If not given MutedLogger is set.
+        :param logger: Logger to log i/o operation. If not given SilentLogger is set.
         :type logger: Logger | None, optional
         '''
         
@@ -339,7 +340,7 @@ class DSClusters:
                 'rank' : obj. rank.tolist()
             }
         
-        logger = default(logger, MutedLogger())
+        logger = default(logger, SilentLogger())
         
         out_dict = {
             f'DS_{i}': {
@@ -354,7 +355,7 @@ class DSClusters:
         save_json(data=out_dict, path=fp)
         
     @classmethod
-    def from_file(cls, fp: str, logger: Logger = MutedLogger()) -> DSClusters:
+    def from_file(cls, fp: str, logger: Logger = SilentLogger()) -> DSClusters:
         '''
         Load a DSCluster state from JSON file
 
@@ -404,3 +405,4 @@ class DSClusters:
             cluster1=self,
             cluster2=cluster
         )
+        

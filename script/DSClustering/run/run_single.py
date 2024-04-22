@@ -1,16 +1,13 @@
-
-from script.DSClustering.parser import get_parser
+from script.cmdline_args import Args
+from script.script_utils import run_single
+from script.DSClustering.args import ARGS
 from script.DSClustering.ds_clustering import DSClusteringExperiment
 
-def main(args):
-
-    experiment = DSClusteringExperiment.from_args(args=args)
-    experiment.run()
 
 if __name__ == '__main__':
-    
-    parser = get_parser()
-    
+
+    parser = Args.get_parser(args=ARGS)
     args = vars(parser.parse_args())
     
-    main(args=args)
+    run_single(args=args, exp_type=DSClusteringExperiment)
+

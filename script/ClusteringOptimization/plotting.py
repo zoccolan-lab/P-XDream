@@ -9,10 +9,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from zdream.generator import Generator
-from zdream.logger import Logger, MutedLogger
-from zdream.message import ZdreamMessage
+from zdream.utils.logger import Logger, SilentLogger
+from zdream.utils.message import ZdreamMessage
 from zdream.utils.misc import SEM, concatenate_images
-from zdream.utils.model import Codes
+from zdream.utils.types import Codes
 
 
 def plot_weighted(
@@ -20,7 +20,7 @@ def plot_weighted(
     weighted: List[bool],
     scores: List[List[NDArray]],
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     # Line and background
@@ -107,7 +107,7 @@ def plot_scr(
     scr_types: List[str],
     scores: List[np.float32],
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     # Color, offset
@@ -194,7 +194,7 @@ def plot_scr(
 def plot_activations(
     activations: Dict[str, NDArray],
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     COLORS = ['#0013D6', '#E65c00','#36A900']
@@ -243,7 +243,7 @@ def plot_activations(
 def plot_subsetting_optimization(
     clusters_activations: Dict[int, Dict[int, List[Dict[str, float]]]],
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
 
     # Auxiliary function
@@ -351,7 +351,7 @@ def plot_cluster_best_stimuli(
     cluster_codes: Dict[int, Dict[int, Tuple[float, Codes]]],
     generator: Generator,
     out_dir: str,
-    logger: Logger = MutedLogger()
+    logger: Logger = SilentLogger()
 ):
     
     cluster_stimuli = {

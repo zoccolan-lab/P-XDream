@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray, ArrayLike
 from sklearn.metrics.pairwise import cosine_similarity
 
-from zdream.logger import Logger, MutedLogger
+from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.misc import default
 
 # --- TYPE ALIAS ---
@@ -133,7 +133,7 @@ class AffinityMatrix:
         self,
         out_dir: str, 
         file_name: str = 'aff_mat.npy',
-        logger: Logger = MutedLogger()
+        logger: Logger = SilentLogger()
     ):
         '''
         Save affinity matrix to target directory with specified file name.

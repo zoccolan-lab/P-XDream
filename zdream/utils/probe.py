@@ -1,66 +1,71 @@
-import numpy as np
-import torch.nn as nn
-from uuid import uuid4
-from torch import Tensor
+'''
+TODO Document with @Paolo and @Lorenzo
+'''
+
 from abc import ABC, abstractmethod
-
-from einops import rearrange
-from collections import defaultdict, OrderedDict
-from typing import cast, Dict, Tuple, List, Any, Literal, Callable
-from numpy.typing import DTypeLike, NDArray
-
-from math import prod
-from einops import reduce
 from itertools import product
+from collections import defaultdict, OrderedDict
+from math import prod
+from typing import Dict, Tuple, List, Any, Literal
+from uuid import uuid4
 
-from .utils.misc import default
-from .utils.misc import fit_bbox
-from .utils.model import InputLayer
-from .utils.model import RFBox
-from .utils.model import RecordingUnit
-from .utils.model import State
+from einops import rearrange, reduce
+import numpy as np
+from numpy.typing import DTypeLike, NDArray
+import torch.nn as nn
+from torch import Tensor
+
+from .misc import InputLayer, default, fit_bbox
+from .types import RFBox, RecordingUnit, States
+
+# TODO Document together
 
 class SilicoProbe(ABC):
     '''
-    Abstract probe to be used with an artificial neural network
-    that implements a torch.hook (mostly forward_hook) via its
-    __call__ function to achieve a given task (either by returning
-    something or most likely via side-effects).
+    This is an abstract probe that can be used with an artificial neural network. 
+    
+    It is designed to work with a torch hook, typically a forward hook, 
+    implemented through the __call__ function. 
+    
+    The probe is responsible for performing a specific task,
+    which can involve returning a value or causing side effects.
     '''
 
     def __init__(self) -> None:
+        ''' Initialize the probe with a unique identifier.'''
+        
         self.unique_id = uuid4()
+        
+    # --- HASHABLE METHODS ---
 
-    def __hash__(self) -> int:
-        return hash(self.unique_id)
+    def __hash__(self) -> int: return hash(self.unique_id)
+    ''' Return the hash of the unique identifier.'''
     
-    def __eq__(self, other : 'SilicoProbe') -> bool:
-        return self.unique_id == other.unique_id
+    def __eq__(self, other : 'SilicoProbe') -> bool: return self.unique_id == other.unique_id
+    ''' Check if two probes are equal by comparing their unique identifiers. '''
+    
+    # --- HOOKS ---
     
     @abstractmethod
     def forward(
         self,
         module : nn.Module,
-        inp : Tuple[Tensor, ...],
-        out : Tensor,
+        inp    : Tuple[Tensor, ...],
+        out    : Tensor,
     ) -> Tensor | None:
         '''
-        Abstract implementation of PyTorch forward hook, each
-        probe should provide its specific implementation to
-        accomplish its given task. This property return a callable
-        of signature ForwardHook with arguments:
+        Abstract implementation of PyTorch forward hook. Each Probe subclass is expected 
+        to provide the specific implementation to accomplish its given task.
         
-        :param module: The calling torch Module who raised the
-            hook callback
+        
+        :param module: The calling torch Module who raised the hook callback.
         :type module: torch.nn.Module
-        :param inp: The input to the calling module
-        :type inp: Tuple of torch Tensors
-        :param out: The computed calling module output (callback
-            is raised after at the end of the forward_step)
-        :type out: Torch Tensor
-        
-        :returns: Possibly anything (probably discarded by torch)
-        :rtype: Any or None 
+        :param inp: The input to the calling module.
+        :type inp: Tuple[Tensor, ...]
+        :param out: The computed calling module output (callback is raised after at the end of the forward_step).
+        :type out: Tensor
+        :returns: The output of the forward hook. If None is returned, the hook will not have any effect.
+        :rtype: Tensor | None 
         '''
         pass
 
@@ -71,26 +76,31 @@ class SilicoProbe(ABC):
         grad_out : Any, # TODO: Cannot find the appropriate type to put here
     ) -> Tensor | None:
         '''
-        Abstract implementation of PyTorch backward hook, each
-        probe should provide its specific implementation to
-        accomplish its given task.
+        Abstract implementation of PyTorch backward hook. Each Probe subclass is expected
+        to provide the specific implementation to accomplish its given task.
+        
+        By default, this function raises a NotImplementedError since not all probes
+        are expected to have a backward hook.
         '''
+        
         raise NotImplementedError(f'Probe {self} does not support backward hook')
 
     @abstractmethod
-    def clean(self) -> None:
-        pass
+    def clean(self) -> None: pass
+    '''
+    Abstract method to clean the probe from any stored data. This method is
+    expected to be called at the end of a forward pass to reset the probe
+    to its initial state.
+    '''
 
-# TODO: Change documentation to 
 class SetterProbe(SilicoProbe):
     '''
     Simple probe whose task is to attach to a given torch Module
-    a unique identifier to each of its sub-modules (layers).
+    a unique identifier to each of its sub-modules (layers) and
+    store the output shape of each of these layers.
     '''
 
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self) -> None:
         '''
         Construct a SetterProbe by specifying the name of the
         attribute that the probe attaches to each sub-module of
@@ -99,11 +109,14 @@ class SetterProbe(SilicoProbe):
         
         super().__init__()
         
-        self.name_attr = 'name'
+        # Define the attribute names to attach to each module
+        self.name_attr  = 'name'
         self.shape_attr = 'shape'
         
-        self.depth = -1
-        self.occur = defaultdict(lambda : 0)
+        # Initialize layer depth and occurrence dictionary
+        # by triggering the clean method
+        self.clean()
+        
 
     def forward(
         self,
@@ -118,61 +131,70 @@ class SetterProbe(SilicoProbe):
         the `forward_hook` attached to the network layer.
         '''
         
+        # Save the current layer name and output shape
         name = module._get_name().lower()
-        
-        # Store current layer's output shape 
         curr_shape = out.detach().cpu().numpy().shape
         
-        self.depth       += 1
-        self.occur[name] += 1
+        # Update the depth and occurrence of this layer type
+        self._depth       += 1
+        self._occur[name] += 1
         
         # Build a unique identifier for this module based
-        # on module name, depth and occurrence of this
-        # particular layer/module type
-        depth = str(self.depth      ).zfill(2)
-        occur = str(self.occur[name]).zfill(2)
+        # on module name, depth and layer type occurrence
+        depth = str(self._depth      ).zfill(2)
+        occur = str(self._occur[name]).zfill(2)
         identifier = f'{depth}_{name}_{occur}'
         
         # Attach the unique identifier to the (sub-)module
-        setattr(module, self.name_attr, identifier)
+        setattr(module, self.name_attr,  identifier)
         setattr(module, self.shape_attr, curr_shape)
 
     def clean(self) -> None:
         '''
         Reset the depth and occurrence dictionary
         '''
-        self.depth = -1
-        self.occur = defaultdict(lambda : 0)
+        
+        # Initialize the layer depth 
+        self._depth = -1
+        
+        # Initialize the dictionary storing the type
+        # has been encountered at a given depth
+        self._occur = defaultdict(lambda : 0)
 
-# TODO: Add a new probe (InfoProbe?) which is capable of retrieving
-# TODO: several useful information about a network: the shape of each
-# TODO: layer, the receptive fields of targeted units (maybe generalized
-# TODO: to the case where we can request the receptive field at the input
-# TODO: level OR at an intermediate layer - i.e. which units is this target
-# TODO: unit connected to?).
 class InfoProbe(SilicoProbe):
     '''
-    Simple probe whose task is to retrieve a set of useful info
-    for a torch Module. In particular this probe measures the
-    shape of target layers, the (generalized) receptive fields
-    of selected target units. The `generalize` receptive field
-    is defined by the fact that the `field` can either be at
-    the input level, which match the standard definition in
-    neuroscience for a receptive field or chosen at a preceding
-    layer, in which case it returns the set of units from which
-    the target receives information from.
+    This is a simple probe that retrieves useful information for a torch Module. 
+    It measures the shape of target layers and the (generalized) receptive fields of selected target units.
+    
+    The "generalized" receptive field can be defined as either the input level, 
+    which matches the standard definition in neuroscience for a receptive field, 
+    or chosen at a preceding layer, in which case it returns the set of units from 
+    which the target receives information.
     '''
     
-    # NOTE: List of pass_like is taken from:
+    
+    # Define the types of layers that can be encountered
+    # in catgories based on their behavior
+    
+    MeanLike = (
+        nn.AvgPool2d, 
+    )
+    DownLike = (
+        nn.ConvTranspose2d, 
+    )
+    ConvLike = (
+        nn.Conv2d, nn.MaxPool2d, nn.AvgPool2d, nn.Conv3d, nn.MaxPool3d
+    )
+    
+    # NOTE: List of PassLike is taken from:
     #       https://github.com/Fangyh09/pytorch-receptive-field 
-    MeanLike = (nn.AvgPool2d, )
-    DownLike = (nn.ConvTranspose2d, )
-    ConvLike = (nn.Conv2d, nn.MaxPool2d, nn.AvgPool2d, nn.Conv3d, nn.MaxPool3d)
-    PassLike = (nn.AdaptiveAvgPool2d, nn.BatchNorm2d, nn.Linear,  nn.ReLU, nn.LeakyReLU,
-            nn.ELU, nn.Hardshrink, nn.Hardsigmoid,  nn.Hardtanh, nn.LogSigmoid, nn.PReLU,
-            nn.ReLU6, nn.RReLU, nn.SELU, nn.CELU, nn.GELU, nn.Sigmoid, nn.SiLU, nn.Mish,
-            nn.Softplus, nn.Softshrink, nn.Softsign, nn.Tanh, nn.Tanhshrink, nn.Threshold,
-            nn.Dropout, nn.Dropout1d, nn.Dropout2d, nn.Dropout3d, InputLayer)
+    PassLike = (
+        nn.AdaptiveAvgPool2d, nn.BatchNorm2d,    nn.Linear,        nn.ReLU,      nn.LeakyReLU,
+        nn.ELU,               nn.Hardshrink,     nn.Hardsigmoid,   nn.Hardtanh,  nn.LogSigmoid, nn.PReLU,
+        nn.ReLU6,             nn.RReLU, nn.SELU, nn.CELU, nn.GELU, nn.Sigmoid,   nn.SiLU,       nn.Mish,
+        nn.Softplus,          nn.Softshrink,     nn.Softsign,      nn.Tanh,      nn.Tanhshrink, nn.Threshold,
+        nn.Dropout,           nn.Dropout1d,      nn.Dropout2d,     nn.Dropout3d, InputLayer
+    )
     
     def __init__(
         self,
@@ -181,18 +203,38 @@ class InfoProbe(SilicoProbe):
         forward_target : None | Dict[str, RecordingUnit] = None,
         backward_target: None | Dict[str, Dict[str, RecordingUnit]] = None,
     ) -> None:
+        '''
+        Construct a InfoProbe by specifying the input shape of the network,
+        the method to compute the receptive field and the target units for
+        which to compute the receptive field.
+
+        :param inp_shape: The shape of the input to the network-
+        :type inp_shape: Tuple[int, ...]
+        :param rf_method: The method to use to compute the receptive field, either 'forward' or 'backward'.
+            Defaults to 'forward'.
+        :type rf_method: Literal['forward', 'backward']
+        :param forward_target: The target units for which to compute the receptive field. 
+            If None, TODO
+        :type forward_target: None | Dict[str, RecordingUnit], optional
+        :param backward_target: The target units for which to compute the receptive field.
+            If None, TODO
+        :type backward_target: None | Dict[str, Dict[str, RecordingUnit]], optional
+        '''
+        
         super().__init__()
         
+        # Store the input shape of the network
         self.rf_method = rf_method
         self._f_target = forward_target
         self._b_target = backward_target
         
+        # Initialize data structures to store the receptive field information
+        self._rf_dict: Dict[str, List]                             = defaultdict(list)     # TODO Doc @Paolo
+        self._output : Dict[Tuple[str, str], Tensor]               = {}                    # TODO Doc @Paolo 
+        self._shapes : Dict[str, Tuple[int, ...]]                  = {'input' : inp_shape} # TODO Doc @Paolo
+        self._ingrad : Dict[Tuple[str, str], List[NDArray | None]] = defaultdict(list)     # TODO Doc @Paolo
         
-        self._rf_dict=defaultdict(list)    
-        
-        self._output : Dict[Tuple[str, str], Tensor] = {} 
-        self._shapes : Dict[str, Tuple[int, ...]] = {'input' : inp_shape}
-        self._ingrad : Dict[Tuple[str, str], List[NDArray | None]] = defaultdict(list)
+        # TODO Doc @Paolo
         self._rf_par : Dict[str, Dict[str, float]] = OrderedDict(
             input={
                 'jump' : 1,
@@ -208,23 +250,37 @@ class InfoProbe(SilicoProbe):
         out: Tensor
     ) -> None:
         '''
+        Forward hook used to gather information about the receptive field.
+
+        :param module: Torch module the hook is called.
+        :type module: nn.Module
+        :param inp: Unused, but expected by the overriding.
+        :type inp: Tuple[Tensor]
+        :param out: The output of the module.
+        :type out: Tensor
         '''
+        
+        # Check if the module has a name and shape attribute
         if not hasattr(module, 'name'):
             raise AttributeError(f'Encounter module {module} with unregistered name.')
         
         if not hasattr(module, 'shape'):
             raise AttributeError(f'Encounter module {module} with unregistered shape.')
         
+        # Save the current layer name and output shape
         curr_name  = module.name
         curr_shape = module.shape
         
+        # Update the shape dictionary with the current layer
         self._shapes[curr_name] = curr_shape
         
         # NOTE: We check whether this layer output is needed for
         #       a backward pass because it was requested by the
         #       backward hook functionality        
         if self._b_target:
+            
             for ref, targets in self._b_target.items():
+                
                 try:
                     targ_idx = targets[curr_name]
                     targ_act = out if targ_idx is None else out[(slice(None), *targ_idx)]
@@ -237,13 +293,14 @@ class InfoProbe(SilicoProbe):
                 # backward targets, just pass
                 except KeyError: pass
         
-        # * Collect parameters needed for the RF computation
+        # Collect parameters needed for the RF computation
         # Here we get the last-inserted (hence previous) key-val
         # pair in the rf_par dictionary, which corresponds to the
         # parameters of the previous layer this hook was call by
         p_val = next(reversed(self._rf_par.values()))
 
         if isinstance(module, self.ConvLike):
+            
             s, p, k = module.stride, module.padding, module.kernel_size
             
             d = 1 if isinstance(module, self.MeanLike) else module.dilation
@@ -256,6 +313,7 @@ class InfoProbe(SilicoProbe):
                 'size' : p_val['size'] + ((k - 1)     * d) * p_val['jump'],
                 'start': p_val['start']+ ((k - 1) / 2 - p) * p_val['start'],
             }  
+        
         elif isinstance(module, self.PassLike): self._rf_par[curr_name] = p_val.copy()
         elif isinstance(module, self.DownLike): self._rf_par[curr_name] = {k : 0 for k in p_val}
         else : raise TypeError(f'Encountered layer of unknown type: {module}')
@@ -283,6 +341,8 @@ class InfoProbe(SilicoProbe):
             for all non-Tensor arguments
         :type grad_out: Either a tensor or a Tuple of Tensor or None.
         '''
+        
+        # Check if the module has a name attribute
         if not hasattr(module, 'name'):
             raise AttributeError(f'Encounter module {module} with unregistered name.')
         
@@ -290,34 +350,47 @@ class InfoProbe(SilicoProbe):
         
         if curr not in self._b_target: return
         
-        #NOTE: in the following line, once grad_in was used. 
-        #I changed it with grad_out because the dimensionalities of 
-        #layers were not correct.
-        #My interpretation is grad_in represents the gradient entering the
-        #layer of interest (i.e. the one from the layer below) and grad_out the
-        #gradient outputted by the layer of interest.
         if isinstance(grad_out, tuple): grad, *_ = grad_out
         
         grad = grad.detach().abs().cpu().numpy() if grad is not None else None
         
-        if grad is None: return #Leave this here?
+        if grad is None: return
         
         grad_mean = np.mean(grad, axis = 0)
+        
         if grad_mean.ndim == 1:
+            
             grad_mean = np.expand_dims(grad_mean, axis=0)
             axes = tuple([-1])
+            
         else:
             axes = tuple(-i for i in range(len(grad_mean.shape),0, -1))
-        self._rf_dict[(curr, self.source)].append(fit_bbox(grad_mean, axes = axes))
+        
+        self._rf_dict[(curr, self.source)].append(fit_bbox(grad_mean, axes=axes))
 
         
     def _sanitize(self, var : int | str | Tuple) -> int:
+        '''
+        Sanitize the input variable to be an integer.
+
+        :param var: The variable to sanitize.
+        :type var: int | str | Tuple
+        :return: The sanitized variable.
+        :rtype: int
+        '''
+        
+        # If a variable is a tuple, we expect it to be a range
+        # specification and we return the first element
         if isinstance(var, (tuple, list)):
-            assert (len(var) == 2 and var[0] == var[1]) or\
-                   (len(var) == 3 and var[0] == var[1] and var[1] == var[2])
+            assert  (len(var) == 2 and var[0] == var[1]) or\
+                    (len(var) == 3 and var[0] == var[1] and var[1] == var[2])
             return var[0]
+        
+        #
         elif isinstance(var, str):
             raise ValueError(f'Cannot sanitize var of value: {var}')
+        
+        # If the variable is already an integer, we just return it
         else:             
             return var
 
@@ -464,7 +537,7 @@ class RecordingProbe(SilicoProbe):
     def target(self) -> Dict[str, RecordingUnit]: return self._target
         
     @property
-    def features(self) -> State:
+    def features(self) -> States:
         '''
         Returns a dictionary of probe activations indexed by
         layer name. The activation is a tensor with first dimension

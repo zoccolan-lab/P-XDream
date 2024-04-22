@@ -1,9 +1,9 @@
 {
-    "gen_weights": "path/to/your/root",
-    "mini_inet": "path/to/your/root",
-    "out_dir": "path/to/output/directory",
-    "test_image": "path/to/your/image",
-    "config": "path/to/your/config/directory",
+    "config"    : "path/to/your/config/directory",
+    "out_dir"   : "path/to/output/directory",
+    "weights"   : "path/to/your/root",
+    "dataset"   : "path/to/your/root",
+    "image"     : "path/to/your/image",
     "recordings": "path/to/your/neural/recordings",
     "clustering": "path/to/your/clustering/file"
 }
