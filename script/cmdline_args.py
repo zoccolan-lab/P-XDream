@@ -55,6 +55,7 @@ class Args(Enum):
     ClusterLayer   = Arg(name="layer",          type=str,  help="Layer name for which clustering was computed")
     ScoringType    = Arg(name="scr_type",       type=str,  help="Scoring units strategy {`cluster`; `random`; `random_adj`, `subset_top`, `subset_bot`, `subset_rand`}")
     OptimUnits     = Arg(name="opt_units",      type=str,  help="Number of units to optimize in the cluster for `subset` scoring type")
+    UseGPU         = Arg(name="gpu",            type=bool, help="If to use GPU for clustering")
     
     # Recording
     ImageIds      = Arg(name="image_ids",  type=str,  help="Image indexes for recording separated by a comma")

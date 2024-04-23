@@ -8,6 +8,7 @@ ARGS = [
     Args.Recordings.value,
     Args.MaxIterations.value,
     Args.MinElements.value,
+    Args.UseGPU.value,
     
     # Logger
     Args.ExperimentName.value,
