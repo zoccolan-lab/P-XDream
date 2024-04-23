@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from os import path
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Tuple, Type, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,7 +9,7 @@ from script.DSClustering.plotting import plot_cluster_extraction_trend, plot_clu
 from script.cmdline_args import Args
 from script.script_utils import make_dir
 from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
-from zdream.clustering.algo import BaseDSClustering
+from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU
 from zdream.experiment import Experiment
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.utils.message import Message
@@ -20,10 +20,11 @@ class DSClusteringExperiment(Experiment):
     
     def __init__(
         self,
-        matrix  : NDArray,
-        name    : str = 'ds_clustering', 
-        logger  : Logger = SilentLogger(),
-        data    : Dict[str, Any] = dict()
+        matrix : NDArray,
+        DSAlgo : Type[BaseDSClustering],
+        name   : str = 'ds_clustering', 
+        logger : Logger = SilentLogger(),
+        data   : Dict[str, Any] = dict()
     ) -> None:
         
         super().__init__(name, logger, data)
@@ -37,8 +38,7 @@ class DSClusteringExperiment(Experiment):
         logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
         np.save(file=aff_mat_fp, arr=self._aff_mat.A)
         
-        # Define clustering algorithm
-        self._clu_algo = BaseDSClustering(
+        self._clu_algo = DSAlgo(
             aff_mat=self._aff_mat, 
             min_elements=data['min_elements'],
             max_iter=data['max_iter'], 
@@ -54,6 +54,10 @@ class DSClusteringExperiment(Experiment):
         # --- MATRIX ---
         matrix = np.load(clu_conf[str(Args.Recordings)])
         
+        # --- CLUSTERING ---
+        print(clu_conf)
+        DSAlgo = BaseDSClusteringGPU if clu_conf[str(Args.UseGPU)] else BaseDSClustering
+        
         # --- LOGGER ---
         log_conf[str(Args.ExperimentTitle)] = cls.EXPERIMENT_TITLE
         logger = LoguruLogger(path=log_conf)
@@ -66,6 +70,7 @@ class DSClusteringExperiment(Experiment):
         
         return DSClusteringExperiment(
             matrix=matrix,
+            DSAlgo=DSAlgo,
             logger=logger,
             name=log_conf[str(Args.ExperimentName)],
             data=data

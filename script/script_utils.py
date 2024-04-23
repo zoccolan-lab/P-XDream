@@ -17,8 +17,6 @@ def run_single(
     
     full_conf = overwrite_dict(json_conf, args_conf) 
     
-    print(full_conf)
-    
     # Rendering
     if full_conf.get(str(Args.Render), False):
         

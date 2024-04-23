@@ -1,8 +1,12 @@
 from copy import copy
+
+from joblib import PrintTime
+from torch import Tensor
+import torch
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.clustering.model import AffinityMatrix
 from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.misc import default
+from zdream.utils.misc import default, device
 
 
 import numpy as np
@@ -21,8 +25,8 @@ class DSClustering(ABC):
     The class implements the constrained version of dominant set
     and has a `run` abstract method to be implemented in subclasses.
 
-    See: Dominant Sets and Pairwise Clustering', 
-         by Massimiliano Pavan and Marcello Pelillo, PAMI 2007.
+    SEE:    Dominant Sets and Pairwise Clustering', 
+            by Massimiliano Pavan and Marcello Pelillo, PAMI 2007.
     '''
 
     def __init__(
@@ -45,7 +49,7 @@ class DSClustering(ABC):
         :param max_iter: Maximum number of iterations of the replicator dynamics, defaults to 1000.
         :type max_iter: int, optional
         :param delta_eps: Convergence threshold for the replicator dynamics.
-                          Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
+            Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
         :type delta_eps: float, optional
         :param zero_eps: Approximation bound for probabilities zero flattening, defaults to 1e-12.
         :type zero_eps: float, optional
@@ -68,7 +72,7 @@ class DSClustering(ABC):
         # Clusters
         self._clusters: DSClusters = DSClusters()
 
-    # --- MAGIC METHODS ---
+    # --- STRING REPRESENTATION ---
 
     def __str__(self) -> str:
         return  f'DSClustering[objects: {len(self._aff_mat)}; '\
@@ -109,16 +113,16 @@ class DSClustering(ABC):
 
         :param aff_mat: Affinity matrix representing the pairwise similarities between data points.
         :param aff_mat: Initial distribution of cluster memberships. If not provided, a uniform
-                        distribution will be used.
+            distribution will be used.
         :param alpha: Regularization factor for spurious solutions.
         :type alpha: float
         :param max_iter: Maximum number of iterations of the replicator dynamics, defaults to 1000.
         :type max_iter: int, optional
         :param delta_eps: Convergence threshold for the replicator dynamics.
-                        Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
+            Maximum difference between two consecutive strategies to have convergence, defaults to 1e-8.
         :type delta_eps: float, optional
         :return: Tuple containing the final distribution of cluster memberships, their coherence and 
-                    a boolean indicating if the process converged.
+            a boolean indicating if the process converged.
         '''
 
         # In the case initial distribution is not given use a uniform one
@@ -337,7 +341,87 @@ class BaseDSClustering(DSClustering):
         else:
             wrn_msg = f'Excluding from the clustering {len(aff_mat)} singleton_elements'
             self._logger.warn(wrn_msg)
-                
+            
+class BaseDSClusteringGPU(BaseDSClustering):
+    '''
+    Perform Dominant Set clustering using GPU acceleration.
+    '''
+    
+    def __init__(
+        self, 
+        aff_mat: AffinityMatrix,
+        min_elements: int = 1,
+        max_iter: int = 1000,
+        delta_eps: float = 1e-8,
+        zero_eps: float = 1e-12,
+        logger: Logger | None = None
+    ) -> None:
+        super().__init__(aff_mat, min_elements, max_iter, delta_eps, zero_eps, logger)
+    
+    def _replicator_dynamics(
+        self,
+        aff_mat: AffinityMatrix,
+        x: NDArray | None = None, # type: ignore
+        max_iter: int = 1000,
+        delta_eps: float = 1e-8,
+    ) -> Tuple[NDArray, np.float32, bool]:
+
+        # NOTE: We replicate the same algorithm as the CPU version
+        #       but we use the GPU accelerated version of the matrix
+        #       multiplication by leveraging the torch library.
+
+        # In the case initial distribution is not given use a uniform one
+        x_ten = torch.tensor(
+            default(x, np.zeros(len(aff_mat)) + 1 / len(aff_mat)),
+            dtype=torch.float64,
+            device=device
+        )
+        
+        # Initialize hyperparameters
+        dist = 2 * delta_eps  # this is just for entering the first loop
+        iter = 0
+
+        # We extract the actual matrix from the object
+        # to use its method and avoid computational 
+        # overhead of class internal checks
+        a = torch.tensor(aff_mat.A, dtype=torch.float64, device=device)
+        w = torch.tensor(0., dtype=torch.float64)
+
+        # Loop until convergence threshold
+        # or until predetermined number of iterations            
+        while iter < max_iter and dist > delta_eps:
+
+            # Store old distribution for convergence comparison
+            x_old = x_ten.clone()
+
+            # Promote cluster membership with higher payoffs
+            x_ten_ = x_ten * torch.matmul(a, x_ten)
+
+            # Compute internal coherence 
+            # W_S = x^T A x
+            w_old = w
+            w = x_ten_.sum()
+            
+            delta_w = w - w_old
+            if delta_w < 0:
+                self._logger.warn(mess=f'Iteration {iter}: coherence decreased of {delta_w}. ')
+
+            # Normalize the distribution
+            x_ten = x_ten_.div(w)
+
+            # Compute the change in distribution with previous iterations
+            dist = torch.sqrt(torch.sum((x_ten - x_old) ** 2))
+
+            # Increment the iteration counter
+            iter += 1
+
+        x_ten = x_ten.clamp(min=0)
+
+        # Convergence flag
+        converged = iter < max_iter
+
+        return x_ten.cpu().numpy(), w.cpu().numpy(), converged
+
 class HierarchicalDSClustering(DSClustering):
     
     def __init__(
