@@ -8,15 +8,15 @@ from zdream.utils.misc import copy_exec
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
-NAME = 'neuron_scaling_simple'
+NAME = 'neuron_scaling_alexnetfc7_50points'
 
-ITER        = 2
-SAMPLE      = 1
+ITER        = 200
+SAMPLE      = 10
 
 # Neurons Scaling
-LAYER       = 21
+LAYER       = 19
 MAX_NEURONS = 1000
-N_POINTS    = 2
+N_POINTS    = 50
 NEURONS     = generate_log_numbers(N_POINTS, MAX_NEURONS)
 
 # Layer Correlation
@@ -69,8 +69,6 @@ if __name__ == '__main__':
             rec_layer_str, scr_layer_str, rnd_seed_str = neuron_scaling_args(layer=LAYER, neurons=NEURONS, sample=SAMPLE)
             
             args = {
-                'name'        : NAME,
-                'iter'        : ITER,
                 'rec_layers'  : rec_layer_str,
                 'scr_layers'  : scr_layer_str,
                 'random_seed' : rnd_seed_str,
@@ -86,8 +84,6 @@ if __name__ == '__main__':
             )
             
             args = {
-                'name'        : NAME,
-                'iter'        : ITER,
                 'rec_layers'  : rec_layer_str,
                 'scr_layers'  : scr_layer_str,
                 'random_seed' : rnd_seed_str,
@@ -98,5 +94,9 @@ if __name__ == '__main__':
         case _:
             
             print('Invalid option')
+            
+    args['name'] = NAME
+    args['iter'] = ITER
+    args['template'] = 'T'
 
     copy_exec(file=file, args=args)
