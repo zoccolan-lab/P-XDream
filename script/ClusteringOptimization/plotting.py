@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import NDArray
+from torchvision.transforms.functional import to_pil_image
 
 from zdream.generator import Generator
 from zdream.utils.logger import Logger, SilentLogger
@@ -357,10 +358,7 @@ def plot_cluster_best_stimuli(
     cluster_stimuli = {
     cluster_idx: [
             generator(
-                data=(
-                    np.expand_dims(code, 0), # add batch size
-                    ZdreamMessage(mask=np.array([True]))
-                )
+                codes=np.expand_dims(code, 0), # add batch size
             )[0][0] # first element of the tuple (the image)
                     # and batch size removal
             for _, code in codes.values()
@@ -380,3 +378,32 @@ def plot_cluster_best_stimuli(
         out_fp = path.join(out_dir, f'cluster_{cluster_idx}-best_stimuli.png')
         logger.info(mess=f'Saving best cluster stimuli to {out_fp}')
         grid.save(out_fp)
+        
+def plot_cluster_target(
+    cluster_codes: Dict[int, Dict[str, Tuple[float, Codes]]],
+    generator: Generator,
+    out_dir: str,
+    logger: Logger = SilentLogger()
+):
+    
+    cluster_stimuli = {
+        cluster_idx: {
+            'weighted' if weight_type else 'arithmetic':
+            to_pil_image(
+                generator(
+                    codes=np.expand_dims(code, 0), # add batch size
+                )[0] # first element of the tuple (the image)
+
+            )
+            for weight_type, (_, code) in codes.items()
+        }
+        for cluster_idx, codes in cluster_codes.items()
+    }
+    
+    for cluster_idx, best_stimuli in cluster_stimuli.items():
+        
+        for weight_type, best_stimulus in best_stimuli.items():
+            
+            out_fp = path.join(out_dir, f'c{cluster_idx}_{weight_type}_mean-best_stimuli.png')
+            logger.info(mess=f'Saving best cluster stimuli to {out_fp}')
+            best_stimulus.save(out_fp)

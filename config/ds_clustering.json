@@ -3,7 +3,8 @@
     "clustering": {
         "recordings": "",
         "max_iter": 50000,
-        "min_elements": 1
+        "min_elements": 1,
+        "gpu": false
     },
     "logger": {
         "out_dir": "",

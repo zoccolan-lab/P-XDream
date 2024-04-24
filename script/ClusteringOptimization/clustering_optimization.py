@@ -12,8 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
-
-from script.ClusteringOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_scr, plot_subsetting_optimization, plot_weighted
+from script.ClusteringOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
 from script.cmdline_args import Args
 from script.parsing import parse_boolean_string
 from script.script_utils import make_dir
@@ -83,6 +82,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             root=gen_conf[str(Args.GenWeights)],
             variant=gen_conf[str(Args.GenVariant)]
         )
+        generator.to(device)
         
         # --- SUBJECT ---
         
@@ -109,6 +109,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             network_name=sbj_conf[str(Args.NetworkName)]
         )
         
+        sbj_net.to(device)
         sbj_net.eval()
 
         # --- CLUSTERING ---
@@ -231,7 +232,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             case _:
                 err_msg =  f'Invalid `scr_type`: {clu_conf[str(Args.ScoringType)]}. '\
                             'Choose one between {cluster, random, random_adj, subset_top, subset_bot, fraction rand}. '
-                raise ValueError(err_msg)        
+                raise ValueError(err_msg)  
+            
+        print('ACTIVATIONS IDX', activations_idx)
 
         # --- SCORER ---
 
@@ -766,6 +769,88 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         
         self._logger.formatting = lambda x: f'> {x}'
         plot_cluster_best_stimuli(
+            cluster_codes=self._data['best_codes'],
+            generator=generator,
+            logger=self._logger,
+            out_dir=stimuli_dir
+        )
+        self._logger.reset_formatting()
+        
+        self._logger.info(mess='')
+
+class ClusterStimuliTargetMultiExperiment(_ClusteringOptimizationMultiExperiment):
+    
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'] = 'Best stimuli for all images of one neuron both using arithmetic or weighted average. '
+        
+        # Dictionary: cluster-idx: weighting_type: (score, code)
+        self._data['best_codes'] = defaultdict(lambda: defaultdict(Tuple[float, Codes]))
+
+
+    def _progress(
+        self, 
+        exp: ClusteringOptimizationExperiment, 
+        conf: Dict[str, Any],
+        msg : ZdreamMessage,
+        i: int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        clu_conf = conf['clustering']
+        
+        cluster_idx        = clu_conf[str(Args.ClusterIdx)]
+        cluster_weighting  = clu_conf[str(Args.WeightedScore)]
+        
+        best_score : float = msg.stats_gen['best_score']
+        best_code  : Codes = msg.solution[0]
+        
+        cluster_bests = self._data['best_codes'][cluster_idx]
+        
+        if cluster_weighting not in cluster_bests:
+        
+            cluster_bests[cluster_weighting] = best_score, best_code
+        
+        else:
+            
+            clu_best_score, _ = cluster_bests[cluster_weighting]
+            
+            if best_score > clu_best_score:
+                cluster_bests[cluster_weighting] = best_score, best_code
+
+
+    def _finish(self):
+        
+        # Dictionary redefinition with no lambdas
+        # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
+        
+        self._data['best_codes'] = {
+            weighted_score: {
+                cluster_unit: best
+                for cluster_unit, best in units.items()
+            }
+            for weighted_score, units in self._data['best_codes'].items()
+        }
+        
+        super()._finish()
+        
+        stimuli_dir = path.join(self.target_dir, 'stimuli')
+        self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
+        os.makedirs(stimuli_dir)
+        
+        gen_conf = self._search_config[0]['generator']
+        
+        generator = DeePSiMGenerator(
+            root    = gen_conf[str(Args.GenWeights)],
+            variant = gen_conf[str(Args.GenVariant)]
+        ).to(device)
+        
+        self._logger.formatting = lambda x: f'> {x}'
+        
+        plot_cluster_target(
             cluster_codes=self._data['best_codes'],
             generator=generator,
             logger=self._logger,
