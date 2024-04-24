@@ -126,6 +126,12 @@ class Logger:
 
 		pass
 
+	def set_progress_bar(self):
+		''' Logger setup for progress bar '''
+
+		# self._logger.remove()  # Remove default 'stderr' handler
+		self._handler = self._logger.add(lambda m: self.CONSOLE.print(m, end=""), colorize=True)
+
 	# --- DIRECTORY ---
 	
 	def _get_dir(self, conf: Dict[str, str]) -> str:
@@ -312,7 +318,7 @@ class LoguruLogger(Logger):
 		:param path_: Path where to save the experiment results.
 			It supports two types of input:
 			- Dict[str, str]: dictionary specifiying the target directory hierarchy based
-							    on experiment directory, title, name and version.
+				on experiment directory, title, name and version.
 			- str: target directory path.
 		:type path_: Dict[str, str] | None
 		:param on_file: If to log on file, defaults to True.
@@ -327,12 +333,6 @@ class LoguruLogger(Logger):
 
 		# Initialize logger with unique ID
 		self._logger = loguru.logger.bind(id=self._id)
-
-		self._logger.remove()  # Remove default 'stderr' handler
-
-		# We need to specify end=''" as log message already ends with \n (thus the lambda function)
-		# Also forcing 'colorize=True' otherwise Loguru won't recognize that the sink support colors
-		self._logger.add(lambda m: self.CONSOLE.print(m, end=""), colorize=True)
 
 		# File logging
 		if on_file:

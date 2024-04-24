@@ -200,12 +200,13 @@ class NaturalStimuliLoader:
         if num_gen_img + num_nat_img != len(mask): raise ValueError('Number of images in stimuli and mask do not match')
         if num_gen_img   != sum( mask):            raise ValueError('Number of synthetic images in stimuli and mask do not match')
         if num_nat_img   != sum(~mask):            raise ValueError('Number of natural images in stimuli and mask do not match')
+        
         if gen_img_shape != nat_img_shape: raise ValueError('Synthetic and natural images have different shapes')   
     
         # Interleave the images according to the mask
         mask_ten = torch.tensor(mask, device=device)
         stimuli  = torch.zeros(num_nat_img + num_gen_img, *gen_img_shape, device=device)
-        stimuli[ mask_ten] = gen_img.to(device)
+        stimuli[ mask_ten] = gen_img
         stimuli[~mask_ten] = nat_img
         
         return stimuli
@@ -258,7 +259,7 @@ class MiniImageNet(ImageFolder, ExperimentDataset):
         self,
         root: str,
         transform: Callable[..., Tensor] = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((256, 256)),
             transforms.ToTensor()
         ]),
         target_transform: Callable[[Tensor], Tensor] | None = None

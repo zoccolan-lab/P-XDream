@@ -318,7 +318,7 @@ class DeePSiMGenerator(Generator):
         if self.type_net in ['conv', 'norm']:
             gens *= 255
 
-        return gens
+        return gens.to(device)
     
     # --- PROPERTIES ---
 

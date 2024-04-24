@@ -1,29 +1,26 @@
-
-from functools import partial
+import math
 from typing import List, Tuple
 
 import numpy as np
 
-from script.cmdline_args import LOCAL_SETTINGS
 from zdream.clustering.ds import DSClusters
-from zdream.utils.io_ import read_json
 from zdream.utils.misc import copy_exec
 
-CLUSTER_FILE = read_json(LOCAL_SETTINGS)['clustering']
 
-NAME = ''
+CLUSTER_FILE  = '/data/Zdream/clustering/alexnet/conv5-maxpool/DSClusters.json'
+
+NAME = 'subset_optimization_alexnetconv5maxpool_singleunit_c0'
 
 CLUSTER_CARDINALITY = {
     i: len(cluster)
     for i, cluster in enumerate(DSClusters.from_file(CLUSTER_FILE)) # type: ignore
 }
 
-CLUSTER_IDX   = list(range(5))
-ITER          = 200
-SAMPLE        = 10
+CLUSTER_IDX   = [0]
 
-# Top-k and Bottom-k
-TOPK = [1, 3]
+ITER          = 150
+SAMPLE        = 1
+LAYER         = 13
 
 
 def get_arguments_weighting(
@@ -87,15 +84,18 @@ def get_arguments_single_unit(
         return clu_idx_str, opt_units_str, rnd_seed_str
     
 def get_arguments_topk_botk(
-    cluster_idx:  List[int],
-    topk_botk:  List[int]
+    cluster_idx:  List[int]
 ) -> List[Tuple[str, str]]:
     
     args = [
         (clu_idx, topbot, k)
-        for topbot in ['topk', 'botk']
-        for k in topk_botk + [CLUSTER_CARDINALITY[clu_idx]//2]
         for clu_idx in cluster_idx
+        for k in [
+            1, 
+            int(math.sqrt(CLUSTER_CARDINALITY[clu_idx])),
+            CLUSTER_CARDINALITY[clu_idx]//2
+        ]
+        for topbot in ['subset_top', 'subset_bot']
     ]
     
     clu_idx_str = '#'.join([str(a) for a, _, _ in args])
@@ -126,6 +126,28 @@ def get_arguments_best_stimuli(
         
         return clu_idx_str, opt_units_str, rnd_seed_str
 
+def get_arguments_cluster_target(
+        cluster_idx:  List[int],
+        sample: int
+) -> Tuple[str, str, str]:
+        
+        args = [ 
+                (
+                    clu_idx,
+                    'True' if weight else '',
+                    str(np.random.randint(1000, 100000))
+                )
+                for weight  in [True, False]
+                for clu_idx in cluster_idx 
+                for _ in range(sample)
+        ]
+        
+        clu_idx_str      = '#'.join([str(a) for a, _, _ in args])
+        weighted_scr_str = '#'.join([str(a) for _, a, _ in args])
+        rnd_seed_str     = '#'.join([str(a) for _, _, a in args])
+        
+        return clu_idx_str, weighted_scr_str, rnd_seed_str
+
 
 if __name__ == '__main__':
     
@@ -135,9 +157,9 @@ if __name__ == '__main__':
     print('[3] Subset optimization single unit')
     print('[4] Subset optimization top-k, bot-k unit')
     print('[5] Best stimuli')
+    print('[6] Cluster target stimuli')
     
     choice = int(input('Choice: '))
-    
     
     match choice:
         
@@ -149,6 +171,7 @@ if __name__ == '__main__':
                 'cluster_idx'    : clu_idx_str,
                 'weighted_score' : weighted_score_str,
                 'random_seed'    : rnd_seed_str,
+                'scr_type'       : 'cluster'
             }
             
             file = 'run_multiple_weighted_mean.py'
@@ -180,7 +203,7 @@ if __name__ == '__main__':
             
         case 4:
             
-            clu_idx_str, topbot_str, k_str = get_arguments_topk_botk(cluster_idx=CLUSTER_IDX, topk_botk=TOPK)
+            clu_idx_str, topbot_str, k_str = get_arguments_topk_botk(cluster_idx=CLUSTER_IDX)
             
             args = {
                 'cluster_idx'    : clu_idx_str,
@@ -203,13 +226,32 @@ if __name__ == '__main__':
             
             file = 'run_multiple_best_stimuli.py'
             
+        case 6:
+            
+            cluster_idx_str, weighted_score_str, rnd_seed_str = get_arguments_cluster_target(cluster_idx=CLUSTER_IDX, sample=SAMPLE)
+            
+            args = {
+                'cluster_idx'    : cluster_idx_str,
+                'weighted_score' : weighted_score_str,
+                'random_seed'    : rnd_seed_str,
+                'scr_type'       : 'cluster'
+            }
+            
+            file = 'run_multiple_cluster_target.py'
+            
+        case 0:
+            
+            print('Exit')
+            
         case _:
             raise ValueError('Invalid choice')
     
             
-    args['iter']     = ITER
-    args['name']     = NAME
-    args['template'] = 'T'
+    args['iter']         = ITER
+    args['name']         = NAME
+    args['template']     = 'T'
+    args['layer']        = LAYER
+    args['cluster_file'] = CLUSTER_FILE
     
     copy_exec(
         file=file,

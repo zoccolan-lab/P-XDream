@@ -52,7 +52,7 @@ class Args(Enum):
     ClusterFile    = Arg(name="cluster_file",   type=str,  help="Path to clustering JSON file", default=CLUSTERING)
     ClusterIdx     = Arg(name="cluster_idx",    type=int,  help="Cluster index to optimize for")
     WeightedScore  = Arg(name="weighted_score", type=bool, help="If to weight score by cluster rank")
-    ClusterLayer   = Arg(name="layer",          type=str,  help="Layer name for which clustering was computed")
+    ClusterLayer   = Arg(name="layer",          type=int,  help="Layer name for which clustering was computed")
     ScoringType    = Arg(name="scr_type",       type=str,  help="Scoring units strategy {`cluster`; `random`; `random_adj`, `subset_top`, `subset_bot`, `subset_rand`}")
     OptimUnits     = Arg(name="opt_units",      type=str,  help="Number of units to optimize in the cluster for `subset` scoring type")
     UseGPU         = Arg(name="gpu",            type=bool, help="If to use GPU for clustering")

@@ -13,7 +13,7 @@ from os import path
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Type, cast
+from typing import Any, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.typing import NDArray
@@ -29,8 +29,8 @@ from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
 from .utils.io_ import read_json, save_json, store_pickle
-from .utils.types import Codes, MaskGenerator, Stimuli, Scores, States
-from .utils.misc import default, flatten_dict, overwrite_dict, stringfy_time
+from .utils.types import Codes, Stimuli, Scores, States
+from .utils.misc import flatten_dict, overwrite_dict, stringfy_time
 
 # --- EXPERIMENT ABSTRACT CLASS ---
 
@@ -1116,13 +1116,17 @@ class MultiExperiment:
         the provided configurations.
         '''
         
-        with Progress(console=Logger.CONSOLE) as progress:
+        # We need to specify end=''" as log message already ends with \n (thus the lambda function)
+		# Also forcing 'colorize=True' otherwise Loguru won't recognize that the sink support colors
+        self._logger.set_progress_bar()
         
+        with Progress(console=Logger.CONSOLE) as progress:
+
             for i, conf in progress.track(
                 enumerate(self._search_config),
                 total=len(self._search_config)
-            ):
-                
+            ):        
+            
                 self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
                 
                 exp = self._Exp.from_config(conf=conf)
