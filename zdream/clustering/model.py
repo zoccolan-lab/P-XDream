@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import math
 import os
 from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import MinMaxScaler
 
 from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.misc import default
@@ -206,12 +208,11 @@ class PairwiseSimilarity:
         Compute pairwise similarity with cosine similarity
         '''
         
-        aff_mat = cosine_similarity(matrix) # in [-1, 1]
+        aff_mat  = cosine_similarity(matrix) # \in to [-1, 1]
+        aff_mat += 1                         # \in to [ 0, 2]
+        aff_mat /= 2                         # \in to [ 0, 1]
         
-        # Normalize
-        aff_mat += 1.                # in [0, 2]
-        aff_mat /= 2                 # in [0, 1]
-        np.fill_diagonal(aff_mat, 0) # zero columns
+        np.fill_diagonal(aff_mat, 0)        # zero diagonal
         
         return AffinityMatrix(A=aff_mat)
     

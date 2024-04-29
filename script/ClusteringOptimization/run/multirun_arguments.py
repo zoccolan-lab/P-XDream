@@ -6,21 +6,31 @@ import numpy as np
 from zdream.clustering.ds import DSClusters
 from zdream.utils.misc import copy_exec
 
+LAYER_NAME = 'fc7'
 
-CLUSTER_FILE  = '/data/Zdream/clustering/alexnet/conv5-maxpool/DSClusters.json'
+LAYERS_NAME = {
+    'fc8'           : ('fc8',           'alexnetfc8',          21),
+    'fc7-relu'      : ('fc7-relu',      'alexnetfc7relu',      20),
+    'fc7'           : ('fc7',           'alexnetfc7',          19),
+    'fc6-relu'      : ('fc6-relu',      'alexnetfc6relu',      17),
+    'conv5-maxpool' : ('conv5-maxpool', 'alexnetconv5maxpool', 13),
+}
 
-NAME = 'subset_optimization_alexnetconv5maxpool_singleunit_c0'
+CLU_DIR, EXP_NAME, LAYER = LAYERS_NAME[LAYER_NAME]
+
+CLUSTER_FILE  = f'/data/Zdream/clustering/alexnet/{CLU_DIR}/DSClusters.json'
+
+NAME = f'singlelayeroptim_{EXP_NAME}_c2_c5'
 
 CLUSTER_CARDINALITY = {
     i: len(cluster)
     for i, cluster in enumerate(DSClusters.from_file(CLUSTER_FILE)) # type: ignore
 }
 
-CLUSTER_IDX   = [0]
+CLUSTER_IDX   = [2, 3, 4, 5]
 
 ITER          = 150
-SAMPLE        = 1
-LAYER         = 13
+SAMPLE        = 10
 
 
 def get_arguments_weighting(
@@ -221,7 +231,7 @@ if __name__ == '__main__':
                 'cluster_idx'    : clu_idx_str,
                 'opt_units'      : opt_units_str,
                 'random_seed'    : rnd_seed_str,
-                'scoring_type'   : 'subset'
+                'scr_type'   : 'subset'
             }
             
             file = 'run_multiple_best_stimuli.py'

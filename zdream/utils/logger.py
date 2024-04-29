@@ -129,7 +129,7 @@ class Logger:
 	def set_progress_bar(self):
 		''' Logger setup for progress bar '''
 
-		# self._logger.remove()  # Remove default 'stderr' handler
+		self._logger.remove()  # Remove default 'stderr' handler
 		self._handler = self._logger.add(lambda m: self.CONSOLE.print(m, end=""), colorize=True)
 
 	# --- DIRECTORY ---

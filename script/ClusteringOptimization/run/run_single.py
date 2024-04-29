@@ -16,6 +16,4 @@ if __name__ == '__main__':
     parser = Args.get_parser(args=ARGS)
     args = vars(parser.parse_args())
     
-    print(args)
-    
     run_single(args=args, exp_type=ClusteringOptimizationExperiment)

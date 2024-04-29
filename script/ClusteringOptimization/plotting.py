@@ -359,8 +359,7 @@ def plot_cluster_best_stimuli(
     cluster_idx: [
             generator(
                 codes=np.expand_dims(code, 0), # add batch size
-            )[0][0] # first element of the tuple (the image)
-                    # and batch size removal
+            )[0] # first element of the tuple (the image)
             for _, code in codes.values()
         ]
         for cluster_idx, codes in cluster_codes.items()
