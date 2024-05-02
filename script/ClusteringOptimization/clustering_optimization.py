@@ -81,8 +81,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         generator = DeePSiMGenerator(
             root=gen_conf[str(Args.GenWeights)],
             variant=gen_conf[str(Args.GenVariant)]
-        )
-        generator.to(device)
+        ).to(device)
         
         # --- SUBJECT ---
         
@@ -107,9 +106,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=sbj_conf[str(Args.NetworkName)]
-        )
-        
-        sbj_net.to(device)
+        ).to(device)
+
         sbj_net.eval()
 
         # --- CLUSTERING ---
@@ -233,8 +231,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 err_msg =  f'Invalid `scr_type`: {clu_conf[str(Args.ScoringType)]}. '\
                             'Choose one between {cluster, random, random_adj, subset_top, subset_bot, fraction rand}. '
                 raise ValueError(err_msg)  
-            
-        print('ACTIVATIONS IDX', activations_idx)
 
         # --- SCORER ---
 
@@ -247,13 +243,21 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         # --- OPTIMIZER ---
         
-        optim = CMAESOptimizer(
+        # optim = CMAESOptimizer(
+        #     codes_shape  = generator.input_dim,
+        #     rnd_seed     =     conf[str(Args.RandomSeed)],
+        #     rnd_distr    = opt_conf[str(Args.RandomDistr)],
+        #     rnd_scale    = opt_conf[str(Args.RandomScale)],
+        #     pop_size     = opt_conf[str(Args.PopulationSize)],
+        #     sigma0       = opt_conf[str(Args.Sigma0)]
+        # )
+        
+        optim = GeneticOptimizer(
             codes_shape  = generator.input_dim,
             rnd_seed     =     conf[str(Args.RandomSeed)],
             rnd_distr    = opt_conf[str(Args.RandomDistr)],
             rnd_scale    = opt_conf[str(Args.RandomScale)],
-            pop_size     = opt_conf[str(Args.PopulationSize)],
-            sigma0       = opt_conf[str(Args.Sigma0)]
+            pop_size     = opt_conf[str(Args.PopulationSize)]   
         )
 
         #  --- LOGGER --- 
@@ -765,7 +769,7 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         generator = DeePSiMGenerator(
             root    = gen_conf[str(Args.GenWeights)],
             variant = gen_conf[str(Args.GenVariant)]
-        ).to(device)
+        )
         
         self._logger.formatting = lambda x: f'> {x}'
         plot_cluster_best_stimuli(

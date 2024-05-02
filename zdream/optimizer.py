@@ -153,7 +153,7 @@ class Optimizer(ABC):
         
         self._codes = self._step(scores=scores)
         
-        return self._codes
+        return self.codes
     
     
     @abstractmethod
@@ -230,7 +230,7 @@ class Optimizer(ABC):
         '''
         
         return self._rnd_sample(
-            size=(self._init_n_codes, *self._codes_shape),
+            size=(self._init_n_codes, np.prod(self._codes_shape)),
             scale=self._rnd_scale,
             **kwargs
         )
@@ -392,7 +392,7 @@ class GeneticOptimizer(Optimizer):
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring stimuli
         sort_s = np.argsort(scores)
-        topk_old_gen = self.codes[sort_s[-self._topk:]]
+        topk_old_gen = self._codes[sort_s[-self._topk:]]
         
         # Convert scores to fitness (probability) via 
         # temperature-gated softmax function (needed only for rest of population)
@@ -401,7 +401,7 @@ class GeneticOptimizer(Optimizer):
         # The rest of the population is obtained by generating
         # children using breeding and mutation.
         
-        # Breeding           
+        # Breeding
         new_gen = self._breed(
             population=self._codes.copy(),  # type: ignore
             pop_fitness=fitness,
@@ -479,7 +479,7 @@ class GeneticOptimizer(Optimizer):
         # Identify which parent contributes which genes for every child
         parentage = self._rng.choice(
             a=self._n_parents, 
-            size=(num_children, *self._codes_shape), 
+            size=(num_children, np.prod(self._codes_shape)), 
             replace=True
         )
         
