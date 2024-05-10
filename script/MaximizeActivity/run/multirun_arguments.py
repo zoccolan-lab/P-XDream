@@ -28,8 +28,7 @@ def neuron_scaling_args(layer: int, neurons: List[int], sample: int) -> Tuple[st
 
     args = [
         ( f'{layer}={neuron}r[]', f'{layer}=[]', str(random.randint(1000, 1000000)) )
-        for neuron in neurons for _ in range(sample)
-    ]
+        for neuron in neurons for _ in range(sample)]
     
     rec_layer_str = '#'.join(a for a, _, _ in args)
     scr_layer_str = '#'.join(a for _, a, _ in args)
@@ -45,8 +44,7 @@ def layers_correlation_arg(layers: List[int], neuron_len: List[int], n_points: i
         ( f'{layer}={neuron}r[]', str(random.randint(1000, 1000000)) )
         for layer, neu_len in zip(layers, neuron_len) 
         for neuron in generate_log_numbers(n_points, neu_len)
-        for _ in range(sample)
-    ]
+        for _ in range(sample)]
     
     scr_layers_str = '#'.join(a for a, _ in args)
     rand_seed_str  = '#'.join(a for _, a in args)

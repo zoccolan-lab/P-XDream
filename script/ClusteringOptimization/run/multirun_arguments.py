@@ -105,8 +105,7 @@ def get_arguments_topk_botk(
             int(math.sqrt(CLUSTER_CARDINALITY[clu_idx])),
             CLUSTER_CARDINALITY[clu_idx]//2
         ]
-        for topbot in ['subset_top', 'subset_bot']
-    ]
+        for topbot in ['subset_top', 'subset_bot']]
     
     clu_idx_str = '#'.join([str(a) for a, _, _ in args])
     topbot_str  = '#'.join([str(a) for _, a, _ in args])

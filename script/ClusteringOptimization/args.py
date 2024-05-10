@@ -1,6 +1,6 @@
 from typing import List
 
-from script.cmdline_args import Args, Arg
+from script.utils.cmdline_args import Args, Arg
 
 ARGS: List[Arg] = [
     

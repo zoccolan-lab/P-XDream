@@ -1,4 +1,4 @@
-from script.cmdline_args import Args
+from script.utils.cmdline_args import Args
 from script.ClusteringOptimization.args import ARGS
 from script.ClusteringOptimization.clustering_optimization import ClusteringOptimizationExperiment, ClusteringSubsetOptimizationMultiExperiment
 

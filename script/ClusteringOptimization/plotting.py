@@ -166,8 +166,7 @@ def plot_scr(
     legend_labels = [
         plt.Line2D(  # type: ignore
             [0], [0], color=color, lw=4, label=scr_type)
-        for scr_type, (color, _) in STYLE.items()
-    ]
+        for scr_type, (color, _) in STYLE.items()]
     
     # Line plot for ERROR BARS
     for name, (color, _) in STYLE.items():
@@ -185,8 +184,7 @@ def plot_scr(
     # Save figures
     for fig, name in [
         (errorbars,   'errorbars'),
-        (violinplots, 'violins'), 
-    ]:
+        (violinplots, 'violins'), ]:
         out_fp = path.join(out_dir, f'scr_types_{name}.png')
         logger.info(mess=f'Saving plot to {out_fp}')
         fig.savefig(out_fp)

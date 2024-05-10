@@ -1,5 +1,5 @@
-from script.cmdline_args import Args
-from script.script_utils import run_single
+from script.utils.cmdline_args import Args
+from script.utils.utils import run_single
 from script.DSClustering.args import ARGS
 from script.DSClustering.ds_clustering import DSClusteringExperiment
 

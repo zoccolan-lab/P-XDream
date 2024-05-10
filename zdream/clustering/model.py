@@ -22,13 +22,6 @@ Labels associated to objects in an affinity matrix.
 Array length has the same size of matrix side.
 '''
 
-Recording = NDArray[np.float32]
-'''
-Two dimensional array of dimension NEURONS x STIMULI
-The element (i, j) indicates that the neuron i produced
-the specific activation when presented stimulus j 
-'''
-
 class AffinityMatrix:
     '''
     Class representing a 2-dimensional square affinity matrix
@@ -199,7 +192,7 @@ class AffinityMatrix:
 
 class PairwiseSimilarity:
     '''
-    Class for computing pairwise-similarities over a recordings.
+    Class for computing pairwise-similarities over a 
     '''
     
     @staticmethod

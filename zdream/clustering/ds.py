@@ -3,11 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cache
 from os import path
-from statistics import mean
-from typing import Any, Callable, Counter, Dict, Iterable, List, Set, Tuple, cast
+from typing import Any, Counter, Dict, Iterable, List, Set, Tuple
 import numpy as np
-from numpy.typing import NDArray, ArrayLike
-from sklearn.metrics import adjusted_rand_score, rand_score
+from numpy.typing import NDArray
+from sklearn.metrics import rand_score
 
 from zdream.clustering.model import AffinityMatrix, Label, Labels
 from zdream.utils.logger import Logger, SilentLogger
@@ -16,7 +15,7 @@ from zdream.utils.misc import default
 
 from functools import cache
 
-from zdream.utils.types import LayerReduction, Scores, ScoringUnit, States, UnitsMapping
+from zdream.utils.types import ScoringUnit
 
 class DS:
     '''
@@ -367,7 +366,7 @@ class DSClusters:
         :rtype: DSClusters
         '''
         
-        logger.info(mess=f'Reding clusters from {fp}')
+        logger.info(mess=f'Reading clusters from {fp}')
         data = read_json(path=fp)
         
         clusters = DSClusters()

@@ -11,9 +11,9 @@ import torch
 from torchvision.transforms.functional import to_pil_image
 
 from script.MaximizeActivity.plotting import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label
-from script.cmdline_args import Args
-from script.parsing import parse_boolean_string, parse_recording, parse_scoring
-from script.script_utils import make_dir
+from script.utils.cmdline_args import Args
+from script.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
+from script.utils.utils import make_dir
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
 from zdream.optimizer import CMAESOptimizer, Optimizer

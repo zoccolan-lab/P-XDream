@@ -6,8 +6,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from script.DSClustering.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
-from script.cmdline_args import Args
-from script.script_utils import make_dir
+from script.utils.cmdline_args import Args
+from script.utils.utils import make_dir
 from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
 from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU
 from zdream.experiment import Experiment

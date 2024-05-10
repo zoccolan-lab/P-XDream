@@ -13,9 +13,9 @@ from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
 from script.ClusteringOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
-from script.cmdline_args import Args
-from script.parsing import parse_boolean_string
-from script.script_utils import make_dir
+from script.utils.cmdline_args import Args
+from script.utils.parsing import parse_boolean_string
+from script.utils.utils import make_dir
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator

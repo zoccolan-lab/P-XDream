@@ -1,5 +1,5 @@
 
-from script.cmdline_args import Args
+from script.utils.cmdline_args import Args
 from script.MaximizeActivity.args import ARGS
 from script.MaximizeActivity.maximize_activity import MaximizeActivityExperiment, NeuronScalingMultiExperiment
 

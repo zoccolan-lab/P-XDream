@@ -20,7 +20,7 @@ from zdream.utils.probe import RecordingProbe
 from zdream.utils.io_ import to_gif
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.dataset import MiniImageNet
-from script.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
+from script.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
 from zdream.utils.types import Codes, MaskGenerator, ScoringUnit, Stimuli, Scores, States, mask_generator_from_template
 from zdream.utils.message import ZdreamMessage
 

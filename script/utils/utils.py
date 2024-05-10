@@ -1,6 +1,6 @@
 import os
 from typing import Any, Dict, Type
-from script.cmdline_args import Args
+from script.utils.cmdline_args import Args
 from zdream.experiment import Experiment
 from zdream.utils.io_ import read_json
 from zdream.utils.misc import overwrite_dict

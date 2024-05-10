@@ -10,8 +10,8 @@ from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
 from script.OptimizerTuning.plotting import plot_hyperparam, plot_optim_type_comparison
-from script.cmdline_args import Args
-from script.script_utils import make_dir
+from script.utils.cmdline_args import Args
+from script.utils.utils import make_dir
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
@@ -21,7 +21,7 @@ from zdream.subject import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.probe import RecordingProbe
 from zdream.utils.types import MaskGenerator
 from zdream.utils.misc import device
-from script.parsing import parse_recording, parse_scoring
+from script.utils.parsing import parse_recording, parse_scoring
 from zdream.utils.message import ZdreamMessage
 
 # --- EXPERIMENT CLASS ---

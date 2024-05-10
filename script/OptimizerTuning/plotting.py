@@ -26,8 +26,7 @@ def plot_hyperparam(
         '#A569BD', 
         '#F700FF',
         '#34495E',
-        '#7F8C8D'
-    ]
+        '#7F8C8D']
     
     # Compute mean of each population
     means = [[np.mean(iter_score) for iter_score in exp_scores] for exp_scores in scores] 

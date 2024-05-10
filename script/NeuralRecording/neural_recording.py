@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Tuple, cast
 import numpy as np
 from torch.utils.data import Dataset
 
-from script.cmdline_args import Args
-from script.parsing import parse_int_list, parse_recording
+from script.utils.cmdline_args import Args
+from script.utils.parsing import parse_int_list, parse_recording
 from zdream.experiment import Experiment
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.subject import InSilicoSubject, TorchNetworkSubject

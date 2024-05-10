@@ -352,7 +352,9 @@ class LoguruLogger(Logger):
 
 	def close(self):
 		''' Close the logger releasing resources '''
-		self._logger.remove(handler_id=self._handler)
+
+		if hasattr(self, '_handler'):
+			self._logger.remove(handler_id=self._handler)
 
 
 class SilentLogger(Logger):

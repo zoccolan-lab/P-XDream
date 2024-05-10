@@ -19,7 +19,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.progress import Progress
 
-from script.cmdline_args import Args
+from script.utils.cmdline_args import Args
 from zdream.utils.dataset import NaturalStimuliLoader
 
 from .utils.logger import DisplayScreen, Logger, SilentLogger
@@ -328,8 +328,7 @@ class ZdreamExperimentState:
         ('scores_nat', 'npy'),
         ('rec_units',  'npz'),
         ('scr_units',  'npz'),
-        ('rf_maps',    'npz'),
-    ]
+        ('rf_maps',    'npz'),]
 
     # NOTE: We don't use the defined type aliases `Codes`, `State`, ...
     #       as they refer to a single step in the optimization process, while
