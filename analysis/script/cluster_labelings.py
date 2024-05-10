@@ -19,7 +19,6 @@ SETTINGS = {
     'fc7'     : ('fc7',      'alexnetfc7',     False,   56)
 }
 
-
 CLU_DIR, NAME, TRUE_CLASSES, N_CLU = SETTINGS[LAYER]
 
 SETTINGS_FILE = os.path.abspath(os.path.join(__file__, '..', '..', 'local_settings.json'))

@@ -93,9 +93,9 @@ class WordNet:
         self._logger = logger
         
         # Load words and create mappings
-        self._words    : List[Word]
-        self._code_map : Dict[str, Word]
-        self._name_map : Dict[str, Word]
+        self._words        : List[Word]
+        self._code_mapping : Dict[str, Word]
+        self._name_mapping : Dict[str, Word]
         
         self._words, self._code_mapping, self._name_mapping = self._load_words(wordnet_fp=wordnet_fp)
         
@@ -192,7 +192,7 @@ class WordNet:
             ancestors.extend(
                 [parent_code] + self._get_ancestors_codes(self[parent_code])
             )
-            
+
         word.ancestors_codes = list(set(ancestors))
         return word.ancestors_codes
         
@@ -327,7 +327,16 @@ class WordNet:
             precompute=False
         )
         
-        setattr(wordnet, '_words', words)
+        # Adjust mappings
+        word_map = {w.code: w for w in words}
+        
+        wordnet._name_mapping = {name: word_map[w.code] for name, w in wordnet._name_mapping.items()}
+        wordnet._code_mapping = {code: word_map[code]   for code, w in wordnet._code_mapping.items()}
+        
+        wordnet._children = {word: [word_map[c.code] for c in children] for word, children in wordnet._children.items()}
+        wordnet._parents  = {word: [word_map[p.code] for p in parents]  for word, parents  in wordnet._parents .items()}
+        
+        wordnet._words = words
         
         return wordnet
 
