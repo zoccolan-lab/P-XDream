@@ -24,20 +24,25 @@ class Word:
     code  : str
     
     # Precomputed attributes. None if not computed
-    depth             :       int | None = None
-    children_codes    : List[str] | None = None
-    parents_codes     : List[str] | None = None
-    descendants_codes : List[str] | None = None
-    ancestors_codes   : List[str] | None = None
+    _depth             :       int | None = None
+    _children_codes    : List[str] | None = None
+    _parents_codes     : List[str] | None = None
+    _descendants_codes : List[str] | None = None
+    _ancestors_codes   : List[str] | None = None
     
     # String representation
     def __str__(self)  -> str:  
         
-        depth       = self.depth                  if self.depth       is not None else 'NC'
-        descendants = len(self.descendants_codes) if self.descendants_codes is not None else 'NC'
-        ancestors   = len(self.ancestors_codes  ) if self.ancestors_codes   is not None else 'NC'
-        children    = len(self.children_codes   ) if self.children_codes    is not None else 'NC'
-        parents     = len(self.parents_codes    ) if self.parents_codes     is not None else 'NC'
+        try:               depth       = self.depth 
+        except ValueError: depth       = 'NC'
+        try:               descendants = len(self.descendants_codes)
+        except ValueError: descendants = 'NC'
+        try:               ancestors   = len(self.ancestors_codes)
+        except ValueError: ancestors   = 'NC'
+        try:               children    = len(self.children_codes)
+        except ValueError: children    = 'NC'
+        try:               parents     = len(self.parents_codes)
+        except ValueError: parents     = 'NC'
         
         return  f'{self.code} [{self.name}; '\
                 f'depth: {depth}; '\
@@ -51,16 +56,63 @@ class Word:
     # Hashable properties
     def __hash__(self)        -> int:  return hash(self.code)
     def __eq__  (self, other) -> bool: return self.code == other.code
-
+    
+    # Properties to check precomputed attributes
+    
+    @property
+    def depth(self) -> int:
+        if self._depth is not None: return self._depth
+        raise ValueError(f'Depth not computed')
+    
+    @property
+    def children_codes(self) -> List[str]:
+        if self._children_codes is not None: return self._children_codes
+        raise ValueError(f'Children not computed')
+    
+    @property
+    def parents_codes(self) -> List[str]:
+        if self._parents_codes is not None: return self._parents_codes
+        raise ValueError(f'Parents not computed')
+    
+    @property
+    def descendants_codes(self) -> List[str]:
+        if self._descendants_codes is not None: return self._descendants_codes
+        raise ValueError(f'Descendants not computed')
+    
+    @property
+    def ancestors_codes(self) -> List[str]:
+        if self._ancestors_codes is not None: return self._ancestors_codes
+        raise ValueError(f'Ancestors not computed')
+    
+    
 
 @dataclass
 class ImageNetWord(Word):
+    ''' 
+    This class represents a word in ImageNet, 
+    which is a subclass of Word with an additional id attribute.
+    '''
     
-    id: int | None = None
+    _id: int | None = None
     
     # String representation
-    def __str__ (self) -> str: return super().__str__()[:-1] + f'; id: {self.id}]'
+    def __str__ (self) -> str: 
+        
+        try:               id = self.id
+        except ValueError: id = 'NC'
+        
+        return super().__str__()[:-1] + f'; id: {id}]'
     def __repr__(self) -> str: return str(self)
+    
+    # Hashable properties
+    def __hash__(self)        -> int:  return hash(self.code)
+    def __eq__  (self, other) -> bool: return self.code == other.code
+    
+    @property
+    def id(self) -> int:
+        if self._id is not None: return self._id
+        raise ValueError(f'ID not computed')
+    
 
 '''
 Requires:
@@ -68,24 +120,44 @@ Requires:
 - wordnet.is_a.txt [https://github.com/innerlee/ImagenetSampling/blob/master/Imagenet/data/wordnet.is_a.txt]
 '''
 class WordNet:
+    '''
+    This class represents a WordNet object. It contains a list of words and their hierarchy.
+    It provides methods for precomputing:
+    - the depth of a word.
+    - the children and parents of a word.
+    - the ancestors and descendants of a word.
+
+    Moreover it offers methods for:
+    - retrieving the common ancestor of two words.
+    - retrieving the distance between two words in the hierarchy tree.
+    '''
+    
+    DUMP_NAME = 'words.pkl'
+    
+    # --- Instantiation ---
     
     def __init__(
         self, 
         wordnet_fp   : str, 
         hierarchy_fp : str,
+        precompute   : bool = True,
         logger       : Logger = SilentLogger(),
-        precompute   : bool = True
     ) -> None:
         '''
         Create a WordNet object by loading words and hierarchy from files.
+        
         - It creates mapping for getting the word given its code or name
         - It maintains the children and parents of each word
-        - It computes the depth of each word
+        
+        It offers the possibility of precomputing each word attributes 
+        by saving results in the object attributes.
 
         :param wordnet_fp: File path to the `wordnet.is_a.txt` file.
         :type wordnet_fp: str
         :param hierarchy_fp: File path to the `words.txt` file.
         :type hierarchy_fp: str
+        :param precompute: Whether to precompute the attributes of each word.
+        :type precompute: bool
         :param logger: A logger object.
         :type logger: Logger
         '''
@@ -96,134 +168,94 @@ class WordNet:
         self._words        : List[Word]
         self._code_mapping : Dict[str, Word]
         self._name_mapping : Dict[str, Word]
-        
         self._words, self._code_mapping, self._name_mapping = self._load_words(wordnet_fp=wordnet_fp)
         
         # Load Hierarchy couples
         self._children :  Dict[Word, List[Word]]
         self._parents  :  Dict[Word, List[Word]]
-        
         self._children, self._parents = self._load_hierarchy(hierarchy_fp=hierarchy_fp)
         
         if precompute:
+            
             # Precomputation
             # NOTE: This is done by calling methods for each word to save results in their fields
             #       Object attributes are used as cache for dynamic programming
-            self._logger.info(mess='Precomputing Depth');       _ = [self._get_depth      (word)  for word in tqdm(self._words)]
-            self._logger.info(mess='Precomputing Ancestors');   _ = [self._get_ancestors_codes  (word)  for word in tqdm(self._words)]
-            self._logger.info(mess='Precomputing Descendants'); _ = [self._get_descendants_codes(word)  for word in tqdm(self._words)]
-
-            self._logger.info(mess='Sorting Ancestors and Descendants by depth')
-            for word in self._words:
-                word.ancestors_codes   = sorted(word.ancestors_codes  , key=lambda x: self[x].depth, reverse=True) # type: ignore
-                word.descendants_codes = sorted(word.descendants_codes, key=lambda x: self[x].depth, reverse=True) # type: ignore
+            
+            self._logger.info(mess='Precomputing Depth');       _ = [self.get_depth            (word)  for word in tqdm(self._words)]
+            self._logger.info(mess='Precomputing Ancestors');   _ = [self.get_ancestors  (word)  for word in tqdm(self._words)]
+            self._logger.info(mess='Precomputing Descendants'); _ = [self.get_descendants(word)  for word in tqdm(self._words)]
     
-    # String representation
+    @classmethod
+    def from_precomputed(
+        cls, 
+        wordnet_fp: str, 
+        hierarchy_fp: str,
+        words_precomputed: str,
+        logger: Logger = SilentLogger(),
+    ) -> 'WordNet':
+        '''
+        Load a precomputed WordNet from a file.
+
+        :param cls: The class of the WordNet.
+        :param wordnet_fp: The file path to the WordNet data.
+        :param hierarchy_fp: The file path to the hierarchy data.
+        :param words_precomputed: The file path to the precomputed words data.
+        :param logger: The logger to use for logging messages (default: SilentLogger()).
+        :return: The loaded WordNet object.
+        '''
+        
+        logger.info(f'Loading precomputed WordNet from {words_precomputed}')
+        with open(words_precomputed, 'rb') as f:
+            words = pickle.load(f)
+            
+        wordnet = cls(
+            wordnet_fp=wordnet_fp, 
+            hierarchy_fp=hierarchy_fp, 
+            logger=logger,
+            precompute=False
+        )
+        
+        # Adjust mappings
+        word_map = {w.code: w for w in words}
+        
+        wordnet._name_mapping = {name: word_map[word.code]                  for name, word     in wordnet._name_mapping.items()}
+        wordnet._code_mapping = {code: word_map[word.code]                  for code, word     in wordnet._code_mapping.items()}
+        wordnet._children     = {word: [word_map[c.code] for c in children] for word, children in wordnet._children    .items()}
+        wordnet._parents      = {word: [word_map[p.code] for p in parents]  for word, parents  in wordnet._parents     .items()}
+        
+        wordnet._words = words
+        
+        return wordnet
+    
+    # --- String representation ---
+    
     def __str__ (self) -> str: return f'WordNet[{len(self)} words]'
     def __repr__(self) -> str: return str(self)
     
-    # Magic methods
+    # --- Magic methods ---
+    
     def __len__(self)  -> int:            return  len(self.words)
     def __iter__(self) -> Iterable[Word]: return iter(self.words)
+    
+    def __getitem__(self, key: str) -> Word: 
+        if re.match(r'^n\d+$', key):  # matching code `n` followed by numeric
+            return self._code_mapping[key]
+        return self._name_mapping[key]
+    
+    # --- Properties ---
     
     @property
     def words(self) -> List[Word]: return self._words
     
-    # Name code mapping
-    def _words_from_code(self, code: str) -> Word: return self._code_mapping[code]
-    def _words_from_name(self, name: str) -> Word: return self._name_mapping[name]
-    
-    def __getitem__(self, key: str) -> Word: 
-        if re.match(r'^n\d+$', key):  # matching code `n` followed by numeric
-            return self._words_from_code(code=key)
-        return self._words_from_name(name=key)
-    
-    # Parents and Children
-    def _get_parents_codes(self, word: Word) -> List[str]: 
-        ''' Returns list of words that are direct parents of a given word. '''
-        
-        if word not in self.words: raise ValueError(f'Word {word} not in WordNet')
-        
-        # Return parents if already computed
-        if word.parents_codes is not None: return word.parents_codes
-        
-        # In the case of the root, there are no parents
-        word.parents_codes = [w.code for w in self._parents.get(word, [])]
-        
-        return word.parents_codes
-    
-    def _get_children_codes(self, word: Word) -> List[str]: 
-        ''' Returns list of words that are direct children of a given word. '''
-        
-        if word not in self.words: raise ValueError(f'Word {word} not in WordNet')
-        
-        if word.children_codes is not None: return word.children_codes
-        
-        word.children_codes = [w.code for w in self._children.get(word, [])]
-        
-        return word.children_codes
-    
-    # Ancestors and descendants
-    def _get_descendants_codes(self, word: Word) -> List[str]:
-        ''' Returns list of words that are descendants of a given word. '''
-        
-        # If the descendants are already computed, return them
-        if word.descendants_codes is not None: return word.descendants_codes
-        
-        # Otherwise, the descendants are the descendants of its children
-        descendants = []
-        for child_code in self._get_children_codes(word): 
-            descendants.extend(
-                [child_code] + self._get_descendants_codes(self[child_code])
-            )
-        
-        word.descendants_codes = list(set(descendants))
-        return word.descendants_codes
-    
-    def _get_ancestors_codes(self, word: Word) -> List[str]:
-        ''' Returns list of words that are ancestors of a given word. '''
-        
-        # If the ancestors are already computed, return them
-        if word.ancestors_codes is not None: return word.ancestors_codes
-        
-        # Otherwise, the ancestors are the ancestors of its parents
-        ancestors = []
-        for parent_code in self._get_parents_codes(word): 
-            ancestors.extend(
-                [parent_code] + self._get_ancestors_codes(self[parent_code])
-            )
-
-        word.ancestors_codes = list(set(ancestors))
-        return word.ancestors_codes
-        
-    
-    # Depth
-    def _get_depth(self, word: Word) -> int:
-        ''' 
-        Recursively compute the depth of a word.
-        When the depth is computed for the first time, it is stored in the word object.
-        '''
-        
-        # If the depth is already computed, return it
-        if word.depth is not None: return word.depth
-        
-        # If the word has no parents (corresponding to `entity`), its depth is 0
-        parents = [self[parent_code] for parent_code in self._get_parents_codes(word)]
-        
-        if len(parents) == 0:
-            word.depth = 0
-        
-        # Otherwise, the depth is the maximum depth of its parents + 1
-        else: 
-            parent_depths = [self._get_depth(parent) for parent in parents]
-            word.depth = max(parent_depths) + 1
-        
-        return word.depth
-    
-    # Loading
+    # --- Loading ---
     
     def _load_words(self, wordnet_fp: str) -> Tuple[List[Word], Dict[str, Word], Dict[str, Word]]:
-        ''' Load words from a file and create mappings.'''
+        ''' 
+        Load words from a file and create mappings.
+        
+        NOTE:   Since the same word can appear multiple times in the file,
+                we append a number to the name of the word to avoid duplicates.
+        '''
         
         # Load words from file
         word_lines = read_txt(wordnet_fp)
@@ -240,11 +272,13 @@ class WordNet:
             
             duplicates[name] += 1
             
+            # Append a number to the name to avoid duplicates
             if duplicates[name] > 1:
                 name = f'{name}({duplicates[name]})'
             
             word = Word(name=name, code=code)
             
+            # Update mappings
             words.append(word)
             name_map[name] = word
             code_map[code] = word  
@@ -252,9 +286,7 @@ class WordNet:
         self._duplicates = duplicates
         
         return words, code_map, name_map
-    
-    # Loading files
-    
+
     def _load_hierarchy(self, hierarchy_fp: str) -> Tuple[Dict[Word, List[Word]], Dict[Word, List[Word]]]:
         ''' Load words hierarchy as a tuple (parent, children) '''
         
@@ -278,67 +310,140 @@ class WordNet:
             
         return children, parents
     
-    # Common Ancestor
+    # --- Precomputed attributes ---
+    
+    def codes_to_words(self, codes: List[str] ) -> List[Word]: return [self[code] for code in codes]
+    def words_to_codes(self, words: List[Word]) -> List[str] : return [word.code  for word in words]
+    
+    def get_parents(self, word: Word) -> List[Word]: 
+        ''' Returns list of words that are direct parents of a given word. '''
+        
+        # Check if the word is in the WordNet
+        if word not in self.words: raise ValueError(f'Word {word} not in WordNet')
+        
+        # Return parents if already computed
+        if word._parents_codes is not None: return self.codes_to_words(word._parents_codes)
+        
+        # In the case of the root there are no parents
+        parents = self._parents.get(word, [])
+        word._parents_codes = self.words_to_codes(parents)
+        
+        return parents
+    
+    def get_children(self, word: Word) -> List[Word]: 
+        ''' Returns list of words that are direct children of a given word. '''
+        
+        # Check if the word is in the WordNet
+        if word not in self.words: raise ValueError(f'Word {word} not in WordNet')
+        
+        # Return children if already computed
+        if word._children_codes is not None: return self.codes_to_words(word._children_codes)
+        
+        # In the case of the leaves there are no children
+        children = self._children.get(word, [])
+        word._children_codes = self.words_to_codes(children)
+        
+        return children
+    
+    # Ancestors and descendants
+    def get_descendants(self, word: Word) -> List[Word]:
+        ''' Returns list of words that are descendants of a given word. '''
+        
+        # If the descendants are already computed, return them
+        if word._descendants_codes is not None: return self.codes_to_words(word._descendants_codes)
+        
+        # Otherwise, the descendants are its children and the descendants of its children
+        descendants = []
+        for child_code in self.get_children(word): 
+            descendants.extend(
+                [child_code] +
+                self.get_descendants(child_code)
+            )
+            
+        # Remove duplicates
+        descendants = list(set(descendants))
+        
+        word._descendants_codes = self.words_to_codes(descendants)
+        return descendants
+    
+    def get_ancestors(self, word: Word) -> List[Word]:
+        ''' Returns list of words that are ancestors of a given word. '''
+        
+        # If the ancestors are already computed, return them
+        if word._ancestors_codes is not None: return self.codes_to_words(word._ancestors_codes)
+        
+        # Otherwise, the ancestors are the ancestors of its parents
+        ancestors = []
+        for parent in self.get_parents(word): 
+            ancestors.extend(
+                [parent] +
+                self.get_ancestors(parent)
+            )
+        
+        # Remove duplicates
+        ancestors = list(set(ancestors))
+
+        word._ancestors_codes = self.words_to_codes(ancestors)
+        return ancestors
+    
+    
+    def get_depth(self, word: Word) -> int:
+        ''' 
+        Recursively compute the depth of a word.
+        When the depth is computed for the first time, it is stored in the word object.
+        '''
+        
+        # If the depth is already computed, return it
+        if word._depth is not None: return word._depth
+        
+        # If the word has no parents (corresponding to `entity`), its depth is 0
+        parents = [self[parent.code] for parent in self.get_parents(word)]
+        
+        if len(parents) == 0:
+            word._depth = 0
+        
+        # Otherwise, the depth is the maximum depth of its parents + 1
+        else: 
+            parent_depths = [self.get_depth(parent) for parent in parents]
+            word._depth = max(parent_depths) + 1
+        
+        return word._depth
+    
+    # --- Common Ancestor ---
     
     def common_ancestor(self, word1: Word, word2: Word) -> Word:
+        '''
+        Returns the deepest common ancestor of two words.
+        '''
         
-        anc1 = self._get_ancestors_codes(word1)
-        anc2 = self._get_ancestors_codes(word2)
+        anc1 = self.get_ancestors(word1)
+        anc2 = self.get_ancestors(word2)
         
         common = set(anc1).intersection(anc2)
         
-        lowest_code = max(common, key=lambda x: self[x].depth)  # type: ignore
+        lowest = max(common, key=lambda x: x.depth)  # type: ignore
         
-        return self[lowest_code]
+        return lowest
 
-    def common_ancestor_distance(self, word1, word2) -> int:
+    def common_ancestor_distance(self, word1: Word, word2: Word) -> int:
+        ''' Returns the distance between two words in the hierarchy tree.'''
         
         lowest = self.common_ancestor(word1, word2)
         
-        return max(word1.depth, word2.depth) - lowest.depth
+        return 2 * lowest.depth - (word1.depth +  word2.depth) 
     
-    # Dump
+    # --- Dump ---
+    
     def dump_words(self, fp: str) -> None:
         ''' Dump the WordNet object to a file. '''
         
         # Dump self.words to pickle
-        words_fp = os.path.join(fp, 'words.pkl')
+        words_fp = os.path.join(fp, self.DUMP_NAME)
+        
         self._logger.info(f'Dumping words to {words_fp}')
         with open(words_fp, 'wb') as f:
             pickle.dump(self.words, f)
     
-    @classmethod
-    def from_precomputed(
-        cls, 
-        wordnet_fp: str, 
-        hierarchy_fp: str,
-        words_precomputed: str,
-        logger: Logger = SilentLogger(),
-    ) -> 'WordNet':
-        
-        logger.info(f'Loading precomputed WordNet from {words_precomputed}')
-        with open(words_precomputed, 'rb') as f:
-            words = pickle.load(f)
-            
-        wordnet = cls(
-            wordnet_fp=wordnet_fp, 
-            hierarchy_fp=hierarchy_fp, 
-            logger=logger,
-            precompute=False
-        )
-        
-        # Adjust mappings
-        word_map = {w.code: w for w in words}
-        
-        wordnet._name_mapping = {name: word_map[w.code] for name, w in wordnet._name_mapping.items()}
-        wordnet._code_mapping = {code: word_map[code]   for code, w in wordnet._code_mapping.items()}
-        
-        wordnet._children = {word: [word_map[c.code] for c in children] for word, children in wordnet._children.items()}
-        wordnet._parents  = {word: [word_map[p.code] for p in parents]  for word, parents  in wordnet._parents .items()}
-        
-        wordnet._words = words
-        
-        return wordnet
 
 
 '''
@@ -346,7 +451,7 @@ Requires:
 - imagenet_class_index.json [https://github.com/raghakot/keras-vis/blob/master/resources/imagenet_class_index.json]
 '''
 class ImageNetWords:
-    ''' Classe representing the words in ImageNet. '''
+    ''' Class representing the words in ImageNet. '''
     
     def __init__(
         self, 
@@ -372,18 +477,18 @@ class ImageNetWords:
         for id, (code, _) in imagenet_labels.items():
             
             # Retrieve the word from WordNet
-            word = wordnet._words_from_code(code)
+            word = wordnet[code]
             
             # Create an ImageNetWord object
             word_ = ImageNetWord(
                     name=word.name, 
                     code=word.code, 
-                    depth=word.depth,
-                    children_codes=word.children_codes,
-                    parents_codes=word.parents_codes,
-                    descendants_codes=word.descendants_codes,
-                    ancestors_codes=word.ancestors_codes,
-                    id=int(id)
+                    _depth=word._depth,
+                    _children_codes=word._children_codes,
+                    _parents_codes=word._parents_codes,
+                    _descendants_codes=word._descendants_codes,
+                    _ancestors_codes=word._ancestors_codes,
+                    _id=int(id)
                 )
             
             self._words.append(word_)

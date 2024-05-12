@@ -1,19 +1,27 @@
+'''
+This script allows the user to select the superclass for each output unit of the ImageNet dataset.
+The superclass is selected from a list of 50 predefined superclasses.
+The superclass labeling is intended to be used as a ground truth labeling for the ImageNet dataset.
+'''
 
+import os
+from analysis.utils.settings import FILE_NAMES, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
+
 from zdream.utils.io_ import save_json
-from collections import Counter
+from zdream.utils.logger import LoguruLogger
 
-WORDNET  = '/home/sebaq/Documents/GitHub/ZXDREAM/data/wordnet/words.txt'
-HIERACHY = '/home/sebaq/Documents/GitHub/ZXDREAM/data/wordnet/wordnet.is_a.txt'
-IMAGENET = '/home/sebaq/Documents/GitHub/ZXDREAM/data/wordnet/imagenet_class_index.json'
-WORDS   =  '/home/sebaq/Documents/GitHub/ZXDREAM/data/wordnet/words.pkl'
+# ------------------------------------------- SETTINGS ---------------------------------------
 
-NAMES = [
+SUPER_LABELS = [
+    'mollusk, mollusc, shellfish',
+    'arthropod',
+    'invertebrate',
+    'plant, flora, plant life',
     'fish',
     'bird',
     'amphibian',
     'reptile, reptilian',
-    'invertebrate',
     'aquatic mammal',
     'dog, domestic dog, Canis familiaris',
     'canine, canid',
@@ -62,50 +70,92 @@ NAMES = [
     'abstraction, abstract entity'
 ]
 
+# ---------------------------------------------------------------------------------------------
+
 if __name__ == '__main__':
+    
+    # Initialize logger
+    logger = LoguruLogger(on_file=False)
+    
+    # WordNet paths
+    words_fp             = os.path.join(WORDNET_DIR, FILE_NAMES['words'])
+    hierarchy_fp         = os.path.join(WORDNET_DIR, FILE_NAMES['hierarchy'])
+    words_precomputed_fp = os.path.join(WORDNET_DIR, FILE_NAMES['words_precoputed'])
+    
+    # A) Load WordNet with precomputed words if available
+    if os.path.exists(words_precomputed_fp):
+        
+        logger.info(mess='Loading precomputed WordNet')
+        
+        wordnet = WordNet.from_precomputed(
+            wordnet_fp=words_fp, 
+            hierarchy_fp=hierarchy_fp, 
+            words_precomputed=words_precomputed_fp,
+            logger=logger
+        )
+    
+    else:
+        
+        logger.info(mess=f'No precomputation found at {words_precomputed_fp}. Loading WordNet from scratch')
+        
+        wordnet = WordNet(
+            wordnet_fp=words_fp, 
+            hierarchy_fp=hierarchy_fp,
+            logger=logger
+        )
 
-    wordnet = WordNet.from_precomputed(
-        wordnet_fp=WORDNET, 
-        hierarchy_fp=HIERACHY, 
-        words_precomputed=WORDS
-    )
+        # Dump precomputed words for future use
+        wordnet.dump_words(fp=WORDNET_DIR)
 
-    imgnet = ImageNetWords(imagenet_fp=IMAGENET, wordnet=wordnet)
+    # Load ImageNet
+    logger.info(mess='Loading ImageNet')
+    inet_fp = os.path.join(WORDNET_DIR, FILE_NAMES['imagenet'])
+    inet    = ImageNetWords(imagenet_fp=inet_fp, wordnet=wordnet)
 
+    # Save superclasses for each output unit
     out = {}
 
-    for i in range(1000):
+    for word in inet:  # type: ignore
         
-        word = imgnet[i]
-        print()
-        print(f"Step {i} - {word.name}")
+        logger.info(mess='')
+        logger.info(mess=f"Step {word.id} - {word.name}")
         
-        ancestors = [wordnet[a] for a in word.ancestors_codes]
+        # Compute all word ancestors
+        ancestors = [wordnet[a] for a in word.ancestors_codes]  # type: ignore
         
+        
+        # A) Check if the ancestors are superclasses list
         found = False
+        
         for a in ancestors:
-            if a.name in NAMES:
-                print(f'> Automatically selected class: {a.name}')
-                out[i] = a.name
+            if a.name in SUPER_LABELS:
+                logger.info(f'> Automatically selected class: {a.name}')
+                out[word.id] = a.name
                 found = True
                 break
+        
+        # If the class is found, go to the next one
         if found: continue
         
-        print('No class found. Please select one from the list below:')
-        for j, a in enumerate(ancestors):
-            print(f'> {j}. {a.name}')
+        # B) Ask the user to select one
+        
+        logger.info(mess='No class found. Please select one from the list below:')
+        for j, a in enumerate(ancestors): logger.info(mess=f'> {j}. {a.name}')
         k = int(input('Enter the number of the class: '))
         chosen_class = ancestors[k].name
-        out[i] = chosen_class
-        print(f'Chosen class: {chosen_class}')
-        
-    out = {k: [wordnet._words_from_name(v).code ,v] for k, v in out.items()}
+        out[word.id] = chosen_class
+        logger.info(mess=f'Chosen class: {chosen_class}')
     
-    print(f"TOTAL CLASSES: {len(out)}")
+    # Log the total number of superclasses used
+    logger.info(mess='')
+    logger.info(mess=f"TOTAL CLASSES: {len(set(out.values()))}")
     
-    frequencies = Counter([a for _, a in out.values()])
-    print(frequencies)
+    # Save superclasses to file
+    superclass_fp = os.path.join(WORDNET_DIR, FILE_NAMES['imagenet_super'])
+    logger.info(mess=f'Saving superclasses to {superclass_fp}')
+    save_json(out, superclass_fp)
+    logger.info(mess='')
     
-    
-    save_json(out, 'sublcasses.json')
+    logger.close()
+
 
