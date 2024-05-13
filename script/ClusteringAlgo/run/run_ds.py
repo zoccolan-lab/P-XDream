@@ -1,7 +1,7 @@
+from script.ClusteringAlgo.args import ARGS
+from script.ClusteringAlgo.clustering_algo import DSClusteringExperiment
 from script.utils.cmdline_args import Args
-from script.utils.utils import run_single
-from script.DSClustering.args import ARGS
-from script.DSClustering.ds_clustering import DSClusteringExperiment
+from script.utils.misc import run_single
 
 
 if __name__ == '__main__':

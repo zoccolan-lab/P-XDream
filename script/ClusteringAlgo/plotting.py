@@ -61,7 +61,8 @@ def plot_cluster_ranks(
     # Example data
     ranks = [
         [obj.rank * 100 for obj in cluster]
-        for cluster in clusters             # type: ignore]
+        for cluster in clusters             # type: ignore
+    ]
 
     # Plotting violin plots
     sns.boxplot(data=ranks, ax=ax, palette='PuBu')
