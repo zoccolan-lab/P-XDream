@@ -5,7 +5,7 @@ TODO Experiment description
 import matplotlib
 
 from script.utils.cmdline_args import Args
-from script.utils.utils import run_single
+from script.utils.misc import run_single
 from script.MaximizeActivity.args import ARGS
 from script.MaximizeActivity.maximize_activity import MaximizeActivityExperiment
 

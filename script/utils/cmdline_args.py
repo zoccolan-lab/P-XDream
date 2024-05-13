@@ -8,7 +8,7 @@ from enum import Enum
 
 from zdream.utils.io_ import read_json, save_json
 
-SCRIPT_DIR     = path.abspath(path.join(__file__, '..'))
+SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
 LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 local_setting = read_json(LOCAL_SETTINGS)
@@ -18,8 +18,7 @@ OUT_DIR    = local_setting['out_dir']
 WEIGHTS    = local_setting['weights']
 DATASET    = local_setting['dataset']
 IMAGE      = local_setting['image']
-CLUSTERING = local_setting['clustering']
-RECORDINGS = local_setting['recordings']
+CLUSTERING = local_setting['clu_dir']
 
 LAYERS_NEURONS_SPECIFICATION = '''
 TODO write here how to specify neurons
@@ -46,16 +45,18 @@ class Args(Enum):
     Shuffle   = Arg(name="shuffle",    type=bool, help="If to shuffle mask template")
     
     # Clustering
-    Recordings     = Arg(name="recordings",     type=str,  help="Path to neural recordings file", default=RECORDINGS)
+    ClusterDir     = Arg(name="clu_dir",        type=str,  help="Path to clustering directory", default=CLUSTERING)
+    ClusterAlgo    = Arg(name="clu_algo",       type=str,  help="Name for clustering type {{`gmm`, `nc`, `ds`}}")
     MaxIterations  = Arg(name="max_iter",       type=int,  help="Maximum number of iterations")
     MinElements    = Arg(name="min_elements",   type=int,  help="Minimum cluster cardinality")
-    ClusterFile    = Arg(name="cluster_file",   type=str,  help="Path to clustering JSON file", default=CLUSTERING)
     ClusterIdx     = Arg(name="cluster_idx",    type=int,  help="Cluster index to optimize for")
     WeightedScore  = Arg(name="weighted_score", type=bool, help="If to weight score by cluster rank")
     ClusterLayer   = Arg(name="layer",          type=int,  help="Layer name for which clustering was computed")
     ScoringType    = Arg(name="scr_type",       type=str,  help="Scoring units strategy {`cluster`; `random`; `random_adj`, `subset_top`, `subset_bot`, `subset_rand`}")
     OptimUnits     = Arg(name="opt_units",      type=str,  help="Number of units to optimize in the cluster for `subset` scoring type")
     UseGPU         = Arg(name="gpu",            type=bool, help="If to use GPU for clustering")
+    NComponents    = Arg(name="n_components",   type=int,  help="Number of components to use for GMM clustering")
+    NClusters      = Arg(name="n_clusters",     type=int,  help="Number of clusters to find for GMM and NC clustering")
     
     # Recording
     ImageIds      = Arg(name="image_ids",  type=str,  help="Image indexes for recording separated by a comma")

@@ -4,10 +4,10 @@ TODO Experiment description
 
 import matplotlib
 
-from script.ClusteringOptimization.args import ARGS
-from script.ClusteringOptimization.clustering_optimization import ClusteringOptimizationExperiment
+from script.ClusterOptimization.cluster_optimization import ClusteringOptimizationExperiment
+from script.ClusterOptimization.args import ARGS
 from script.utils.cmdline_args import Args
-from script.utils.utils import run_single
+from script.utils.misc import run_single
 
 matplotlib.use('TKAgg')
 

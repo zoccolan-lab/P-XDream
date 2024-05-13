@@ -95,7 +95,7 @@ def get_arguments_single_unit(
     
 def get_arguments_topk_botk(
     cluster_idx:  List[int]
-) -> List[Tuple[str, str]]:
+) -> Tuple[str, str, str]:
     
     args = [
         (clu_idx, topbot, k)
@@ -255,9 +255,8 @@ if __name__ == '__main__':
         case _:
             raise ValueError('Invalid choice')
     
-            
-    args['iter']         = ITER
     args['name']         = NAME
+    args['iter']         = ITER
     args['template']     = 'T'
     args['layer']        = LAYER
     args['cluster_file'] = CLUSTER_FILE

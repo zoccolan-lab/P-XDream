@@ -4,10 +4,11 @@ from script.utils.cmdline_args import Args, Arg
 
 ARGS: List[Arg] = [
     
-    Args.get_config_arg(conf_file='clustering_optimization.json'),
+    Args.get_config_arg(conf_file='cluster_optimization.json'),
     
     # Clustering
-    Args.ClusterFile.value,
+    Args.ClusterDir.value,
+    Args.ClusterAlgo.value,
     Args.ClusterIdx.value,
     Args.WeightedScore.value,
     Args.ClusterLayer.value,

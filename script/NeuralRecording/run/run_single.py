@@ -1,5 +1,5 @@
 from script.utils.cmdline_args import Args
-from script.utils.utils import run_single
+from script.utils.misc import run_single
 from script.NeuralRecording.args import ARGS
 from script.NeuralRecording.neural_recording import NeuralRecordingExperiment
 

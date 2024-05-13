@@ -8,27 +8,27 @@ from typing import Any, Dict, List, Tuple, Type, cast
 import numpy as np
 from numpy.typing import NDArray
 import torch
-from torch.utils.data import DataLoader
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
-from script.ClusteringOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
+from script.ClusterOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
 from script.utils.cmdline_args import Args
 from script.utils.parsing import parse_boolean_string
-from script.utils.utils import make_dir
+from script.utils.misc import make_dir
+from script.utils.settings import FILE_NAMES
+from zdream.clustering.cluster import Clusters
 from zdream.clustering.ds import DSCluster, DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
-from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
+from zdream.optimizer import GeneticOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
-from zdream.utils.io_ import store_pickle
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
 from zdream.utils.message import ZdreamMessage
 from zdream.utils.misc import concatenate_images, device
 from zdream.utils.probe import RecordingProbe
-from zdream.utils.types import Codes, MaskGenerator, Scores, ScoringUnit, States, Stimuli, UnitsMapping
+from zdream.utils.types import Codes, Scores, ScoringUnit, States, Stimuli, UnitsMapping
 
 # --- EXPERIMENT CLASS ---
 
@@ -113,8 +113,26 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # --- CLUSTERING ---
 
         # Read clustering from file and extract the i-th cluster as specified by conf
-        clusters: DSClusters = DSClusters.from_file(fp=clu_conf[str(Args.ClusterFile)])
-        cluster:  DSCluster  = clusters[clu_conf[str(Args.ClusterIdx)]]
+        clu_type = clu_conf[str(Args.ClusterAlgo)]
+        clu_fp   = path.join(clu_conf[str(Args.ClusterDir)], FILE_NAMES[clu_type])
+        
+        match clu_type:
+            
+            case 'ds':
+                
+                ds = True
+                clusters: Clusters | DSClusters = DSClusters.from_file(fp=clu_fp)
+                
+            case 'gmm' | 'nc':
+                
+                ds = False
+                clusters: Clusters | DSClusters = Clusters.from_file(fp=clu_fp)
+            
+            case _:
+                
+                raise ValueError(f'Invalid clustering type: {clu_type}. Choose one between `ds`, `gmm`, `nc`')
+        
+        cluster = clusters[clu_conf[str(Args.ClusterIdx)]]
 
         # Choose random units depending on their random type
         tot_obj = clusters.obj_tot_count # tot number of objects
@@ -145,10 +163,18 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 scoring_units = cluster.scoring_units
 
                 # Get units mapping for the weighted sum
-                units_mapping: UnitsMapping = partial(
-                    cluster.units_mapping,
-                    weighted=clu_conf[str(Args.WeightedScore)]
-                )
+                if ds: 
+                
+                    units_mapping: UnitsMapping = partial(
+                        cluster.units_mapping,
+                        weighted=clu_conf[str(Args.WeightedScore)]
+                    )
+                    
+                else:
+                    
+                    units_mapping: UnitsMapping = partial(
+                        cluster.units_mapping
+                    )
 
                 units_reduction = 'sum'
                 

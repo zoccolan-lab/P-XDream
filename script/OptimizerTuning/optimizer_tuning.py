@@ -11,7 +11,7 @@ from PIL import Image
 
 from script.OptimizerTuning.plotting import plot_hyperparam, plot_optim_type_comparison
 from script.utils.cmdline_args import Args
-from script.utils.utils import make_dir
+from script.utils.misc import make_dir
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
