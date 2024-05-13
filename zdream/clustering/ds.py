@@ -2,20 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cache
-from os import path
-from typing import Any, Counter, Dict, Iterable, List, Set, Tuple
+from typing import Any, Dict, Iterable, List, Set, cast
 import numpy as np
 from numpy.typing import NDArray
-from sklearn.metrics import rand_score
 
-from zdream.clustering.model import AffinityMatrix, Label, Labels
+from zdream.clustering.cluster import Cluster, Clusters
+from zdream.clustering.model import AffinityMatrix, Labels
 from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.io_ import read_json, save_json
-from zdream.utils.misc import default
+from zdream.utils.io_ import read_json
 
 from functools import cache
 
-from zdream.utils.types import ScoringUnit
 
 class DS:
     '''
@@ -110,7 +107,8 @@ class DS:
         return sum(self.w(S=S, i=i) for i in S)
 
 
-class DSCluster:
+
+class DSCluster(Cluster):
     ''' 
     Class representing a cluster result of Dominant Set clustering
     It collects a list of object identified by a label and their rank inside the group
@@ -118,23 +116,30 @@ class DSCluster:
     '''
     
     @dataclass
-    class DSObject:
+    class DSClusterObject(Cluster.ClusterObject):
         '''
-        Subclass representing an object inside the DS cluster
+        Class representing an object inside the DS cluster
         with two attributes: 
-        - the label identifying the object
+        - the label identifying the object (inherits from ClusterObject).
         - the rank inside the cluster.
+        
+        Object in the cluster are sorted by decreasing rank.
         '''
         
-        label : Label
         rank  : np.float32
+        ''' Rank of the object inside the cluster. Normally in [0, 1] '''
         
-        def __str__ (self) -> str: return f'DSObject[label: {self.label}; rank: {self.rank})]'
+        def __str__ (self) -> str: return f'{super().__str__()[:-1]}; rank: {self.rank}]'
         def __repr__(self) -> str: return str(self)
         
         @property
-        def info(self) -> Tuple[Label, np.float32]: 
-            return self.label, self.rank
+        def info(self) -> Dict[str, Any]: 
+            ''' Add rank to object information '''
+            
+            super_info = super().info
+            super_info['rank'] = self.rank.tolist()  # tolist() is used to convert numpy.float32 to float
+            
+            return super_info
         
     def __init__(
         self, 
@@ -153,40 +158,51 @@ class DSCluster:
         :type w: np.float32
         '''
         
-        self._w       = w
-        
-        # Objects with decreasing RANK
-        self._objects = [self.DSObject(label=label, rank=rank) for label, rank in zip(labels, ranks)]
+        # Objects with decreasing Rank
+        self._objects = [self.DSClusterObject(label=label, rank=rank) for label, rank in zip(labels, ranks)]
         self._objects.sort(key=lambda obj: obj.rank, reverse=True)
     
+        self._w = w
     
     # --- MAGIC METHODS ---
     
-    def __str__ (self) -> str: return f'DSCluster[objects: {len(self)}, coherence: {self.W}]'
-    def __repr__(self) -> str: return str(self)
-    def __len__ (self) -> int: return len(self.objects)
+    def __str__(self) -> str : return f'DS{super().__str__()}'
     
-    def __iter__(self) -> Iterable[DSObject]:    return iter(self.objects)
-    def __getitem__(self, idx: int) -> DSObject: return self.objects[idx]
+    # NOTE: We need to cast the return type of the following methods to subclass
+    
+    def __iter__(self) -> Iterable[DSClusterObject]:   
+        return cast(Iterable[DSCluster.DSClusterObject], super().__iter__())
+    
+    def __getitem__(self, idx: int) -> DSClusterObject: 
+        return cast(DSCluster.DSClusterObject, super().__getitem__(idx=idx))
     
     # --- PROPERTIES ---
     
     @property
-    def W(self) -> float: return float(self._w)
+    def objects(self) -> List[DSClusterObject]:
+        ''' List of objects in the cluster''' 
+        
+        # NOTE: We need to cast the return type method to subclass
+        
+        return cast(List[DSCluster.DSClusterObject], super().objects)
     
     @property
-    def objects(self) -> List[DSObject]: return self._objects
-
-    @property
-    def labels(self) -> Labels: 
-        return np.array([obj.label for obj in self]) # type: ignore
+    def W(self) -> float: return float(self._w)
+    ''' Coherence of the cluster'''
 
     @property
     def ranks(self) -> NDArray[np.float32]: 
+        ''' Ranks of the objects in the cluster'''
         return np.array([obj.rank  for obj in self]) # type: ignore
-
+    
     @property
-    def scoring_units(self) -> ScoringUnit: return list(self.labels) 
+    def info(self) -> Dict[str, List[Dict[str, Any]] | Any]:
+        ''' Add coherence to cluster information '''
+        
+        super_info = super().info
+        super_info['W'] = self.W
+        
+        return super_info
     
     # --- UTILS ---
 
@@ -197,7 +213,7 @@ class DSCluster:
         :param arr: Array with units to map
         :type arr: NDArray
         :param weighted: If to use cluster weights, defaults to True
-                         If no uses, an uniform distribution is used.
+            If not set, an uniform distribution is used.
         :type weighted: bool, optional
         :return: _description_
         :rtype: UnitsMapping
@@ -239,7 +255,7 @@ class DSCluster:
         ]
 
 
-class DSClusters:
+class DSClusters(Clusters):
     '''
     Class for manipulating a set of `DSCluster` objects
     extracted from the same learning algorithm.
@@ -248,111 +264,44 @@ class DSClusters:
     allow to dump them to file.
     '''
     
-    def __init__(self) -> None:
-        '''
-        Create an empty set of clusters
-        '''
+    def __init__(
+        self, 
+        clusters: List[DSCluster] = []
+    )-> None:
         
-        self.empty()
-
+        super().__init__(clusters=clusters)  # type: ignore
+    
     
     # --- MAGIC METHODS ---   
     
-    def __str__ (self) -> str:                 return f'DSClusters[n-clusters: {len(self)}]'
-    def __repr__(self) -> str:                 return str(self)
-    def __len__ (self) -> int:                 return len (self.clusters)
-    def __iter__(self) -> Iterable[DSCluster]: return iter(self.clusters)
+    def __str__ (self) -> str:  return f'DS{super().__str__()}'
     
-    def __getitem__(self, idx: int) -> DSCluster: return self.clusters[idx]
+    def __iter__(self) -> Iterable[DSCluster]: 
+        return cast(Iterable[DSCluster], super().__iter__())
+    
+    def __getitem__(self, idx: int) -> DSCluster:
+        return cast(DSCluster, super().__getitem__(idx=idx))
+    
     
     # --- PROPERTIES ---
     
     @property
-    def clusters(self) -> List[DSCluster]: return self._clusters
-    
-    @property
-    def clusters_counts(self) -> Dict[int, int]:
-        '''
-        Return a dictionary mapping the cluster cardinality
-        to the number of clusters with that number of elements
-
-        :return: Cluster cardinality mapping.
-        :rtype: Dict[int, int]
-        '''
-        
-        lens = [len(cluster) for cluster in self] # type: ignore
-        return dict(Counter(lens))
-    
-    @property
-    def obj_tot_count(self) -> int:
-        '''
-        Return the total number of element in the cluster collection
-
-        :return: Cluster cardinality mapping.
-        :rtype: Dict[int, int]
-        '''
-        
-        return sum([element * count for element, count in self.clusters_counts.items()])
-    
-    @property
-    def labeling(self) -> NDArray[np.int32]:
-        
-        labeling = np.zeros(self.obj_tot_count, dtype=np.int32) - 1
-        
-        for i, cluster in enumerate(self):   # type: ignore
-            labeling[cluster.labels] = int(i)
-        
-        assert not np.any(labeling == -1)
-        
-        return labeling
-        
+    def clusters(self) -> List[DSCluster]:
+        return cast(List[DSCluster], self._clusters)
     
     # --- UTILITIES ---
     
-    def empty(self):
-        '''
-        Empty the set of clusters
-        '''
+    def add(self, cluster: DSCluster): super().add(cluster=cluster)
         
-        self._clusters: List[DSCluster] = []
-        
-    def add(self, cluster: DSCluster):
-        '''
-        Add a new cluster to the connection
-        '''
-        
-        self._clusters.append(cluster)
-        
-    def dump(self, out_fp: str, logger: Logger | None = None):
-        '''
-        Store cluster information to file as a .JSON file
-
-        :param out_fp: Output file path where to save clustering information
-        :type out_fp: str
-        :param logger: Logger to log i/o operation. If not given SilentLogger is set.
-        :type logger: Logger | None, optional
-        '''
-        
-        def obj_to_dict(obj: DSCluster.DSObject) -> Dict[str, Any]:
-            return {
-                'label': obj.label.tolist(),
-                'rank' : obj. rank.tolist()
-            }
-        
-        logger = default(logger, SilentLogger())
-        
-        out_dict = {
-            f'DS_{i}': {
-                'objects': [obj_to_dict(obj) for obj in cluster],
-                "W": cluster.W
-            }
-            for i, cluster in enumerate(self) # type: ignore
-        } 
-        
-        fp = path.join(out_fp, 'DSClusters.json')
-        logger.info(f'Saving clusters info to {fp}')
-        save_json(data=out_dict, path=fp)
-        
+    def dump(
+        self, 
+        out_fp: str, 
+        file_name: str = 'DSClusters',
+        logger: Logger = SilentLogger()
+    ):  
+        super().dump(out_fp=out_fp, file_name=file_name, logger=logger)
+    
+    
     @classmethod
     def from_file(cls, fp: str, logger: Logger = SilentLogger()) -> DSClusters:
         '''
@@ -369,39 +318,13 @@ class DSClusters:
         logger.info(mess=f'Reading clusters from {fp}')
         data = read_json(path=fp)
         
-        clusters = DSClusters()
-        
-        for cluster in data.values():
-            
-            clusters.add(
-                cluster = DSCluster(
-                    labels = np.array([obj['label'] for obj in cluster['objects']]),
-                    ranks  = np.array([obj['rank' ] for obj in cluster['objects']]),
-                    w      = np.float32(cluster['W'])
-                )
+        clusters = [
+            DSCluster(
+                labels = np.array([obj['label'] for obj in cluster['objects']], dtype=np.int32),
+                ranks  = np.array([obj['rank' ] for obj in cluster['objects']]),
+                w      = np.float32(cluster['W'])
             )
+            for cluster in data.values()     
+        ]
             
-        return clusters
-    
-    # --- SCORE ---
-    
-    @staticmethod
-    def rand_index(
-        cluster1: DSClusters, 
-        cluster2: DSClusters
-    ) -> float:
-        
-        score = rand_score(
-            cluster1.labeling,
-            cluster2.labeling
-        )
-        
-        return float(score)
-    
-    def rand_index_(self, cluster: DSClusters) -> float:
-        
-        return DSClusters.rand_index(
-            cluster1=self,
-            cluster2=cluster
-        )
-        
+        return DSClusters(clusters=clusters)
