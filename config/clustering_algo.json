@@ -1,10 +1,12 @@
 {
     "config": "",
     "clustering": {
-        "recordings": "",
+        "clu_dir": "",
         "max_iter": 50000,
         "min_elements": 1,
-        "gpu": false
+        "gpu": false,
+        "n_clusters": 50,
+        "n_components": 500
     },
     "logger": {
         "out_dir": "",

@@ -1,7 +1,8 @@
 {
     "config": "",
     "clustering" : {
-        "cluster_file": "",
+        "clu_dir": "",
+        "clu_algo": "ds",
         "cluster_idx": 0,
         "weighted_score": false,
         "scr_type": "subset",
