@@ -5,15 +5,12 @@ This script computes different type of clustering and store their labeling in a 
 import os
 
 import numpy as np
-from sklearn.decomposition import PCA
-from sklearn.mixture import GaussianMixture
-from sklearn.cluster import SpectralClustering
 
 from analysis.utils.misc import end, start
 from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER_SETTINGS, OUT_DIR, WORDNET_DIR, OUT_NAMES
+from zdream.clustering.cluster import Clusters
 from zdream.utils.io_ import read_json
 from zdream.utils.logger import LoguruLogger
-from zdream.clustering.ds import DSClusters
 
 # ------------------------------------------- SETTINGS ---------------------------------------
 
@@ -44,7 +41,7 @@ if __name__ == '__main__':
     start(logger, 'DOMINANT SET Clustering')
 
     ds_file = os.path.join(cluster_dir, FILE_NAMES['ds_clusters'])
-    ds      = DSClusters.from_file(ds_file, logger=logger)
+    ds      = Clusters.from_file(ds_file, logger=logger)
 
     logger.info(mess='Retrieving labeling')
     ds_labeling = ds.labeling
@@ -55,17 +52,11 @@ if __name__ == '__main__':
 
     start(logger, 'GAUSSIAN MIXTURE Clustering')
 
-    recordings_fp = os.path.join(cluster_dir, FILE_NAMES['recordings'])
-    logger.info(mess=f'Loading recordings from {recordings_fp}')
-    recordings = np.load(recordings_fp)
+    gmm_file = os.path.join(cluster_dir, FILE_NAMES['gmm_clusters'])
+    gmm      = Clusters.from_file(gmm_file, logger=logger)
 
-    logger.info(mess=f'Applying PCA from {recordings.shape[-1]} to {PCA_DIM}')
-    pca = PCA(n_components=PCA_DIM)
-    recordings_pca = pca.fit_transform(recordings)
-
-    logger.info(mess=f'Fitting Gaussian Mixture with {N_CLU} clusters')
-    gmm = GaussianMixture(n_components=N_CLU)
-    gmm_labeling = gmm.fit_predict(recordings_pca)
+    logger.info(mess='Retrieving labeling')
+    gmm_labeling = gmm.labeling
 
     end(logger)
 
@@ -73,13 +64,11 @@ if __name__ == '__main__':
 
     start(logger, 'NORMALIZED CUT Clustering')
 
-    affinity_matrix_fp = os.path.join(cluster_dir, FILE_NAMES['affinity_matrix'])
-    logger.info(mess=f'Loading affinity matrix from {affinity_matrix_fp}')
-    aff_mat = np.load(affinity_matrix_fp)
+    nc_file = os.path.join(cluster_dir, FILE_NAMES['nc_clusters'])
+    nc      = Clusters.from_file(nc_file, logger=logger)
 
-    logger.info(mess=f'Fitting Spectral Clustering with {N_CLU} clusters')
-    nc = SpectralClustering(n_clusters=N_CLU, affinity='precomputed')
-    nc_labeling = nc.fit_predict(aff_mat)
+    logger.info(mess='Retrieving labeling')
+    nc_labeling = nc.labeling
 
     end(logger)
 
@@ -87,7 +76,7 @@ if __name__ == '__main__':
 
     start(logger, 'ADJACENT Clustering')
 
-    n_obj = aff_mat.shape[0]
+    n_obj = ds_labeling.size
 
     # Create a trivial clustering assigning same labeling to contiguous objects
     trivial_labeling = np.zeros(n_obj)

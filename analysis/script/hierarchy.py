@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import mutual_info_score
 
+from zdream.clustering.cluster import Cluster, Clusters
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from analysis.utils.misc import start, end
 from analysis.utils.settings import FILE_NAMES, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
@@ -76,29 +77,20 @@ def plot(
         logger.info(mess=f'Saving plot to {out_fp}')
         fig.savefig(out_fp)
     
-
-# TODO Make class function
-def labeling_to_clusters(labeling: NDArray) -> List[List[int]]:
-    
-    return  [
-        [j for j, label in enumerate(labeling) if label == i]
-        for i in range(max(labeling))
-    ]
-    
     
 def relative_mean_hierarchy_distance(
-    element      : int, 
-    cluster      : List[int],
+    id_      : int, 
+    cluster      : Cluster,
     inet         : ImageNetWords,
     logger       : Logger = SilentLogger()
 ) -> Tuple[float, float] | None:
     '''
-    Compute the mean hierarchy distance of an element to the other elements in the cluster
+    Compute the mean hierarchy distance of an object to the other elements in the cluster
 
-    :param element: Element index
-    :type element: int
-    :param cluster: Indexes of cluster elements
-    :type cluster: List[int]
+    :param id_: Object index
+    :type id: int
+    :param cluster: Cluster with its label
+    :type cluster: Cluster
     :param inet: ImageNetWords object
     :type inet: ImageNetWords
     :param logger: Logger to log progress, defaults to SilentLogger()
@@ -109,22 +101,22 @@ def relative_mean_hierarchy_distance(
     
     # Skip singletons
     if len(cluster) == 1:
-        logger.warn(mess=f"Skipping element {element}: it's a singleton")
+        logger.warn(mess=f"Skipping object {id_}: it's a singleton")
         return
     
-    assert element in cluster
+    assert id_ in cluster.labels
     
     # Compute mean dist to other elements in the cluster
     clu_mean = np.mean([
-        wordnet.common_ancestor_distance(inet[element], inet[clu_element])
-        for clu_element in cluster if clu_element != element
+        wordnet.common_ancestor_distance(inet[id_], inet[clu_element.label])
+        for clu_element in cluster if clu_element != id_  # type: ignore
     ])
     
     # Compute mean dist to other elements not in the cluster
-    non_cluster = list(set([obj.id for obj in inet]).difference(cluster))  # type: ignore
+    non_cluster = list(set([obj.id for obj in inet]).difference(cluster.labels))  # type: ignore
     
     non_clu_mean = np.mean([
-        wordnet.common_ancestor_distance(inet[element], inet[non_clu_element])
+        wordnet.common_ancestor_distance(inet[id_], inet[non_clu_element])
         for non_clu_element in non_cluster
     ])
     
@@ -184,9 +176,9 @@ if __name__ == '__main__':
     logger.info(f'Loaded labelings: {", ".join(labelings.keys())}')
     
     # Compute clustering
-    clustering: Dict[str, List[List[int]]] = {
-        k: labeling_to_clusters(v)
-        for k, v in labelings.items()
+    clusters: Dict[str, Clusters] = {
+        clu_name: Clusters.from_labeling(labeling=labeling)
+        for clu_name, labeling in labelings.items()
     }
     
     # Create output directory
@@ -199,8 +191,8 @@ if __name__ == '__main__':
     start(logger, 'CLUSTERING CARDINALITY')
     
     clu_size: Dict[str, List[int]]= {
-        k: [len(clu) for clu in v]
-        for k, v in clustering.items()
+        clu_name: [len(cluster) for cluster in clusters]  # type: ignore
+        for clu_name, clusters in clusters.items()
     }
     
     plot(
@@ -221,17 +213,17 @@ if __name__ == '__main__':
     hierarchy_dist     = {}
     hierarchy_dist_rel = {}
 
-    for cluster_type, clusters in clustering.items():
+    for cluster_type, clusters_ in clusters.items():
         logger.info(f"Computing cluster type: {cluster_type}")
         dists    = []
         dists_rel = []
         
-        for cluster in clusters:
+        for cluster in clusters_: # type: ignore
             
-            for element in cluster:
+            for object in cluster:
                 
                 dists_out = relative_mean_hierarchy_distance(
-                    element=element, 
+                    id_=object.label, 
                     cluster=cluster,
                     inet=inet,
                     logger=logger
@@ -273,12 +265,12 @@ if __name__ == '__main__':
     
     entropies = {}
     
-    for cluster_type, clusters in clustering.items():
+    for cluster_type, clusters_ in clusters.items():
         
         h = []
         
-        for cluster in clusters:
-            inet_superclasses = [inet_super[element].name for element in cluster]
+        for cluster in clusters_: # type: ignore
+            inet_superclasses = [inet_super[object.label].name for object in cluster]
             h_ = mutual_info_score(inet_superclasses, inet_superclasses)
             h.append(h_)
                 

@@ -142,7 +142,7 @@ class Clusters:
         self._clusters = clusters
         
     @classmethod
-    def from_labels(cls, labeling: NDArray) -> Clusters:
+    def from_labeling(cls, labeling: NDArray) -> Clusters:
         '''
         Generate a Clusters object from a labeling array.
         '''

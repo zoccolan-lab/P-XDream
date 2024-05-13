@@ -95,7 +95,7 @@ class GMMClusteringAlgorithm(ClusteringAlgorithm):
         labels = gmm.fit_predict(data)
         
         # Create clusters
-        self._clusters = Clusters.from_labels(labeling=labels)
+        self._clusters = Clusters.from_labeling(labeling=labels)
         
 
 class NCClusteringAlgorithm(ClusteringAlgorithm):
@@ -128,7 +128,7 @@ class NCClusteringAlgorithm(ClusteringAlgorithm):
         labels   = spectral.fit_predict(self._aff_mat.A)
 
         # Create clusters
-        self._clusters = Clusters.from_labels(labeling=labels)
+        self._clusters = Clusters.from_labeling(labeling=labels)
 
 
 class DSClusteringAlgorithm(ClusteringAlgorithm):

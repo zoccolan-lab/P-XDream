@@ -25,6 +25,8 @@ FILE_NAMES = {
     'recordings'       : 'recordings.npy',                  # Cluster dir          
     'affinity_matrix'  : 'affinity_matrix.npy',             # Cluster dir
     'ds_clusters'      : 'DSClusters.json',                 # Cluster dir
+    'gmm_clusters'     : 'GMMClusters.json',                # Cluster dir
+    'nc_clusters'      : 'NCClusters.json',                 # Cluster dir
 }
 
 # --- LAYER SETTINGS ---
