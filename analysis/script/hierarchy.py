@@ -14,16 +14,15 @@ from sklearn.metrics import mutual_info_score
 from zdream.clustering.cluster import Cluster, Clusters
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from analysis.utils.misc import start, end
-from analysis.utils.settings import FILE_NAMES, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
+from analysis.utils.settings import FILE_NAMES, LAYER, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 
 # ------------------------------------------- SETTINGS ---------------------------------------
 
-LAYER       = 'fc8'
 FIGSIZE     = (10, 8)
 SNS_PALETTE = 'Set2'
 
-_, NAME, _, _ = LAYER_SETTINGS[LAYER]
+_, NAME, TRUE_LABELS, _, _ = LAYER_SETTINGS[LAYER]
 
 OUT_NAME = f'{OUT_NAMES["cluster_type_comparison"]}_{NAME}'
 out_dir = os.path.join(OUT_DIR, OUT_NAME)
@@ -205,6 +204,8 @@ if __name__ == '__main__':
     )
     
     end(logger)
+    
+    if not TRUE_LABELS: exit(0)
     
     # 2. HIERARCHY DISTANCES
     

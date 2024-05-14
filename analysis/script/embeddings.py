@@ -8,7 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 
-from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
+from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
 from analysis.utils.misc import end, start
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.utils.io_ import read_json
@@ -16,13 +16,11 @@ from sklearn.decomposition import PCA
 
 # ------------------------------------------- SETTINGS ---------------------------------------
 
-LAYER    = 'fc8'
-
 K        =        3 # Number of points to skip for the text
 FIGSIZE  = (10, 10)
 FONTSIZE =        6
 
-CLU_DIR, NAME, TRUE_CLASSES, _ = LAYER_SETTINGS[LAYER]
+CLU_DIR, NAME, TRUE_CLASSES, _, _ = LAYER_SETTINGS[LAYER]
 
 OUT_NAME = f'{OUT_NAMES["cluster_type_comparison"]}_{NAME}'
 cluster_dir = os.path.join(CLUSTER_DIR, CLU_DIR)

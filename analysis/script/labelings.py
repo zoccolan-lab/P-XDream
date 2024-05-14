@@ -7,7 +7,7 @@ import os
 import numpy as np
 
 from analysis.utils.misc import end, start
-from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER_SETTINGS, OUT_DIR, WORDNET_DIR, OUT_NAMES
+from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER, LAYER_SETTINGS, OUT_DIR, WORDNET_DIR, OUT_NAMES
 from zdream.clustering.cluster import Clusters
 from zdream.utils.io_ import read_json
 from zdream.utils.logger import LoguruLogger
@@ -15,10 +15,9 @@ from zdream.utils.logger import LoguruLogger
 # ------------------------------------------- SETTINGS ---------------------------------------
 
 # Hyperparameters
-LAYER    = 'fc8' # Layer to perform clustering
 PCA_DIM  = 500   # Number of PCA components for Gaussian Mixture 
 
-CLU_DIR, NAME, TRUE_CLASSES, N_CLU = LAYER_SETTINGS[LAYER]
+CLU_DIR, NAME, TRUE_CLASSES, N_CLU, FEAT_MAP = LAYER_SETTINGS[LAYER]
 
 OUT_NAME = f'{OUT_NAMES["cluster_type_comparison"]}_{NAME}'
 cluster_dir = os.path.join(CLUSTER_DIR, CLU_DIR)
@@ -119,6 +118,21 @@ if __name__ == '__main__':
         true_labeling = [unique_classes.index(a) for _, a in true_classes.values()]
 
         end(logger)
+        
+    # 6. FEATURE MAP 
+    
+    if FEAT_MAP:
+    
+        start(logger, 'FEATURE MAP Clustering')
+        
+        fm_file = os.path.join(cluster_dir, FILE_NAMES['fm_clusters'])
+        logger.info(mess=f'Loading feature map clustering from {fm_file}')
+        fm = Clusters.from_file(fm_file, logger=logger)
+        
+        logger.info(mess='Retrieving labeling')
+        fm_labeling = fm.labeling
+        
+        end(logger)
 
     # SAVE
 
@@ -131,6 +145,8 @@ if __name__ == '__main__':
     }
     
     if TRUE_CLASSES: labelings['True'] = true_labeling
+    
+    if FEAT_MAP: labelings['FeatureMap'] = fm_labeling
 
     labeling_fp = os.path.join(out_dir, 'labelings.npz')
     logger.info(mess=f'Saving labelings to {labeling_fp}')

@@ -1,12 +1,13 @@
 import math
+from os import path
 from typing import List, Tuple
 
 import numpy as np
 
-from zdream.clustering.ds import DSClusters
+from script.utils.settings import FILE_NAMES
+from zdream.clustering.ds import Clusters
 from zdream.utils.misc import copy_exec
 
-LAYER_NAME = 'fc7'
 
 LAYERS_NAME = {
     'fc8'           : ('fc8',           'alexnetfc8',          21),
@@ -16,21 +17,25 @@ LAYERS_NAME = {
     'conv5-maxpool' : ('conv5-maxpool', 'alexnetconv5maxpool', 13),
 }
 
+LAYER_NAME    = 'fc7-relu'
+CLUSTER_ALGO  = 'nc'
+CLUSTER_IDX   = list(range(127))
+ITER          = 150
+SAMPLE        = 5
+
 CLU_DIR, EXP_NAME, LAYER = LAYERS_NAME[LAYER_NAME]
 
-CLUSTER_FILE  = f'/data/Zdream/clustering/alexnet/{CLU_DIR}/DSClusters.json'
+NAME = f'clusteroptimization_{EXP_NAME}_{CLUSTER_ALGO}'
 
-NAME = f'singlelayeroptim_{EXP_NAME}_c2_c5'
+CLUSTER_DIR  = f'/data/Zdream/clustering/alexnet/{CLU_DIR}'
+
+cluster_file = path.join(CLUSTER_DIR, FILE_NAMES[CLUSTER_ALGO])
 
 CLUSTER_CARDINALITY = {
     i: len(cluster)
-    for i, cluster in enumerate(DSClusters.from_file(CLUSTER_FILE)) # type: ignore
+    for i, cluster in enumerate(Clusters.from_file(cluster_file)) # type: ignore
 }
 
-CLUSTER_IDX   = [2, 3, 4, 5]
-
-ITER          = 150
-SAMPLE        = 10
 
 
 def get_arguments_weighting(
@@ -60,7 +65,8 @@ def get_arguments_scoring(
         args = [
             ( str(clu_idx), scr_type, str(np.random.randint(1000, 100000)) )
             for clu_idx in cluster_idx
-            for scr_type in ['cluster', 'random', 'random_adj']
+            for scr_type in ['cluster']
+            #for scr_type in ['cluster', 'random', 'random_adj']
             for _ in range(sample)
         ]
         
@@ -259,7 +265,8 @@ if __name__ == '__main__':
     args['iter']         = ITER
     args['template']     = 'T'
     args['layer']        = LAYER
-    args['cluster_file'] = CLUSTER_FILE
+    args['clu_dir']      = CLUSTER_DIR
+    args['clu_algo']     = CLUSTER_ALGO
     
     copy_exec(
         file=file,

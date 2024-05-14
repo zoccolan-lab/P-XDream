@@ -4,4 +4,5 @@ FILE_NAMES = {
     'ds' : 'DSClusters.json',
     'gmm': 'GMMClusters.json',
     'nc' : 'NCClusters.json',
+    'fm' : 'FeatureMap.json',
 }

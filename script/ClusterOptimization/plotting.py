@@ -104,9 +104,7 @@ def plot_weighted(
 
 
 def plot_scr(
-    cluster_idxs: List[int],
-    scr_types: List[str],
-    scores: List[np.float32],
+    data: Dict[int, Dict[str, List[float]]],
     out_dir: str,
     logger: Logger = SilentLogger()
 ):
@@ -123,17 +121,11 @@ def plot_scr(
     linesX = {k: [] for k in STYLE}
     linesY = {k: [] for k in STYLE}
     
-    # Organize
-    out = defaultdict(lambda: defaultdict(list))
-
-    for cluster_idx, scr_type, score in zip(cluster_idxs, scr_types, scores):
-        out[cluster_idx][scr_type].append(float(score))
-    
     errorbars,   ax1 = plt.subplots(figsize=(16, 8))
     violinplots, ax2 = plt.subplots(figsize=(16, 8))
     
     # Plot
-    for cluster_idx, cluster_scores in out.items():
+    for cluster_idx, cluster_scores in data.items():
         for scr_type, y in cluster_scores.items():
             
             color, offset = STYLE[scr_type]
@@ -179,7 +171,7 @@ def plot_scr(
         ax.set_xlabel('Cluster Index')
         ax.set_ylabel('Scores')
         ax.set_title('Scoring Types comparison')
-        ax.set_xticks(list(out.keys()))
+        ax.set_xticks(list(data.keys()))
         
     # Save figures
     for fig, name in [

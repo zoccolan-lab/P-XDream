@@ -17,10 +17,10 @@ from script.utils.parsing import parse_boolean_string
 from script.utils.misc import make_dir
 from script.utils.settings import FILE_NAMES
 from zdream.clustering.cluster import Clusters
-from zdream.clustering.ds import DSCluster, DSClusters
+from zdream.clustering.ds import DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
-from zdream.optimizer import GeneticOptimizer, Optimizer
+from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
@@ -269,22 +269,22 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         # --- OPTIMIZER ---
         
-        # optim = CMAESOptimizer(
-        #     codes_shape  = generator.input_dim,
-        #     rnd_seed     =     conf[str(Args.RandomSeed)],
-        #     rnd_distr    = opt_conf[str(Args.RandomDistr)],
-        #     rnd_scale    = opt_conf[str(Args.RandomScale)],
-        #     pop_size     = opt_conf[str(Args.PopulationSize)],
-        #     sigma0       = opt_conf[str(Args.Sigma0)]
-        # )
-        
-        optim = GeneticOptimizer(
+        optim = CMAESOptimizer(
             codes_shape  = generator.input_dim,
             rnd_seed     =     conf[str(Args.RandomSeed)],
             rnd_distr    = opt_conf[str(Args.RandomDistr)],
             rnd_scale    = opt_conf[str(Args.RandomScale)],
-            pop_size     = opt_conf[str(Args.PopulationSize)]   
+            pop_size     = opt_conf[str(Args.PopulationSize)],
+            sigma0       = opt_conf[str(Args.Sigma0)]
         )
+        
+        # optim = GeneticOptimizer(
+        #     codes_shape  = generator.input_dim,
+        #     rnd_seed     =     conf[str(Args.RandomSeed)],
+        #     rnd_distr    = opt_conf[str(Args.RandomDistr)],
+        #     rnd_scale    = opt_conf[str(Args.RandomScale)],
+        #     pop_size     = opt_conf[str(Args.PopulationSize)]   
+        # )
 
         #  --- LOGGER --- 
 
@@ -628,9 +628,9 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
         super()._init()
         
         self._data['desc'       ] = 'Comparison between clustering units optimization'
-        self._data['cluster_idx'] = list()  # Cluster idx in the clustering
-        self._data['score'      ] = list()  # Best stimulus score
-        self._data['scr_type'   ] = list()  # Boolean flag if scoring was weighted or not
+        
+        # Cluster idx: scr_type: scores
+        self._data['scr_type'] = defaultdict(lambda: defaultdict(list))  
 
 
     def _progress(
@@ -644,21 +644,32 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
         
         clu_conf = conf['clustering']
-
-        self._data['cluster_idx'].append(clu_conf[str(Args.ClusterIdx)])
-        self._data['scr_type']   .append(clu_conf[str(Args.ScoringType)])    
-        self._data['score']      .append(msg.stats_gen['best_score'])
+        
+        clu_idx  = clu_conf[str(Args.ClusterIdx)]
+        scr_type = clu_conf[str(Args.ScoringType)]
+        score    = float(msg.stats_gen['best_score'])
+        
+        self._data['scr_type'][clu_idx][scr_type].append(score)
 
     def _finish(self):
+        
+        # Dictionary redefinition with no lambdas
+        # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
+        
+        self._data['scr_type'] = {
+            cluster_idx: {
+                scr_type: [score for score in scores]
+                for scr_type, scores in scr.items()
+            }
+            for cluster_idx, scr in self._data['scr_type'].items()
+        }
         
         super()._finish()
         
         plot_scr(
-            cluster_idxs = self._data['cluster_idx'],
-            scr_types    = self._data['scr_type'],
-            scores       = self._data['score'],
-            out_dir      = self.target_dir,
-            logger       = self._logger
+            data    = self._data['scr_type'],
+            out_dir = self.target_dir,
+            logger  = self._logger
         )
 
 

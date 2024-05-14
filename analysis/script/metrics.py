@@ -10,11 +10,9 @@ import pandas as pd
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, rand_score
 
 from zdream.utils.logger import LoguruLogger
-from analysis.utils.settings import FILE_NAMES, LAYER_SETTINGS, OUT_DIR, OUT_NAMES
+from analysis.utils.settings import FILE_NAMES, LAYER, LAYER_SETTINGS, OUT_DIR, OUT_NAMES
 
 # ------------------------------------------- SETTINGS ---------------------------------------
-
-LAYER = 'fc8'
 
 METRICS = {
     'RandScore'    : rand_score,
@@ -22,7 +20,7 @@ METRICS = {
     'NMI'          : normalized_mutual_info_score
 }
 
-_, NAME, _, _ = LAYER_SETTINGS[LAYER]
+_, NAME, _, _, _ = LAYER_SETTINGS[LAYER]
 OUT_NAME = f'{OUT_NAMES["cluster_type_comparison"]}_{NAME}'
 
 out_dir = os.path.join(OUT_DIR, OUT_NAME)

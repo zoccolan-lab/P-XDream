@@ -27,16 +27,21 @@ FILE_NAMES = {
     'ds_clusters'      : 'DSClusters.json',                 # Cluster dir
     'gmm_clusters'     : 'GMMClusters.json',                # Cluster dir
     'nc_clusters'      : 'NCClusters.json',                 # Cluster dir
+    'fm_clusters'      : 'FeatureMap.json',                 # Cluster dir
 }
 
 # --- LAYER SETTINGS ---
 
 LAYER_SETTINGS = {
-    # Layer-name : (directory,   format name,     use ground truth, number of clusters)
-    'fc8'        : ('fc8',      'alexnetfc8',     True,             50 ),
-    'fc7-relu'   : ('fc7-relu', 'alexnetfc7relu', False,            125),
-    'fc7'        : ('fc7',      'alexnetfc7',     False,            56 )
+    # Layer-name    : (directory,       format name,           use ground truth, number of clusters, use feature map)
+    'fc8'           : ('fc8',           'alexnetfc8',          True,             50,                 False),
+    'fc7-relu'      : ('fc7-relu',      'alexnetfc7relu',      False,            127,                False),
+    'fc7'           : ('fc7',           'alexnetfc7',          False,            58,                 False),
+    'fc6-relu'      : ('fc6-relu',      'alexnetfc6relu',      False,            94,                 False),
+    'conv5-maxpool' : ('conv5-maxpool', 'alexnetconv5maxpool', False,            576,                True ),
 }
+
+LAYER = 'conv5-maxpool'
 
 
 # --- OUT NAMES ---

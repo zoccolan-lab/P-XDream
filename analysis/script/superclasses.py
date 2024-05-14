@@ -122,7 +122,7 @@ if __name__ == '__main__':
         
         # Compute all word ancestors
         ancestors = [wordnet[a] for a in word.ancestors_codes]  # type: ignore
-        
+        ancestors = sorted(ancestors, key=lambda word: word.depth, reverse=True)
         
         # A) Check if the ancestors are superclasses list
         found = False
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         for a in ancestors:
             if a.name in SUPER_LABELS:
                 logger.info(f'> Automatically selected class: {a.name}')
-                out[word.id] = a.name
+                out[word.id] = [a.code, a.name]
                 found = True
                 break
         
@@ -142,13 +142,13 @@ if __name__ == '__main__':
         logger.info(mess='No class found. Please select one from the list below:')
         for j, a in enumerate(ancestors): logger.info(mess=f'> {j}. {a.name}')
         k = int(input('Enter the number of the class: '))
-        chosen_class = ancestors[k].name
-        out[word.id] = chosen_class
+        chosen_class = ancestors[k]
+        out[word.id] = [chosen_class.code, chosen_class.name]
         logger.info(mess=f'Chosen class: {chosen_class}')
     
     # Log the total number of superclasses used
     logger.info(mess='')
-    logger.info(mess=f"TOTAL CLASSES: {len(set(out.values()))}")
+    logger.info(mess=f"TOTAL CLASSES: {len(set([a for _, a in out.values()]))}")
     
     # Save superclasses to file
     superclass_fp = os.path.join(WORDNET_DIR, FILE_NAMES['imagenet_super'])
