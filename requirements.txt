@@ -13,3 +13,7 @@ matplotlib=3.8.0
 multimethod==1.9.1
 pandas==2.1.4
 seaborn==0.12.2
+pytorch-pretrained-biggan==0.1.1
+rich==13.7.1
+cma==3.3.0
+colorcet==3.1.0
