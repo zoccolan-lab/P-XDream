@@ -191,22 +191,18 @@ class Clusters:
         clu_size = len(elements_ids) // n_clu
         
         # Break element ids in slices of n_clu elements
-        clu_labels = [
-            elements_ids[i*clu_size:] if\
-                    (i+1)*clu_size > len(elements_ids)\
-            else elements_ids[i*clu_size:(i+1)*clu_size]
-            for i in range(n_clu)
-        ]
+        clu_labels = [elements_ids[i*clu_size:(i+1)*clu_size] for i in range(n_clu)]
+        clu_labels[-1].extend(elements_ids[clu_size * n_clu:])
         
-        clusters = Clusters()
+        clusters = []
         
         for labels in clu_labels:
             
             labels_arr = np.array(labels, dtype=np.int32)
             cluster = Cluster(labels=labels_arr)
-            clusters.add(cluster)
+            clusters.append(cluster)
         
-        return clusters
+        return Clusters(clusters=clusters)
     
     @classmethod
     def adjacent_clusters(

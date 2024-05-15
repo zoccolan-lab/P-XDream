@@ -123,14 +123,14 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 ds = True
                 clusters: Clusters | DSClusters = DSClusters.from_file(fp=clu_fp)
                 
-            case 'gmm' | 'nc':
+            case 'gmm' | 'nc' | 'adj' | 'rand':
                 
                 ds = False
                 clusters: Clusters | DSClusters = Clusters.from_file(fp=clu_fp)
             
             case _:
                 
-                raise ValueError(f'Invalid clustering type: {clu_type}. Choose one between `ds`, `gmm`, `nc`')
+                raise ValueError(f'Invalid clustering type: {clu_type}. Choose one between `ds`, `gmm`, `nc`', '`adj`, `rand`')
         
         cluster = clusters[clu_conf[str(Args.ClusterIdx)]]
 

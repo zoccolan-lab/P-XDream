@@ -18,7 +18,7 @@ LAYERS_NAME = {
 }
 
 LAYER_NAME    = 'fc7-relu'
-CLUSTER_ALGO  = 'nc'
+CLUSTER_ALGO  = 'adj'
 CLUSTER_IDX   = list(range(127))
 ITER          = 150
 SAMPLE        = 5
