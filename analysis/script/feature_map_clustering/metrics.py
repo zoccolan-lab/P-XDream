@@ -27,7 +27,7 @@ out_dir = os.path.join(OUT_DIR, OUT_NAME)
 
 # ---------------------------------------------------------------------------------------------
 
-if __name__ == '__main__':
+def main():
 
     # Initialize logger
     logger = LoguruLogger(on_file=False)
@@ -78,4 +78,5 @@ if __name__ == '__main__':
 
     logger.info(mess='')
     logger.close()
-    
+
+if __name__ == '__main__': main()

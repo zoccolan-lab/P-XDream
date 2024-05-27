@@ -107,7 +107,7 @@ def plot_embedding(
         logger.info(mess=f'Saving plot to {fig_fp}')
         fig.savefig(fig_fp)
 
-if __name__ == '__main__':
+def main():
 
     # 0. Creating logger and output directory
 
@@ -221,3 +221,6 @@ if __name__ == '__main__':
     end(logger)
 
     logger.close()
+
+
+if __name__ == '__main__': main()

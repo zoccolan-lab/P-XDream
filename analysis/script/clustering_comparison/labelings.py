@@ -24,7 +24,7 @@ cluster_dir = os.path.join(CLUSTER_DIR, CLU_DIR)
 
 # ---------------------------------------------------------------------------------------------
 
-if __name__ == '__main__':
+def main():
 
     # Create logger
     logger = LoguruLogger(on_file=False)
@@ -154,4 +154,4 @@ if __name__ == '__main__':
 
     logger.close()
 
-
+if __name__ == '__main__': main()

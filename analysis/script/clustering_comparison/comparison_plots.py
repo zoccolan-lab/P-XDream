@@ -12,74 +12,26 @@ import seaborn as sns
 from sklearn.metrics import mutual_info_score
 
 from zdream.clustering.cluster import Cluster, Clusters
+from zdream.utils.io_ import load_pickle
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
-from analysis.utils.misc import start, end
-from analysis.utils.settings import FILE_NAMES, LAYER, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
+from analysis.utils.misc import plot, start, end
+from analysis.utils.settings import CLU_ORDER, CLUSTER_DIR, FILE_NAMES, LAYER, LAYER_SETTINGS, OUT_DIR, OUT_NAMES, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 
 # ------------------------------------------- SETTINGS ---------------------------------------
 
-FIGSIZE     = (10, 8)
-SNS_PALETTE = 'Set2'
-
-_, NAME, TRUE_LABELS, _, _ = LAYER_SETTINGS[LAYER]
+CLU_DIR, NAME, TRUE_LABELS, _, _ = LAYER_SETTINGS[LAYER]
 
 OUT_NAME = f'{OUT_NAMES["cluster_type_comparison"]}_{NAME}'
 out_dir = os.path.join(OUT_DIR, OUT_NAME)
+cluster_dir = os.path.join(CLUSTER_DIR, CLU_DIR)
 
 # ---------------------------------------------------------------------------------------------
 
-def plot(
-    data      : Dict[str, List[int]] | Dict[str, List[float]],
-    ylabel    : str,
-    title     : str,
-    file_name : str,
-    out_dir   : str,
-    logger    : Logger = SilentLogger()
-):
-    '''
-    Plot data in a boxplot and violinplot and save them in the output directory
-
-    :param data: Data to plot indexed by cluster type.
-    :type data: Dict[str, List[int]] | Dict[str, List[float]]
-    :param ylabel: Label for the y axis.
-    :type ylabel: str
-    :param title: Title of the plot.
-    :type title: str
-    :param file_name: Name of the file to save the plot.
-    :type file_name: str
-    :param out_dir: Output directory.
-    :type out_dir: str
-    :param logger: Logger to log the process, defaults to SilentLogger().
-    :type logger: Logger, optional
-    '''
-    
-    palette = sns.set_palette(SNS_PALETTE)
-    
-    for plot_ty in ['boxplot', 'violinplot']:
-    
-        fig, ax = plt.subplots(figsize=FIGSIZE)
-        
-        data_values = list(data.values())
-        
-        if plot_ty == 'boxplot': sns.boxplot   (data=data_values, ax=ax, palette=palette)
-        else:                    sns.violinplot(data=data_values, ax=ax, palette=palette)
-        
-        ax.set_title(title)
-        ax.set_ylabel(ylabel)
-        ax.set_xticks(np.arange(len(data_values)))
-        ax.set_xticklabels(data.keys())
-        ax.tick_params(axis='x', rotation=45) 
-        plt.tight_layout() 
-        
-        out_fp = os.path.join(out_dir, f'{file_name}_{plot_ty}.svg')
-        logger.info(mess=f'Saving plot to {out_fp}')
-        fig.savefig(out_fp)
-    
-    
 def relative_mean_hierarchy_distance(
-    id_      : int, 
+    id_          : int, 
     cluster      : Cluster,
+    wordnet      : WordNet,
     inet         : ImageNetWords,
     logger       : Logger = SilentLogger()
 ) -> Tuple[float, float] | None:
@@ -123,7 +75,7 @@ def relative_mean_hierarchy_distance(
             float(non_clu_mean - clu_mean)
 
 
-if __name__ == '__main__':
+def main():
     
     # Create logger
     logger = LoguruLogger(on_file=False)
@@ -131,7 +83,7 @@ if __name__ == '__main__':
     # WordNet paths
     words_fp             = os.path.join(WORDNET_DIR, FILE_NAMES['words'])
     hierarchy_fp         = os.path.join(WORDNET_DIR, FILE_NAMES['hierarchy'])
-    words_precomputed_fp = os.path.join(WORDNET_DIR, FILE_NAMES['words_precoputed'])
+    words_precomputed_fp = os.path.join(WORDNET_DIR, FILE_NAMES['words_precomputed'])
     
     # Load WordNet with precomputed words if available
     if os.path.exists(words_precomputed_fp):
@@ -174,6 +126,9 @@ if __name__ == '__main__':
     labelings: Dict[str, NDArray] = dict(np.load(labelings_fp))
     logger.info(f'Loaded labelings: {", ".join(labelings.keys())}')
     
+    # Sort labelings by key
+    labelings = dict(sorted(labelings.items(), key=lambda x: CLU_ORDER[x[0]]))
+    
     # Compute clustering
     clusters: Dict[str, Clusters] = {
         clu_name: Clusters.from_labeling(labeling=labeling)
@@ -181,9 +136,9 @@ if __name__ == '__main__':
     }
     
     # Create output directory
-    hierarchy_dir = os.path.join(out_dir, 'hierarchy')
-    logger.info(mess=f'Creating output directory to {hierarchy_dir}')
-    os.makedirs(hierarchy_dir, exist_ok=True)
+    comp_dir = os.path.join(out_dir, 'plot_comparison')
+    logger.info(mess=f'Creating output directory to {comp_dir}')
+    os.makedirs(comp_dir, exist_ok=True)
     
     # 1. LENGTHS
     
@@ -199,15 +154,47 @@ if __name__ == '__main__':
         ylabel    = 'Cardinality',
         title     = 'Clustering Cardinality',
         file_name = f'clu_size',
-        out_dir   = hierarchy_dir,
+        out_dir   = comp_dir,
         logger    = logger
     )
     
     end(logger)
+        
+    # 2. LOADING OPTIMIZATION
     
-    if not TRUE_LABELS: exit(0)
+    start(logger, 'CLUSTERING OPTIMIZATION')
     
-    # 2. HIERARCHY DISTANCES
+    clu_opt_file = os.path.join(cluster_dir, FILE_NAMES['clu_optimization'])
+    if os.path.exists(clu_opt_file):
+    
+        logger.info(mess=f'Loading clustering optimization from {clu_opt_file}')
+        clu_opt = load_pickle(path=clu_opt_file)
+        
+        clu_opt_means = {
+            clu_name: [np.mean(opt) for opt in scores.values()]
+            for clu_name, scores in clu_opt.items()
+        }
+        
+        plot(
+            data=clu_opt_means,
+            ylabel='Optimization',
+            title='Clustering Optimization',
+            file_name='clu_optimization',
+            out_dir=comp_dir,
+            logger=logger
+        )
+        
+    else:
+        logger.warn(mess=f'No clustering optimization found at {clu_opt_file}')
+    
+    end(logger)
+    
+    exit(0)
+    
+    if not TRUE_LABELS: return
+    
+    
+    # 3. HIERARCHY DISTANCES
     
     start(logger, 'CLUSTERING HIERARCHY DISTANCES')
     
@@ -215,8 +202,9 @@ if __name__ == '__main__':
     hierarchy_dist_rel = {}
 
     for cluster_type, clusters_ in clusters.items():
+        
         logger.info(f"Computing cluster type: {cluster_type}")
-        dists    = []
+        dists     = []
         dists_rel = []
         
         for cluster in clusters_: # type: ignore
@@ -227,6 +215,7 @@ if __name__ == '__main__':
                     id_=object.label, 
                     cluster=cluster,
                     inet=inet,
+                    wordnet=wordnet,
                     logger=logger
                 )
                 
@@ -245,7 +234,7 @@ if __name__ == '__main__':
         ylabel    = 'Hierarchy Distance',
         title     = 'Mean Hierarchy Distance',
         file_name = f'hierarchy_dist',
-        out_dir   = hierarchy_dir,
+        out_dir   = comp_dir,
         logger    = logger
     )
     
@@ -254,13 +243,13 @@ if __name__ == '__main__':
         ylabel    = 'Hierarchy Relative Distance',
         title     = 'Relative Mean Hierarchy Distance',
         file_name = f'hierarchy_dist_rel',
-        out_dir   = hierarchy_dir,
+        out_dir   = comp_dir,
         logger    = logger
     )
     
     end(logger)
     
-    # 3. ENTROPY
+    # 4. ENTROPY
     
     start(logger, 'CLUSTERING ENTROPY')
     
@@ -282,10 +271,13 @@ if __name__ == '__main__':
         ylabel    = 'Entropy',
         title     = 'Entropy',
         file_name = f'entropy',
-        out_dir   = hierarchy_dir,
+        out_dir   = comp_dir,
         logger    = logger
     )
     
     end(logger)
     
     logger.close()
+    
+if __name__ == '__main__':
+    main()

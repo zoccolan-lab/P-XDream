@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # WordNet paths
     words_fp             = os.path.join(WORDNET_DIR, FILE_NAMES['words'])
     hierarchy_fp         = os.path.join(WORDNET_DIR, FILE_NAMES['hierarchy'])
-    words_precomputed_fp = os.path.join(WORDNET_DIR, FILE_NAMES['words_precoputed'])
+    words_precomputed_fp = os.path.join(WORDNET_DIR, FILE_NAMES['words_precomputed'])
     
     # A) Load WordNet with precomputed words if available
     if os.path.exists(words_precomputed_fp):

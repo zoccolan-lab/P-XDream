@@ -16,18 +16,19 @@ WORDNET_DIR = settings['wordnet_dir']
 # --- FILE NAMES ---
 
 FILE_NAMES = {
-    'words'            : 'words.txt',                       # WordNet dir
-    'hierarchy'        : 'wordnet.is_a.txt',                # WordNet dir
-    'imagenet'         : 'imagenet_class_index.json',       # WordNet dir
-    'imagenet_super'   : 'imagenet_superclass_index.json',  # WordNet dir
-    'words_precoputed' : 'words.pkl',                       # WordNet dir
-    'labelings'        : 'labelings.npz',                   # Output  dir
-    'recordings'       : 'recordings.npy',                  # Cluster dir          
-    'affinity_matrix'  : 'affinity_matrix.npy',             # Cluster dir
-    'ds_clusters'      : 'DSClusters.json',                 # Cluster dir
-    'gmm_clusters'     : 'GMMClusters.json',                # Cluster dir
-    'nc_clusters'      : 'NCClusters.json',                 # Cluster dir
-    'fm_clusters'      : 'FeatureMap.json',                 # Cluster dir
+    'words'             : 'words.txt',                       # WordNet dir
+    'hierarchy'         : 'wordnet.is_a.txt',                # WordNet dir
+    'imagenet'          : 'imagenet_class_index.json',       # WordNet dir
+    'imagenet_super'    : 'imagenet_superclass_index.json',  # WordNet dir
+    'words_precomputed' : 'words.pkl',                       # WordNet dir
+    'labelings'         : 'labelings.npz',                   # Output  dir
+    'recordings'        : 'recordings.npy',                  # Cluster dir          
+    'affinity_matrix'   : 'affinity_matrix.npy',             # Cluster dir
+    'clu_optimization'  : 'cluster_optimization.pkl',        # Cluster dir
+    'ds_clusters'       : 'DSClusters.json',                 # Cluster dir
+    'gmm_clusters'      : 'GMMClusters.json',                # Cluster dir
+    'nc_clusters'       : 'NCClusters.json',                 # Cluster dir
+    'fm_clusters'       : 'FeatureMap.json',                 # Cluster dir
 }
 
 # --- LAYER SETTINGS ---
@@ -47,5 +48,17 @@ LAYER = 'conv5-maxpool'
 # --- OUT NAMES ---
 
 OUT_NAMES = {
-    'cluster_type_comparison': 'clutype_comparison'
+    'cluster_type_comparison': 'cluster_type_comparison',
+    'feature_map_clustering' : 'feature_map_clustering',
+}
+
+# --- CLUSTER ORDER ---
+CLU_ORDER = {
+    'DominantSet'     : 0,
+    'NormalizedCut'   : 1,
+    'GaussianMixture' : 2,
+    'Adjacent'        : 3,
+    'Random'          : 4,
+    'True'            : 5,
+    'FeatureMap'      : 6,
 }
