@@ -19,7 +19,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.progress import Progress
 
-from script.utils.cmdline_args import Args
+from experiment.utils.cmdline_args import Args
 from zdream.utils.dataset import NaturalStimuliLoader
 
 from .utils.logger import DisplayScreen, Logger, SilentLogger

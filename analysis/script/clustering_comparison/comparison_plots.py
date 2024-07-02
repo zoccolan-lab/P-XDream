@@ -165,14 +165,18 @@ def main():
     start(logger, 'CLUSTERING OPTIMIZATION')
     
     clu_opt_file = os.path.join(cluster_dir, FILE_NAMES['clu_optimization'])
+    
     if os.path.exists(clu_opt_file):
     
         logger.info(mess=f'Loading clustering optimization from {clu_opt_file}')
         clu_opt = load_pickle(path=clu_opt_file)
         
+        clu_opt['Adjacent'] = clu_opt['Adjacnet']
+        
         clu_opt_means = {
             clu_name: [np.mean(opt) for opt in scores.values()]
             for clu_name, scores in clu_opt.items()
+            if clu_name in ['DominantSet', 'Random', 'Adjacent']
         }
         
         plot(

@@ -42,7 +42,7 @@ LAYER_SETTINGS = {
     'conv5-maxpool' : ('conv5-maxpool', 'alexnetconv5maxpool', False,            576,                True ),
 }
 
-LAYER = 'conv5-maxpool'
+LAYER = 'fc6-relu'
 
 
 # --- OUT NAMES ---

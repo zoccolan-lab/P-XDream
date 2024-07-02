@@ -138,15 +138,15 @@ def main():
 
     labelings = {
         'DominantSet'       : ds_labeling,
-        'GaussianMixture'   : gmm_labeling,
-        'NormalizedCut'     : nc_labeling,
+        # 'GaussianMixture'   : gmm_labeling,
+        # 'NormalizedCut'     : nc_labeling,
         'Adjacent'          : trivial_labeling,
         'Random'            : random_labeling,
     }
     
-    if TRUE_CLASSES: labelings['True'] = true_labeling
+    #if TRUE_CLASSES: labelings['True'] = true_labeling
     
-    if FEAT_MAP: labelings['FeatureMap'] = fm_labeling
+    #if FEAT_MAP: labelings['FeatureMap'] = fm_labeling
 
     labeling_fp = os.path.join(out_dir, 'labelings.npz')
     logger.info(mess=f'Saving labelings to {labeling_fp}')
