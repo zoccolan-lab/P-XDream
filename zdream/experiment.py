@@ -19,7 +19,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.progress import Progress
 
-from experiment.utils.cmdline_args import Args
+from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
 from zdream.utils.dataset import NaturalStimuliLoader
 
 from .utils.logger import DisplayScreen, Logger, SilentLogger
@@ -49,7 +49,7 @@ class Experiment(ABC):
     
     The class can be instantiated in two modalities:
     - 1) By an explicit instantiations of a class.
-    - 2) From a configuration file.
+    - 2) From a configuration.
     '''
 
     EXPERIMENT_TITLE = "Experiment"
@@ -69,7 +69,7 @@ class Experiment(ABC):
         :param name: Name identifier for the experiment version, defaults to 'experiment'.
         :type name: str, optional
         :param logger: Logger instance to log information, warnings and errors;
-                       to handle directory paths and to display screens.
+            to handle directory paths and to display screens.
         :type logger: Logger
         :param data: General purpose attribute to allow the inclusion of any additional type of information.
         :type data: Dict[str, Any]
@@ -87,7 +87,7 @@ class Experiment(ABC):
         #       It's use in delegated to subclasses.
         
 
-    def _set_param_configuration(self, param_config: Dict[str, Any]):
+    def _set_param_configuration(self, param_config: ParamConfig):
         '''
         Set the parameter configuration as experiment attribute
 
@@ -99,7 +99,7 @@ class Experiment(ABC):
         #       to make the classmethod `from_config` the only one allowed to
         #       set the parameter.
 
-        self._param_config = param_config
+        self._param_config: ParamConfig = param_config
     
     
     # --- CONFIGURATION ---
@@ -129,7 +129,7 @@ class Experiment(ABC):
         return cls.from_config(conf=full_conf)
 
     @classmethod
-    def from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
+    def from_config(cls, conf : ParamConfig) -> 'Experiment':
         '''
         Factory to instantiate an experiment from a hyperparameter configuration.
 
@@ -151,7 +151,7 @@ class Experiment(ABC):
 
     @classmethod
     @abstractmethod
-    def _from_config(cls, conf : Dict[str, Any]) -> 'Experiment':
+    def _from_config(cls, conf : ParamConfig) -> 'Experiment':
         '''
         Method to instantiate an experiment from a hyperparameter configuration.
 
@@ -219,7 +219,7 @@ class Experiment(ABC):
         # Save and log parameters
         if hasattr(self, '_param_config'):
 
-            flat_dict = flatten_dict(self._param_config)
+            flat_dict = ArgParam.argconf_to_json(self._param_config)
             
             # Log
             self._logger.info(f"")
@@ -236,7 +236,7 @@ class Experiment(ABC):
             # Save
             config_param_fp = path.join(self.dir, 'params.json')
             self._logger.info(f"Saving param configuration to: {config_param_fp}")
-            save_json(data=self._param_config, path=config_param_fp)
+            save_json(data=ArgParam.argconf_to_json(self._param_config), path=config_param_fp)
 
         # Log components
         if self._components:
@@ -547,7 +547,7 @@ class ZdreamExperiment(Experiment):
         self._nat_img_loader = nat_img_loader
 
 
-    def _set_param_configuration(self, param_config: Dict[str, Any]):
+    def _set_param_configuration(self, param_config: ParamConfig):
         '''
         Set the parameter configuration file for the experiment
 
@@ -558,7 +558,7 @@ class ZdreamExperiment(Experiment):
         # NOTE: We remove from the configuration file 
         #       the display screens potentially present from
         #       multi-experiment configuration
-        param_config.pop(str(Args.DisplayScreens), None)
+        param_config.pop(ArgParams.DisplayScreens.value, None)
         
         super()._set_param_configuration(param_config=param_config)
 
@@ -792,7 +792,7 @@ class ZdreamExperiment(Experiment):
         Default version returns the progress percentage.
         
         NOTE: The function is separated from the `_progress` function to allow to concatenate
-              default progress information with potential new one in a single line.
+            default progress information with potential new one in a single line.
 
         :param i: Current iteration number.
         :type i: int
@@ -869,8 +869,8 @@ class MultiExperiment:
     def __init__(
         self,
         experiment      : Type['Experiment'],
-        experiment_conf : Dict[str, List[Any]], 
-        default_conf    : Dict[str, Any],
+        experiment_conf : Dict[ArgParam, List[Parameter]], 
+        default_conf    : ParamConfig
     ) -> None:
         '''
         Create a list of experiments configurations by combining
@@ -882,7 +882,7 @@ class MultiExperiment:
                                 of values for a set of hyperparameters. 
                                 All lists are expected to have the same length.        
         :param default_conf: Default configuration file for all hyperparameters not 
-                             explicitly provided in the experiment configuration.
+            explicitly provided in the experiment configuration.
         :type default_conf: Dict[str, Any]
         '''
         
@@ -891,8 +891,8 @@ class MultiExperiment:
         lens = [len(v) for v in experiment_conf.values()]
         
         if len(set(lens)) > 1:
-            err_msg = f'Provided search configuration files have conflicting number of experiments runs: {lens}.'\
-                      f'Please provide coherent number of experiment runs.'
+            err_msg =   f'Provided search configuration files have conflicting number of experiments runs: {lens}.'\
+                        f'Please provide coherent number of experiment runs.'
             raise ValueError(err_msg)
         
         # Save experiment class
@@ -901,7 +901,7 @@ class MultiExperiment:
         # Convert the search configuration and combine with default values 
         keys, vals = experiment_conf.keys(), experiment_conf.values()
 
-        self._search_config : List[Dict[str, Any]] = [
+        self._search_config : List[ParamConfig] = [
             overwrite_dict(
                 default_conf, 
                 {k : v for k, v in zip(keys, V)}
@@ -920,13 +920,15 @@ class MultiExperiment:
         '''
 
         # Check single experiment name
-        exp_names = [conf['logger']['name'] for conf in self._search_config]
+        exp_names = [conf[ArgParams.ExperimentName.value] for conf in self._search_config]
+        
         if len(set(exp_names)) > 1:
             err_msg = f'Multirun expects a unique experiment name, but multiple found {set(exp_names)}'
             raise ValueError(err_msg)
 
         # Check multiple output directories
-        out_dirs = [conf['logger']['out_dir'] for conf in self._search_config]
+        out_dirs = [conf[ArgParams.OutputDirectory.value] for conf in self._search_config]
+        
         if len(set(out_dirs)) > 1:
             err_msg = f'Multirun expects a unique output directory, but multiple found {set(out_dirs)}'
             raise ValueError(err_msg)
@@ -936,9 +938,9 @@ class MultiExperiment:
 
         return self._logger_type(
             path = {
-                'out_dir': out_dirs[0],
-                'title'  : self._Exp.EXPERIMENT_TITLE,
-                'name'   : self._name
+                'out_dir': str(out_dirs[0]),
+                'title'  : str(self._Exp.EXPERIMENT_TITLE),
+                'name'   : str(self._name)
             }
         )
         
@@ -955,7 +957,8 @@ class MultiExperiment:
     @classmethod
     def from_args(
         cls,
-        args: Dict[str, Any],
+        arg_conf: ParamConfig,
+        default_conf: ParamConfig,
         exp_type: Type[Experiment]
     ):
         '''
@@ -963,15 +966,9 @@ class MultiExperiment:
         The configuration is supposed to contain `config` key which
         specify the default configuration location 
         '''
-        
-        # Filter out None (non given input parameters)
-        args = {k: v for k, v in args.items() if v} 
-
-        # Load default configuration
-        json_conf = read_json(args['config'])
 
         # Get type dictionary for casting
-        dict_type = {k: type(v) for k, v in flatten_dict(json_conf).items()}
+        # dict_type = {k: type(v) for k, v in flatten_dict(json_conf).items()}
 
         # Config from command line
         args_conf = {}
@@ -980,24 +977,25 @@ class MultiExperiment:
         observed_lens = set()
 
         # Loop on input arguments
-        for k, arg in args.items():
+        for arg, value in arg_conf.items():
 
             # Get typing for cast
-            type_cast = dict_type[k]
+            type_cast = arg.type
 
             # Split input line with separator # and cast
-            args_conf[k] = [
-                type_cast(a.strip()) for a in arg.split('#')
+            args_conf[arg] = [
+                type_cast(a.strip()) for a in str(value).split('#')
             ]
 
             # Add observed length if different from one
-            n_arg = len(args_conf[k])
+            n_arg = len(args_conf[arg])
+            
             if n_arg != 1:
                 observed_lens.add(n_arg)
 
         # Check if multiple lengths
         if len(observed_lens) > 1:
-            raise SyntaxError(f'Multiple argument with different lengths: {observed_lens}')
+            raise SyntaxError(f'Multiple argument with different lengths: {{observed_lens}}')
 
         # Check for no multiple args specified
         if len(observed_lens) == 0:
@@ -1010,7 +1008,7 @@ class MultiExperiment:
         return cls(
             experiment=exp_type,
             experiment_conf=args_conf,
-            default_conf=json_conf
+            default_conf=default_conf
         )
         
     # --- MAGIC METHODS ---
@@ -1063,22 +1061,32 @@ class MultiExperiment:
         #       to the configuration dictionary.
 
         # Add screens if at least one experiment has `render` flag on
-        if any(conf.get(str(Args.Render), False) for conf in self._search_config):
+        if any(conf.get(ArgParams.Render.value, False) for conf in self._search_config):
 
             self._main_screen = DisplayScreen.set_main_screen() # keep reference
             self._screens     = self._get_display_screens()
 
             # Add screens to configuration to experiments with `render` flag on
             for conf in self._search_config:
-                if conf.get(str(Args.Render), False):
-                    conf[str(Args.DisplayScreens)] = self._screens
+                
+                conf[ArgParams.CloseScreen.value] = False
+                
+                if conf.get(ArgParams.Render.value, False):
+                    conf[ArgParams.DisplayScreens.value] = self._screens  # type: ignore
+            
+            self._search_config[-1][ArgParams.CloseScreen.value] = True
+            
+        # Set version name
+        for i, conf in enumerate(self._search_config):
+            conf[ArgParams.ExperimentVersion.value] = i
+        
 
         # Data dictionary
         # NOTE: This is a general purpose data-structure where to save
         #       experiment results. It will be stored as a .pickle file.
         self._data: Dict[str, Any] = dict()
 
-    def _progress(self, exp: Experiment, conf: Dict[str, Any], i: int, msg: Message):
+    def _progress(self, exp: Experiment, conf: ParamConfig, i: int, msg: Message):
         '''
         Method called after running a single experiment.
         In the default version it only logs the progress.
@@ -1117,15 +1125,15 @@ class MultiExperiment:
         
         # We need to specify end=''" as log message already ends with \n (thus the lambda function)
 		# Also forcing 'colorize=True' otherwise Loguru won't recognize that the sink support colors
-        self._logger.set_progress_bar()
+        # self._logger.set_progress_bar()
         
         with Progress(console=Logger.CONSOLE) as progress:
 
             for i, conf in progress.track(
                 enumerate(self._search_config),
                 total=len(self._search_config)
-            ):        
-            
+            ):  
+                
                 self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
                 
                 exp = self._Exp.from_config(conf=conf)

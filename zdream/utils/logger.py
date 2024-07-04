@@ -25,6 +25,8 @@ from rich.console import Console
 from PIL import Image, ImageTk
 import loguru
 
+from zdream.utils.parameters import ArgParams, ParamConfig
+
 from .io_   import rmdir
 import os
 from os import path
@@ -57,6 +59,10 @@ class Logger:
 		:type path: Dict[str, str] | None
 		'''
 
+		# Formatting function to dynamically manipulate string to logging information
+		# e.g. added a fixed prefix
+		self._formatting: Callable[[str], str] = lambda x: x
+
 		# Set target directory
 		# depending on the type of input
 		self._dir: str = self._get_dir(conf=path) if isinstance(path, dict) else path
@@ -64,9 +70,6 @@ class Logger:
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
 
-		# Formatting function to dynamically manipulate string to logging information
-		# e.g. added a fixed prefix
-		self._formatting: Callable[[str], str] = lambda x: x
 
 	# --- FORMATTING ---
 
@@ -129,8 +132,10 @@ class Logger:
 	def set_progress_bar(self):
 		''' Logger setup for progress bar '''
 
-		self._logger.remove()  # Remove default 'stderr' handler
-		self._handler = self._logger.add(lambda m: self.CONSOLE.print(m, end=""), colorize=True)
+		if isinstance(self, LoguruLogger):
+
+			self._logger.remove()  # Remove default 'stderr' handler
+			self._handler = self._logger.add(lambda m: self.CONSOLE.print(m, end=""), colorize=True)
 
 	# --- DIRECTORY ---
 	
@@ -219,6 +224,16 @@ class Logger:
 	@property
 	def dir(self) -> str: return self._dir
 	''' Returns experiment target directory for saving results. '''
+
+	@staticmethod
+	def path_from_conf(conf: ParamConfig) -> Dict[str, str]: 
+		
+		return {
+			'out_dir': str(conf[ArgParams.OutputDirectory  .value]),
+			'title'  : str(conf[ArgParams.ExperimentTitle  .value]),
+			'name'   : str(conf[ArgParams.ExperimentName   .value]),
+			'version': str(conf[ArgParams.ExperimentVersion.value])
+		}
 
 	# --- SCREENS ---
 
@@ -325,7 +340,6 @@ class LoguruLogger(Logger):
 		:type on_file: bool, optional
 		'''
 
-		super().__init__(path=path)
 
 		# Assign the unique ID
 		self._id = self._factory_id
@@ -333,6 +347,8 @@ class LoguruLogger(Logger):
 
 		# Initialize logger with unique ID
 		self._logger = loguru.logger.bind(id=self._id)
+
+		super().__init__(path=path)
 
 		# File logging
 		if on_file:
@@ -374,6 +390,8 @@ class SilentLogger(Logger):
 class DisplayScreen:
 	''' Screen to display and update images'''
 
+	DEFAULT_DISPLAY_SIZE = (400, 400)
+
 	@staticmethod
 	def set_main_screen() -> tk.Tk:
 		'''
@@ -381,8 +399,8 @@ class DisplayScreen:
 		The main must be created in order to render images in TopLevel additional screens.
 
 		NOTE: The object returned by the function should be saved in a variable
-			  that mustn't become out of scope; in the case it may be removed by 
-			  the garbage collector and invalidate screen rendering process.
+			that mustn't become out of scope; in the case it may be removed by 
+			the garbage collector and invalidate screen rendering process.
 		'''
 
 		main_screen = tk.Tk()
@@ -444,8 +462,8 @@ class DisplayScreen:
 		'''
 		Method to close the screen.
 
-		NOTE:   After this, the object becomes useless as the garbage
-			    collector takes controller with no more reference.
-			    The object becomes useless and a new one needs to be instantiated.
+		NOTE: After this, the object becomes useless as the garbage
+			collector takes controller with no more reference.
+			The object becomes useless and a new one needs to be instantiated.
 		'''
 		self._controller.after(100, self._controller.destroy)

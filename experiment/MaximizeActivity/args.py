@@ -1,43 +1,41 @@
-from typing import List
-from experiment.utils.cmdline_args import Arg, Args
+from experiment.utils.args import DATASET, OUT_DIR, WEIGHTS, ExperimentArgParams
+from zdream.utils.parameters import ArgParams, ParamConfig
 
-ARGS: List[Arg] = [
-    
-    Args.get_config_arg(conf_file="maximize_activity.json"),
+ARGS: ParamConfig = {
 
     # Natural image dataloader
-    Args.GenWeights.value, 
-    Args.GenVariant.value,
+    ExperimentArgParams.GenWeights       .value : WEIGHTS            , 
+    ExperimentArgParams.GenVariant       .value : "fc8"              ,
 
     # Natural Images
-    Args.Template.value, 
-    Args.Dataset.value, 
-    Args.Shuffle.value, 
-    Args.BatchSize.value, 
+    ExperimentArgParams.Template         .value : "TF"               , 
+    ExperimentArgParams.Dataset          .value : DATASET            ,
+    ExperimentArgParams.Shuffle          .value : False              , 
+    ExperimentArgParams.BatchSize        .value : 16                 , 
 
     # Subject
-    Args.NetworkName.value, 
-    Args.RecordingLayers.value,
+    ExperimentArgParams.NetworkName      .value : "alexnet"          , 
+    ExperimentArgParams.RecordingLayers  .value : "21=[0:20]"        ,
 
     #, Scorer
-    Args.ScoringLayers.value,
-    Args.UnitsReduction.value,
-    Args.LayerReduction.value,
+    ExperimentArgParams.ScoringLayers    .value : "21=[]"            ,
+    ExperimentArgParams.UnitsReduction   .value : "mean"             ,
+    ExperimentArgParams.LayerReduction   .value : "mean"             ,
 
     # Optimizer
-    Args.PopulationSize.value,
-    Args.RandomDistr.value,
-    Args.RandomScale.value,
-    Args.Sigma0.value,
+    ExperimentArgParams.PopulationSize   .value : 50                 ,
+    ExperimentArgParams.RandomDistr      .value : "normal"           ,
+    ExperimentArgParams.RandomScale      .value : 1.0                ,
+    ExperimentArgParams.Sigma0           .value : 1.0                ,
 
     # Logger
-    Args.ExperimentName.value, 
-    Args.ExperimentVersion.value, 
-    Args.OutputDirectory.value, 
+    ArgParams          .ExperimentName   .value : "maximize_activity", 
+    ArgParams          .ExperimentVersion.value : 0                  , 
+    ArgParams          .OutputDirectory  .value : OUT_DIR            , 
 
     # Globals
-    Args.NumIterations.value,
-    Args.DisplayPlots.value,
-    Args.RandomSeed.value,
-    Args.Render.value
-]
+    ArgParams          .NumIterations    .value : 150                ,
+    ArgParams          .RandomSeed       .value : 50000              ,
+    ArgParams          .Render           .value : True               ,
+
+}

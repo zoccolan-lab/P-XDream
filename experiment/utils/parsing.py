@@ -19,7 +19,7 @@ def parse_boolean_string(boolean_str: str) -> List[bool]:
             case 'F': return False
             case _: raise ValueError('Boolean string must contain only T and F symbols.')
 
-    return[char_to_bool(ch=ch) for ch in boolean_str]
+    return[char_to_bool(ch=ch) for ch in boolean_str.upper()]
 
 def parse_int_list(integer_list_str: str) -> List[int]:
     ''' Converts string of integers separated by comma to a list of integers'''

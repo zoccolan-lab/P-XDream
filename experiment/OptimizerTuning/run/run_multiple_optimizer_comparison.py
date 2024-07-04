@@ -1,5 +1,5 @@
 
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 from experiment.OptimizerTuning.args import ARGS
 from experiment.OptimizerTuning.optimizer_tuning import OptimizationTuningExperiment, OptimizerComparisonMultiExperiment
 

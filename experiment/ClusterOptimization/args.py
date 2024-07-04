@@ -1,8 +1,8 @@
 from typing import List
 
-from experiment.utils.cmdline_args import Args, Arg
+from experiment.utils.args import Args, ArgParam
 
-ARGS: List[Arg] = [
+ARGS: List[ArgParam] = [
     
     Args.get_config_arg(conf_file='cluster_optimization.json'),
     

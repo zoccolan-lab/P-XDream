@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 from analysis.utils.settings import FILE_NAMES
 from experiment.ClusteringAlgo.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 from experiment.utils.misc import make_dir
 from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
 from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU, GMMClusteringAlgorithm, NCClusteringAlgorithm

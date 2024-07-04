@@ -392,7 +392,7 @@ class GeneticOptimizer(Optimizer):
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring stimuli
         sort_s = np.argsort(scores)
-        topk_old_gen = self._codes[sort_s[-self._topk:]]
+        topk_old_gen = self._codes[sort_s[-self._topk:]]  # type: ignore - check made in super function
         
         # Convert scores to fitness (probability) via 
         # temperature-gated softmax function (needed only for rest of population)

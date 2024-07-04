@@ -1,4 +1,4 @@
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 
 
 ARGS = [

@@ -1,17 +1,17 @@
+'''
+TODO Experiment description
+'''
 
-from experiment.utils.cmdline_args import Args
+import matplotlib
+
 from experiment.MaximizeActivity.args import ARGS
+from experiment.utils.misc import run_multi
 from experiment.MaximizeActivity.maximize_activity import MaximizeActivityExperiment, NeuronScalingMultiExperiment
 
+#matplotlib.use('TKAgg')
 
-if __name__ == '__main__':
-    
-    parser = Args.get_parser(args=ARGS, multirun=True)
-    args   = vars(parser.parse_args())
-
-    mrun_experiment = NeuronScalingMultiExperiment.from_args(
-        args=args, 
-        exp_type=MaximizeActivityExperiment
-    )
-
-    mrun_experiment.run()
+if __name__ == '__main__': run_multi(
+    args_conf=ARGS, 
+    exp_type=MaximizeActivityExperiment,
+    multi_exp_type=NeuronScalingMultiExperiment
+)

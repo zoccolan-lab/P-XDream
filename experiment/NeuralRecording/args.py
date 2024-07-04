@@ -1,8 +1,8 @@
 from typing import List
-from experiment.utils.cmdline_args import Arg, Args
+from experiment.utils.args import ArgParam, Args
 
 
-ARGS: List[Arg] = [
+ARGS: List[ArgParam] = [
     Args.get_config_arg(conf_file='neural_recording.json'),
     
     # Subejct

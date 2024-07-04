@@ -10,7 +10,7 @@ from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
 from experiment.OptimizerTuning.plotting import plot_hyperparam, plot_optim_type_comparison
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 from experiment.utils.misc import make_dir
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
@@ -232,7 +232,7 @@ class OptimizationTuningExperiment(ZdreamExperiment):
         if self._render:
             
             # Get best stimuli
-            best_code = msg.solution
+            best_code = msg.best_code
             best_synthetic = self.generator(codes=best_code)
             best_synthetic_img = to_pil_image(best_synthetic[0])
 
@@ -254,7 +254,7 @@ class OptimizationTuningExperiment(ZdreamExperiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen = self.generator(codes=msg.solution)
+        best_gen = self.generator(codes=msg.best_code)
 
         # Saving images
         to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen[0]), 'best synthetic')]

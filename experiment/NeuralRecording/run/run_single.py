@@ -1,4 +1,4 @@
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 from experiment.utils.misc import run_single
 from experiment.NeuralRecording.args import ARGS
 from experiment.NeuralRecording.neural_recording import NeuralRecordingExperiment

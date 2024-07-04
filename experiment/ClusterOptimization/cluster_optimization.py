@@ -12,7 +12,7 @@ from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
 from experiment.ClusterOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 from experiment.utils.parsing import parse_boolean_string
 from experiment.utils.misc import make_dir
 from experiment.utils.settings import FILE_NAMES
@@ -418,7 +418,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         super()._progress(i, msg)
 
         # Get best stimuli
-        best_code = msg.solution
+        best_code = msg.best_code
         best_synthetic = self.generator(codes=best_code)
         best_synthetic_img = to_pil_image(best_synthetic[0])
 
@@ -457,7 +457,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
-        best_gen = self.generator(codes=msg.solution)
+        best_gen = self.generator(codes=msg.best_code)
 
         # We retrieve the stored best natural image
         if self._use_nat:
@@ -766,7 +766,7 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         cluster_unit = int(clu_conf[str(Args.OptimUnits)])
         
         best_score : float = msg.stats_gen['best_score']
-        best_code  : Codes = msg.solution[0]
+        best_code  : Codes = msg.best_code[0]
         
         cluster_bests = self._data['best_codes'][cluster_idx]
         
@@ -847,7 +847,7 @@ class ClusterStimuliTargetMultiExperiment(_ClusteringOptimizationMultiExperiment
         cluster_weighting  = clu_conf[str(Args.WeightedScore)]
         
         best_score : float = msg.stats_gen['best_score']
-        best_code  : Codes = msg.solution[0]
+        best_code  : Codes = msg.best_code[0]
         
         cluster_bests = self._data['best_codes'][cluster_idx]
         

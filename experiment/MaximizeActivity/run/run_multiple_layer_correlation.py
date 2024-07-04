@@ -1,5 +1,5 @@
 
-from experiment.utils.cmdline_args import Args
+from experiment.utils.args import Args
 from experiment.MaximizeActivity.args import ARGS
 from experiment.MaximizeActivity.maximize_activity import MaximizeActivityExperiment2, LayersCorrelationMultiExperiment
 

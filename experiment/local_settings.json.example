@@ -1,5 +1,4 @@
 {
-    "config"     : "path/to/your/config/directory",
     "out_dir"    : "path/to/output/directory",
     "weights"    : "path/to/your/root",
     "dataset"    : "path/to/your/root",

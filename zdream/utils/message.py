@@ -162,7 +162,7 @@ class ZdreamMessage(Message):
     # --- BEST SOLUTION ---
     
     @property
-    def solution(self) -> Codes:
+    def best_code(self) -> Codes:
         '''
         Retrieve the code that produced the highest score from code scores history.
 
@@ -214,7 +214,7 @@ class ZdreamMessage(Message):
             
             # Add information relative to codes
             stats_codes = {
-                'best_code'       : self.solution,                     # best code
+                'best_code'       : self.best_code,                     # best code
                 'curr_codes'     : self.codes,                         # current code
                 'best_codes_gen' : [                                   # best_code per generation
                     codes[idx] 

@@ -8,43 +8,44 @@ from zdream.utils.misc import copy_exec
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
-NAME = 'neuron_scaling_alexnetfc7_50points'
+NAME = 'prova'
 
-ITER        = 200
-SAMPLE      = 10
+ITER     = 2
+SAMPLE   = 2
+N_POINTS = 3
 
-# Neurons Scaling
-LAYER       = 19
-MAX_NEURONS = 1000
-N_POINTS    = 50
-NEURONS     = generate_log_numbers(N_POINTS, MAX_NEURONS)
+# Layer : Neurons
+LAYERS = [
+    (16, 4096),
+    (20, 4096),
+    (21, 1000)
+]
 
-# Layer Correlation
-LAYERS         = [16,     20,   21]
-LAYERS_NEURONS = [4096, 4096, 1000]
-N_POINTS_      = 2
 
-def neuron_scaling_args(layer: int, neurons: List[int], sample: int) -> Tuple[str, str, str]:
+def neuron_scaling_args() -> Tuple[str, str, str]:
 
     args = [
-        ( f'{layer}={neuron}r[]', f'{layer}=[]', str(random.randint(1000, 1000000)) )
-        for neuron in neurons for _ in range(sample)]
-    
+        (f'{layer}={neuron}r[]', f'{layer}=[]', str(random.randint(1000, 1000000)))
+        for layer, neurons in LAYERS
+        for neuron in generate_log_numbers(N_POINTS, neurons)
+        for _ in range(SAMPLE)
+    ]
+        
     rec_layer_str = '#'.join(a for a, _, _ in args)
     scr_layer_str = '#'.join(a for _, a, _ in args)
     rand_seed_str = '#'.join(a for _, _, a in args)
     
     return rec_layer_str, scr_layer_str, rand_seed_str
 
-def layers_correlation_arg(layers: List[int], neuron_len: List[int], n_points: int,  sample: int) -> Tuple[str, str, str]:
+def layers_correlation_arg() -> Tuple[str, str, str]:
 
-    rec_layers_str = ','.join([f'{layer}=[]' for layer in layers])
+    rec_layers_str = ','.join([f'{layer}=[]' for layer in LAYERS])
     
     args = [
         ( f'{layer}={neuron}r[]', str(random.randint(1000, 1000000)) )
-        for layer, neu_len in zip(layers, neuron_len) 
-        for neuron in generate_log_numbers(n_points, neu_len)
-        for _ in range(sample)]
+        for layer, neu_len in LAYERS
+        for neuron in generate_log_numbers(N_POINTS, neu_len)
+        for _ in range(SAMPLE)]
     
     scr_layers_str = '#'.join(a for a, _ in args)
     rand_seed_str  = '#'.join(a for _, a in args)
@@ -64,7 +65,7 @@ if __name__ == '__main__':
         
         case 1:
             
-            rec_layer_str, scr_layer_str, rnd_seed_str = neuron_scaling_args(layer=LAYER, neurons=NEURONS, sample=SAMPLE)
+            rec_layer_str, scr_layer_str, rnd_seed_str = neuron_scaling_args()
             
             args = {
                 'rec_layers'  : rec_layer_str,
@@ -76,10 +77,7 @@ if __name__ == '__main__':
             
         case 2:
             
-            rec_layer_str, scr_layer_str, rnd_seed_str = layers_correlation_arg(
-                layers=LAYERS,      neuron_len=LAYERS_NEURONS,
-                n_points=N_POINTS_, sample=SAMPLE
-            )
+            rec_layer_str, scr_layer_str, rnd_seed_str = layers_correlation_arg()
             
             args = {
                 'rec_layers'  : rec_layer_str,
@@ -93,8 +91,8 @@ if __name__ == '__main__':
             
             print('Invalid option')
             
-    args['name'] = NAME
-    args['iter'] = ITER
+    args['name']     = NAME
+    args['iter']     = str(ITER)
     args['template'] = 'T'
 
     copy_exec(file=file, args=args)

@@ -514,104 +514,47 @@ def plot_scores_by_label(
 
 
 def plot_optimizing_units(
-    multiexp_data: Dict[str, Any],
-    out_dir: str | None = None,
-    logger: Logger | None = None
+    data: Dict[str, Dict[str, List[float]]],
+    out_dir : str,
+    logger  : Logger = SilentLogger()
 ):
-    #OBSOLETE: multiexp_lineplot is a generalized version of plot_optimizing_units
     '''
-    Plot the final score trend across different population size of optimizing neurons
-    for different layers
-    
-    :param multiexp_data: Results from the multiexperiment run as a mapping to equal-length lists 
-                          containing information relative to number of optimization neurons, scores,
-                          layers and optimization steps.
-    :param out_dir: Directory where to save output plots, default is None indicating not to save.
-    :type out_dir: str | None
-    :param logger: Logger to log information relative to plot saving paths.
-                   Defaults to None indicating no logging.
-    :type logger: Logger | None
     '''
     
-    # Auxiliar functions
-    def find_indices(lst, value): return [i for i, item in enumerate(lst) if item == value]
+        # Define custom color palette with as many colors as layers
+    custom_palette = sns.color_palette("husl", len(data))
 
-    def extract_layer(el):
-        ''' Auxiliar function to extract layer names from a list element'''
-        if len(el) > 1:
-            raise ValueError(f'Expected to record from a single layer, multiple where found: {el}')
-        return el[0]
+    for log_scale in [True, False]:
 
-    # Default logger
-    logger = default(logger, SilentLogger())
+        fig, ax = plt.subplots(1)
+        
+        for idx, (layer_name, neuron_scores) in enumerate(data.items()):
 
-    # Check same gen
-    all_gen = set(multiexp_data['iter'])
-    if len(all_gen) > 1:
-        err_msg = f'Experiments were requires to have the same number of iterations, but multiple found {all_gen}'
-        raise ValueError(err_msg)
-    gen = list(all_gen)[0]
-    
-    # Cast data to raw type lists
-    data = {
-        'scores'  : list(np.concatenate(multiexp_data['score'])),
-        'neurons' : multiexp_data['neurons'],
-        'layers'  : [extract_layer(el) for el in multiexp_data['layer']]
-    }
+            # Compute mean and standard deviation for each x-value for both lines
+            xs      = list(neuron_scores.keys())
+            y_means = [np.mean(y)    for y in neuron_scores.values()]
+            y_sem   = [    SEM(y)[0] for y in neuron_scores.values()]
 
-    # Organize data in a mapping {layer: {neurons: [score1, score2, ...]}}
-    unique_layers = set(data['layers'])
-    combined_data = defaultdict(dict)
-    for layer in unique_layers:
-        ii = find_indices(data['layers'], layer)
-        neurons = [data['neurons'][i] for i in ii]
-        scores_  = [data['scores' ][i] for i in ii]
-        unique_neurons = sorted(set(neurons))
-        for neuron in unique_neurons:
-            jj = find_indices(neurons, neuron)
-            scores = [scores_[j] for j in jj]
-            combined_data[layer][neuron] = np.array(scores)
-            
-    
+            # Use custom color from the palette
+            color = custom_palette[idx]
 
-    # Plot
-    fig, ax = plt.subplots(1)
-    set_default_matplotlib_params(shape='rect_wide')
+            # Plot line
+            ax.plot(xs, y_means, label=layer_name, color=color)
 
-    # Define custom color palette with as many colors as layers
-    custom_palette = sns.color_palette("husl", len(combined_data))
+            ax.errorbar(xs, y_means, yerr=y_sem, color=color)
 
-    for idx, (label, ys) in enumerate(combined_data.items()):
-
-        # Compute mean and standard deviation for each x-value for both lines
-        xs = list(ys.keys())
-        y_means = [np.mean(y) for y in ys.values()]
-        y_sem = [SEM(y) for y in ys.values()]
-
-        # Use custom color from the palette
-        color = custom_palette[idx]
-
-        # Plot line
-        ax.plot(xs, y_means, label=label, color=color)
-
-        # Plot error bars for standard deviation for both lines
-        ax.errorbar(xs, y_means, yerr=y_sem, color=color)
-
-    # Set labels, title and legend
-    ax.set_xlabel('Neurons')
-    ax.set_ylabel('Label')
-    ax.set_title(f'Final score varying optimization neurons in {gen} epochs. ')
-    ax.legend()
-
-    # Set x-axis ticks to integer values and only where the points are
-    ax.set_xticks(xs)
-    #customize_axes_bounds(ax)
-
-    # Save or display  
-    if out_dir:
-        out_fp = path.join(out_dir, 'neurons_optimization.png')
+        # Set labels, title and legend
+        ax.set_xlabel('Neurons')
+        ax.set_ylabel('Fitness score')
+        ax.set_title(f'Neuronal scaling')
+        ax.legend()
+        
+        if log_scale: ax.set_xscale('log')
+        
+        # Save or display  
+        out_fp = path.join(out_dir, f'neurons_optimization_{"logscale" if log_scale else "natscale" }.png')
         logger.info(f'Saving score histogram plot to {out_fp}')
-        fig.savefig(out_fp, bbox_inches="tight")
+        fig.savefig(out_fp)
         
         
 def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None, 

@@ -276,7 +276,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         super()._progress(i, msg)
 
         # Get best stimuli
-        best_code = msg.solution
+        best_code = msg.best_code
         
         best_code = rearrange(best_code, f'b g ... -> (b g) ...', g=self._n_group)
         
@@ -323,7 +323,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
         
-        solution = rearrange(msg.solution, f'b g ... -> (b g) ...', g=self._n_group)
+        solution = rearrange(msg.best_code, f'b g ... -> (b g) ...', g=self._n_group)
         
         best_gen, _ = self.generator(
             data=(solution, ZdreamMessage(mask=np.array([True, True]))),
