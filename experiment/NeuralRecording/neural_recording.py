@@ -4,11 +4,12 @@ from typing import Any, Dict, List, Tuple, cast
 import numpy as np
 from torch.utils.data import Dataset
 
-from experiment.utils.args import Args
+from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_int_list, parse_recording
 from zdream.experiment import Experiment
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.subject import InSilicoSubject, TorchNetworkSubject
+from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig
 from zdream.utils.probe import RecordingProbe
 from zdream.utils.dataset import MiniImageNet
 from zdream.utils.misc import device
@@ -45,18 +46,26 @@ class NeuralRecordingExperiment(Experiment):
         self._log_chk   = cast(int, data['log_chk'])
 
     @classmethod
-    def _from_config(cls, conf : Dict[str, Any]) -> 'NeuralRecordingExperiment':
+    def _from_config(cls, conf : ParamConfig) -> 'NeuralRecordingExperiment':
         
-        sbj_conf = conf['subject']
-        dat_conf = conf['dataset']
-        log_conf = conf['logger']
+        # Subejct
+        PARAM_net_name   = str(conf[ExperimentArgParams.NetworkName.value])
+        PARAM_rec_layers = str(conf[ExperimentArgParams.RecordingLayers.value])
         
+        # Dataset
+        PARAM_dataset    = str(conf[ExperimentArgParams.Dataset.value])
+        PARAM_img_ids    = str(conf[ExperimentArgParams.ImageIds.value])
+        PARAM_log_ckp    = int(conf[ExperimentArgParams.LogCheckpoint.value])
+        
+        # Logger
+        PARAM_exp_name   = str(conf[ArgParams.ExperimentName.value])
+                
         # Extract layers info
-        layer_info = TorchNetworkSubject(network_name=sbj_conf[str(Args.NetworkName)]).layer_info
+        layer_info = TorchNetworkSubject(network_name=PARAM_net_name).layer_info
         
         # --- PROBE ---
         
-        record_target = parse_recording(input_str=sbj_conf[str(Args.RecordingLayers)], net_info=layer_info)
+        record_target = parse_recording(input_str=PARAM_rec_layers, net_info=layer_info)
         
         if len(record_target) > 1:
             raise NotImplementedError(f'Recording only supported for one layer. Multiple found: {record_target.keys()}.')
@@ -67,34 +76,34 @@ class NeuralRecordingExperiment(Experiment):
         
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
-            network_name=sbj_conf[str(Args.NetworkName)]
+            network_name=PARAM_net_name
         )
         sbj_net._network.eval()
         
         # --- DATASET ---
         
-        dataset = MiniImageNet(root=dat_conf[str(Args.Dataset)])
+        dataset = MiniImageNet(root=PARAM_dataset)
         
         # --- LOGGER ---
         
-        log_conf[str(Args.ExperimentTitle)] = NeuralRecordingExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=log_conf)
+        conf[ArgParams.ExperimentTitle.value] = NeuralRecordingExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # --- NEURAL RECORDING ---
         
-        image_ids = parse_int_list(dat_conf[str(Args.ImageIds)])
+        image_ids = parse_int_list(PARAM_img_ids)
         
         # --- DATA ---
         
         data = {
-            'log_chk': conf[str(Args.LogCheckpoint)]
+            'log_chk': PARAM_log_ckp
         }
         
         return NeuralRecordingExperiment(
             subject   = sbj_net,
             dataset   = dataset,
             image_ids = image_ids,
-            name      = log_conf[str(Args.ExperimentName)],
+            name      = PARAM_exp_name,
             logger    = logger,
             data      = data
         )

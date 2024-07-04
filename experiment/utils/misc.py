@@ -9,6 +9,10 @@ from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger, SilentLogge
 
 # --- SINGLE RUN --- 
 
+def param_from_str(name: str) -> ArgParam:
+    try:               return           ArgParams.from_str(name)
+    except ValueError: return ExperimentArgParams.from_str(name)
+
 def run_single(
     args_conf : ParamConfig,
     exp_type  : Type[Experiment]
@@ -18,7 +22,7 @@ def run_single(
     parser   = ArgParams.get_parser(args=list(args_conf.keys()))
     cmd_conf = vars(parser.parse_args())
     cmd_conf = {
-        ArgParams.from_str(arg_name) : value 
+        param_from_str(arg_name) : value 
         for arg_name, value in cmd_conf.items() if value
     }
 
@@ -44,12 +48,7 @@ def run_multi(
     args_conf      : ParamConfig,
     exp_type       : Type[Experiment],
     multi_exp_type : Type[MultiExperiment],
-):
-    
-    def param_from_str(name: str) -> ArgParam:
-        try:               return           ArgParams.from_str(name)
-        except ValueError: return ExperimentArgParams.from_str(name)
-        
+):       
     
     
     # Parse cmd arguments

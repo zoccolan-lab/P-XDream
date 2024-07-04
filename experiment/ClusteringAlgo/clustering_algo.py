@@ -1,19 +1,19 @@
-from argparse import ArgumentParser
 from os import path
-from typing import Any, Dict, List, Tuple, Type, cast
+from typing import Any, Dict, List, Tuple, Type
 
 import numpy as np
 from numpy.typing import NDArray
 
 from analysis.utils.settings import FILE_NAMES
 from experiment.ClusteringAlgo.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
-from experiment.utils.args import Args
+from experiment.utils.args import ExperimentArgParams
 from experiment.utils.misc import make_dir
-from zdream.clustering.model import AffinityMatrix, PairwiseSimilarity
+from zdream.clustering.model import PairwiseSimilarity
 from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU, GMMClusteringAlgorithm, NCClusteringAlgorithm
 from zdream.experiment import Experiment
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.utils.message import Message
+from zdream.utils.parameters import ArgParams, ParamConfig
 
 class DSClusteringExperiment(Experiment):
     
@@ -47,33 +47,40 @@ class DSClusteringExperiment(Experiment):
         )
         
     @classmethod
-    def _from_config(cls, conf: Dict[str, Any]) -> 'DSClusteringExperiment':
+    def _from_config(cls, conf: ParamConfig) -> 'DSClusteringExperiment':
         
-        clu_conf = conf['clustering']
-        log_conf = conf['logger']
+        # Clustering
+        PARAM_clu_dir      = str (conf[ExperimentArgParams.ClusterDir   .value])
+        PARAM_max_iter     = int (conf[ExperimentArgParams.MaxIterations.value]) 
+        PARAM_min_el       = int (conf[ExperimentArgParams.MinElements  .value])
+        PARAM_use_gpu      = bool(conf[ExperimentArgParams.UseGPU       .value])
+        
+        # Logger
+        PARAM_exp_name     = str(conf[ArgParams.ExperimentName   .value])
+        
         
         # --- MATRIX ---
-        recording_fp = path.join(clu_conf[str(Args.ClusterDir)], FILE_NAMES['recordings'])
+        recording_fp = path.join(PARAM_clu_dir, FILE_NAMES['recordings'])
         matrix = np.load(recording_fp)
         
         # --- CLUSTERING ---
-        DSAlgo = BaseDSClusteringGPU if clu_conf[str(Args.UseGPU)] else BaseDSClustering
+        DSAlgo = BaseDSClusteringGPU if PARAM_use_gpu else BaseDSClustering
         
         # --- LOGGER ---
-        log_conf[str(Args.ExperimentTitle)] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=log_conf)
+        conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # --- DATA ---
         data = {
-            'min_elements': clu_conf[str(Args.MinElements)],
-            'max_iter':     clu_conf[str(Args.MaxIterations)]
+            'min_elements': PARAM_min_el,
+            'max_iter':     PARAM_max_iter
         }
         
         return DSClusteringExperiment(
             matrix=matrix,
             DSAlgo=DSAlgo,
             logger=logger,
-            name=log_conf[str(Args.ExperimentName)],
+            name=PARAM_exp_name,
             data=data
         )
     
@@ -143,29 +150,34 @@ class GMMClusteringExperiment(Experiment):
         )
         
     @classmethod
-    def _from_config(cls, conf: Dict[str, Any]) -> 'GMMClusteringExperiment':
+    def _from_config(cls, conf: ParamConfig) -> 'GMMClusteringExperiment':
         
-        clu_conf = conf['clustering']
-        log_conf = conf['logger']
+        # Clustering
+        PARAM_clu_dir      = str (conf[ExperimentArgParams.ClusterDir   .value])
+        PARAM_n_clusters   = int (conf[ExperimentArgParams.NClusters    .value])
+        PARAM_n_components = int (conf[ExperimentArgParams.NComponents  .value])
+        
+        # Logger
+        PARAM_exp_name     = str(conf[ArgParams.ExperimentName   .value])
         
         # --- MATRIX ---
-        recording_fp = path.join(clu_conf[str(Args.ClusterDir)], FILE_NAMES['recordings'])
+        recording_fp = path.join(PARAM_clu_dir, FILE_NAMES['recordings'])
         matrix = np.load(recording_fp)
         
         # --- LOGGER ---
-        log_conf[str(Args.ExperimentTitle)] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=log_conf)
+        conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # --- DATA ---
         data = {
-            'n_clu' :   clu_conf[str(Args.NClusters)],
-            'n_comp':     clu_conf[str(Args.NComponents)]
+            'n_clu' :   PARAM_n_clusters,
+            'n_comp':   PARAM_n_components
         }
         
         return GMMClusteringExperiment(
             matrix=matrix,
             logger=logger,
-            name=log_conf[str(Args.ExperimentName)],
+            name=PARAM_exp_name,
             data=data
         )
     
@@ -224,28 +236,32 @@ class NCClusteringExperiment(Experiment):
         )
         
     @classmethod
-    def _from_config(cls, conf: Dict[str, Any]) -> 'NCClusteringExperiment':
+    def _from_config(cls, conf: ParamConfig) -> 'NCClusteringExperiment':
         
-        clu_conf = conf['clustering']
-        log_conf = conf['logger']
+        # Clustering
+        PARAM_clu_dir      = str (conf[ExperimentArgParams.ClusterDir   .value])
+        PARAM_n_clusters   = int (conf[ExperimentArgParams.NClusters    .value])
+        
+        # Logger
+        PARAM_exp_name     = str(conf[ArgParams.ExperimentName   .value])
         
         # --- MATRIX ---
-        recording_fp = path.join(clu_conf[str(Args.ClusterDir)], FILE_NAMES['recordings'])
+        recording_fp = path.join(PARAM_clu_dir, FILE_NAMES['recordings'])
         matrix = np.load(recording_fp)
         
         # --- LOGGER ---
-        log_conf[str(Args.ExperimentTitle)] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=log_conf)
+        conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # --- DATA ---
         data = {
-            'n_clu' :   clu_conf[str(Args.NClusters)]
+            'n_clu' :   PARAM_n_clusters
         }
         
         return NCClusteringExperiment(
             matrix=matrix,
             logger=logger,
-            name=log_conf[str(Args.ExperimentName)],
+            name=PARAM_exp_name,
             data=data
         )
     

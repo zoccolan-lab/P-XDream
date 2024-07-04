@@ -1,21 +1,19 @@
-from typing import List
-from experiment.utils.args import ArgParam, Args
+from experiment.utils.args import DATASET, OUT_DIR, WEIGHTS, ExperimentArgParams
+from zdream.utils.parameters import ArgParams, ParamConfig
 
-
-ARGS: List[ArgParam] = [
-    Args.get_config_arg(conf_file='neural_recording.json'),
+ARGS: ParamConfig = {
     
     # Subejct
-    Args.NetworkName.value,
-    Args.RecordingLayers.value,
+    ExperimentArgParams.NetworkName.value     : "alexnet",
+    ExperimentArgParams.RecordingLayers.value : "21=[]",
     
     # Dataset
-    Args.Dataset.value,
-    Args.ImageIds.value,
-    Args.LogCheckpoint.value,
+    ExperimentArgParams.Dataset.value       : DATASET,
+    ExperimentArgParams.ImageIds.value      : "",
+    ExperimentArgParams.LogCheckpoint.value : 1,
     
     # Logger
-    Args.ExperimentName.value,
-    Args.ExperimentVersion.value,
-    Args.OutputDirectory.value,
-]
+    ArgParams.ExperimentName.value    : "neural_recording",
+    ArgParams.ExperimentVersion.value : 0,
+    ArgParams.OutputDirectory.value   : OUT_DIR,
+}

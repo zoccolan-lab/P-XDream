@@ -1,19 +1,22 @@
-from experiment.utils.args import Args
 
 
-ARGS = [
-    Args.get_config_arg(conf_file='clustering_algo.json'),
-    
+from experiment.utils.args import ExperimentArgParams
+from zdream.utils.parameters import ArgParams, ParamConfig
+
+
+ARGS: ParamConfig = {
+        
     # Clustering
-    Args.ClusterDir   .value,
-    Args.MaxIterations.value, # DS 
-    Args.MinElements  .value, # DS
-    Args.UseGPU       .value, # DS
-    Args.NClusters    .value, # GMM & NC
-    Args.NComponents  .value, # GMM
+    ExperimentArgParams.ClusterDir   .value: "/data/Zdream/clustering",
+    ExperimentArgParams.MaxIterations.value: 50000, # DS 
+    ExperimentArgParams.MinElements  .value: 1, # DS
+    ExperimentArgParams.UseGPU       .value: True, # DS
+    ExperimentArgParams.NClusters    .value: 50, # GMM & NC
+    ExperimentArgParams.NComponents  .value: 500, # GMM
     
     # Logger
-    Args.ExperimentName   .value,
-    Args.ExperimentVersion.value,
-    Args.OutputDirectory  .value,
-]
+    ArgParams.ExperimentName   .value: "cluster_algo",
+    ArgParams.ExperimentVersion.value: 0,
+    ArgParams.OutputDirectory  .value: "data/Zdream/output"
+
+}
