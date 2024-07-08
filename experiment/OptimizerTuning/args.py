@@ -1,47 +1,46 @@
 from typing import List
-from experiment.utils.args import ArgParam, Args
 
+from experiment.utils.args import OUT_DIR, WEIGHTS, ExperimentArgParams
+from zdream.utils.parameters import ArgParams, ParamConfig
 
-ARGS: List[ArgParam] = [
-    
-    Args.get_config_arg('optimizer_tuning.json'),
+ARGS: ParamConfig =  {
     
     # Generator
-    Args.GenWeights.value,
-    Args.GenVariant.value,
+    ExperimentArgParams.GenWeights       .value: WEIGHTS,
+    ExperimentArgParams.GenVariant       .value: 'fc8',
+    ExperimentArgParams.NetworkName      .value: 'alexnet',
     
     # Subject
-    Args.NetworkName.value,
-    Args.RecordingLayers.value,
+    ExperimentArgParams.RecordingLayers  .value: '21=[0:20]',
     
     # Scorer
-    Args.ScoringLayers.value,
-    Args.UnitsReduction.value,
-    Args.LayerReduction.value,
+    ExperimentArgParams.ScoringLayers    .value: '[]',
+    ExperimentArgParams.UnitsReduction   .value: 'mean',
+    ExperimentArgParams.LayerReduction   .value: 'mean',
     
     # Optimizer
-    Args.OptimType.value,
-    Args.RandomDistr.value,
-    Args.RandomScale.value,
-    Args.PopulationSize.value,
-    Args.MutationSize.value,
-    Args.MutationRate.value,
-    Args.NumParents.value,
-    Args.AllowClones.value,
-    Args.TopK.value,
-    Args.Temperature.value,
-    Args.TemperatureFactor.value,
-    Args.Sigma0.value,
+    ExperimentArgParams.OptimType        .value: 'genetic',
+    ExperimentArgParams.RandomDistr      .value: 'normal',
+    ExperimentArgParams.RandomScale      .value: 1.0,
+    ExperimentArgParams.PopulationSize   .value: 50,
+    ExperimentArgParams.MutationSize     .value: 0.5,
+    ExperimentArgParams.MutationRate     .value: 0.5,
+    ExperimentArgParams.NumParents       .value: 4,
+    ExperimentArgParams.AllowClones      .value: True,
+    ExperimentArgParams.TopK             .value: 5,
+    ExperimentArgParams.Temperature      .value: 1.0,
+    ExperimentArgParams.TemperatureFactor.value: 0.9999,
+    ExperimentArgParams.Sigma0           .value: 1.0,
     
     # Logger
-    Args.ExperimentName.value,
-    Args.ExperimentVersion.value,
-    Args.OutputDirectory.value,
+    ArgParams          .ExperimentName   .value: "optimization_tuning",
+    ArgParams          .ExperimentVersion.value: 0,
+    ArgParams          .OutputDirectory  .value: OUT_DIR,    
     
     # Globals
-    Args.NumIterations.value,
-    Args.DisplayPlots.value,
-    Args.RandomSeed.value,
-    Args.Render.value,
-    
-]
+    ArgParams          .NumIterations    .value: 150,
+    ArgParams          .DisplayPlots     .value: True,
+    ArgParams          .RandomSeed       .value: 123,
+    ArgParams          .Render           .value: True,
+
+}

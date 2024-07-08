@@ -24,8 +24,6 @@ ARGS: ParamConfig = {
 
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,
-    ExperimentArgParams.RandomDistr      .value : "normal"           ,
-    ExperimentArgParams.RandomScale      .value : 1.0                ,
     ExperimentArgParams.Sigma0           .value : 1.0                ,
 
     # Logger

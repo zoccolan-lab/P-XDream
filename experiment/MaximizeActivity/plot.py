@@ -521,7 +521,7 @@ def plot_optimizing_units(
     '''
     '''
     
-        # Define custom color palette with as many colors as layers
+    # Define custom color palette with as many colors as layers
     custom_palette = sns.color_palette("husl", len(data))
 
     for log_scale in [True, False]:

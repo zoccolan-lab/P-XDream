@@ -6,7 +6,7 @@ It provides a set of classes that implement different optimization strategies:
 '''
 
 from abc import ABC, abstractmethod
-from typing import Callable, Literal, Tuple
+from typing import Callable, List, Literal, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -72,7 +72,7 @@ class Optimizer(ABC):
         :param rnd_seed: Random state for pseudo-random numbers generation.
         :type rnd_seed: None | int, optional
         :param rnd_distr: Nature of the random distribution for initial
-                         random codes generation, defaults to `normal`.
+            random codes generation, defaults to `normal`.
         :type rnd_distr: RandomDistribution
         :param rnd_scale: Scale for initial codes generation, defaults to 1.
         :type rnd_scale: float
@@ -95,6 +95,9 @@ class Optimizer(ABC):
         self._codes : None | Codes = None
         
     # --- PROPERTIES ---
+    
+    @property
+    def codes_len(self) -> int: return int(np.prod(self._codes_shape))
         
     @property
     def codes(self) -> Codes:
@@ -230,7 +233,7 @@ class Optimizer(ABC):
         '''
         
         return self._rnd_sample(
-            size=(self._init_n_codes, np.prod(self._codes_shape)),
+            size=(self._init_n_codes, self.codes_len),
             scale=self._rnd_scale,
             **kwargs
         )
@@ -387,7 +390,7 @@ class GeneticOptimizer(Optimizer):
         pop_size = default(out_pop_size, self.pop_size)      
 
         # Prepare data structure for the optimized codes
-        codes_new = np.empty(shape=(pop_size, np.prod(self._codes_shape)), dtype=np.float32)
+        codes_new = np.empty(shape=(pop_size, self.codes_len), dtype=np.float32)
 
         # Get indices that would sort scores so that we can use it
         # to preserve the top-scoring stimuli
@@ -479,12 +482,12 @@ class GeneticOptimizer(Optimizer):
         # Identify which parent contributes which genes for every child
         parentage = self._rng.choice(
             a=self._n_parents, 
-            size=(num_children, np.prod(self._codes_shape)), 
+            size=(num_children, self.codes_len), 
             replace=True
         )
         
         # Generate empty children
-        children = np.empty(shape=(num_children, np.prod(self._codes_shape)))
+        children = np.empty(shape=(num_children, self.codes_len))
 
         # Fill children with genes from selected parents
         for child, family, lineage in zip(children, families, parentage):
@@ -524,6 +527,7 @@ class GeneticOptimizer(Optimizer):
         return population 
 
 
+
 class CMAESOptimizer(Optimizer):
     
     def __init__(
@@ -531,8 +535,6 @@ class CMAESOptimizer(Optimizer):
         pop_size    : int,
         codes_shape: int | Tuple[int, ...],
         rnd_seed   : None | int = None,
-        rnd_distr  : RandomDistribution = 'normal',
-        rnd_scale  : float = 1.,
         x0         : NDArray | None = None,
         sigma0     : float = 1.,
     ) -> None:
@@ -546,10 +548,6 @@ class CMAESOptimizer(Optimizer):
         :type codes_shape: int | Tuple[int, ...]
         :param rnd_seed: Random state for pseudo-random numbers generation.
         :type rnd_seed: None | int, optional
-        :param rnd_distr: Nature of the random distribution for initial
-        :type rnd_distr: RandomDistribution, optional
-        :param rnd_scale: Scale for initial codes generation, defaults to 1.
-        :type rnd_scale: float, optional
         :param x0: Initial mean vector for the multivariate gaussian distribution, defaults to None that 
             is a zero mean vector.
         :type x0: NDArray | None, optional
@@ -560,16 +558,14 @@ class CMAESOptimizer(Optimizer):
         super().__init__(
             pop_size=pop_size, 
             codes_shape=codes_shape,
-            rnd_seed=rnd_seed, 
-            rnd_distr=rnd_distr,
-            rnd_scale=rnd_scale
+            rnd_seed=rnd_seed
         )
         
         # Save variance for the covariance matrix
         self._sigma0 = sigma0
         
         # Use zero mean vector if not provided
-        x0 = default(x0, np.zeros(shape=np.prod(self._codes_shape)))
+        x0 = default(x0, np.zeros(shape=self.codes_len))
         
         # Create dictionary for CMA-ES settings
         inopts = {'popsize': pop_size}

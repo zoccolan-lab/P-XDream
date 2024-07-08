@@ -1,6 +1,6 @@
 from collections import defaultdict
 from os import path
-from typing import Any, Dict, Iterable, List, Tuple, Type, cast
+from typing import Any, Dict, Iterable, List, Tuple, cast
 
 import numpy  as np
 import pandas as pd
@@ -10,7 +10,7 @@ from pandas       import DataFrame
 from PIL          import Image
 from torchvision.transforms.functional import to_pil_image
 
-from zdream.experiment                import ZdreamExperiment, MultiExperiment
+from zdream.experiment                import ZdreamExperiment
 from zdream.generator                 import Generator, DeePSiMGenerator
 from zdream.optimizer                 import CMAESOptimizer, Optimizer
 from zdream.scorer                    import ActivityScorer, Scorer
@@ -20,9 +20,9 @@ from zdream.utils.io_                 import to_gif
 from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
 from zdream.utils.message             import ZdreamMessage
 from zdream.utils.misc                import concatenate_images, device
-from zdream.utils.parameters          import ArgParam, ArgParams, ParamConfig, Parameter
-from zdream.utils.probe               import InfoProbe, RecordingProbe
-from zdream.utils.types               import Codes, RecordingUnit, ScoringUnit, Stimuli, Scores, States
+from zdream.utils.parameters          import ArgParams, ParamConfig
+from zdream.utils.probe               import RecordingProbe
+from zdream.utils.types               import Codes, ScoringUnit, Stimuli, Scores, States
 from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label
 from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_recording, parse_scoring
@@ -141,19 +141,17 @@ class MaximizeActivityExperiment(ZdreamExperiment):
 
         scorer = ActivityScorer(
             scoring_units=scoring_units,
-            units_reduction=str(PARAM_unit_red), # type: ignore
+            units_reduction=str(PARAM_unit_red),  # type: ignore
             layer_reduction=str(PARAM_layer_red), # type: ignore
         )
 
         # --- OPTIMIZER ---
 
         optim = CMAESOptimizer(
-            codes_shape=generator.input_dim,
-            rnd_seed  = PARAM_rnd_seed,
-            pop_size  = PARAM_pop_size,
-            rnd_distr = PARAM_rnd_distr, # type: ignore
-            rnd_scale = PARAM_rnd_scale,
-            sigma0    = PARAM_sigma0,
+            codes_shape = generator.input_dim,
+            rnd_seed    = PARAM_rnd_seed,
+            pop_size    = PARAM_pop_size,
+            sigma0      = PARAM_sigma0
         )
 
         #  --- LOGGER --- 

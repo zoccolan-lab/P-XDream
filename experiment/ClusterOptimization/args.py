@@ -1,50 +1,46 @@
-from typing import List
+from experiment.utils.args import CLUSTERING, DATASET, OUT_DIR, WEIGHTS, ExperimentArgParams
+from zdream.utils.parameters import ArgParams, ParamConfig
 
-from experiment.utils.args import Args, ArgParam
 
-ARGS: List[ArgParam] = [
+ARGS: ParamConfig = {
     
-    Args.get_config_arg(conf_file='cluster_optimization.json'),
-    
-    # Clustering
-    Args.ClusterDir.value,
-    Args.ClusterAlgo.value,
-    Args.ClusterIdx.value,
-    Args.WeightedScore.value,
-    Args.ClusterLayer.value,
-    Args.ScoringType.value,
-    Args.OptimUnits.value,
+    # Clustering 
+    ExperimentArgParams.ClusterAlgo   .value : 'ds',
+    ExperimentArgParams.ClusterIdx    .value : 0,
+    ExperimentArgParams.WeightedScore .value : False,
+    ExperimentArgParams.ScoringType   .value : 'subset',
+    ExperimentArgParams.OptimUnits    .value : '1',
+    ExperimentArgParams.ClusterLayer  .value : 21,
     
     # Generator
-    Args.GenWeights.value,
-    Args.GenVariant.value,
+    ExperimentArgParams.GenWeights    .value : WEIGHTS,
+    ExperimentArgParams.GenVariant    .value : 'fc8',
     
-    # Natural Images
-    Args.Template.value, 
-    Args.Dataset.value, 
-    Args.Shuffle.value, 
-    Args.BatchSize.value, 
-
+    # Natural image dataloader
+    ExperimentArgParams.Dataset       .value : DATASET,
+    ExperimentArgParams.BatchSize     .value : 2,
+    ExperimentArgParams.Template      .value : 'TFFFF',
+    ExperimentArgParams.Shuffle       .value : False,
+    
     # Subject
-    Args.NetworkName.value,
+    ExperimentArgParams.NetworkName   .value : 'alexnet',
     
     # Scorer
-    Args.LayerReduction.value,
+    ExperimentArgParams.LayerReduction.value : 'mean',
     
     # Optimizer
-    Args.RandomDistr.value,
-    Args.RandomScale.value,
-    Args.PopulationSize.value,
-    Args.Sigma0.value,
+    ExperimentArgParams.PopulationSize.value : 50,
+    ExperimentArgParams.Sigma0        .value : 1.0,
     
     # Logger
-    Args.ExperimentName.value,
-    Args.ExperimentVersion.value,
-    Args.OutputDirectory.value,
+    ArgParams.OutputDirectory         .value : OUT_DIR,
+    ArgParams.ExperimentName          .value : 'cluster_optimization',
+    ArgParams.ExperimentVersion       .value : 0,
     
-    # Globals
-    Args.NumIterations.value,
-    Args.RandomSeed.value,
-    Args.Render.value,
+    # Experiment
+    ArgParams.NumIterations           .value : 100,
+    ArgParams.RandomSeed              .value : 123,
+    ArgParams.Render                  .value : True
     
-]
+}
+    

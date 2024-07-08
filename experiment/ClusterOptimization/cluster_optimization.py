@@ -11,22 +11,23 @@ import torch
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
-from experiment.ClusterOptimization.plotting import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
-from experiment.utils.args import Args
+from experiment.ClusterOptimization.plot import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
+from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string
-from experiment.utils.misc import make_dir
+from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
 from experiment.utils.settings import FILE_NAMES
 from zdream.clustering.cluster import Clusters
 from zdream.clustering.ds import DSClusters
 from zdream.experiment import ZdreamExperiment, MultiExperiment
 from zdream.generator import Generator, DeePSiMGenerator
-from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
+from zdream.optimizer import CMAESOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
 from zdream.utils.message import ZdreamMessage
 from zdream.utils.misc import concatenate_images, device
+from zdream.utils.parameters import ArgParams, ParamConfig
 from zdream.utils.probe import RecordingProbe
 from zdream.utils.types import Codes, Scores, ScoringUnit, States, Stimuli, UnitsMapping
 
@@ -48,48 +49,79 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     def subject(self) -> TorchNetworkSubject: return cast(TorchNetworkSubject, self._subject) 
 
     @classmethod
-    def _from_config(cls, conf : Dict[str, Any]) -> 'ClusteringOptimizationExperiment':
+    def _from_config(cls, conf : ParamConfig) -> 'ClusteringOptimizationExperiment':
 
-        # Extract components configurations
-        gen_conf = conf['generator']
-        nsl_conf = conf['natural_stimuli_loader']
-        clu_conf = conf['clustering']
-        sbj_conf = conf['subject']
-        scr_conf = conf['scorer']
-        opt_conf = conf['optimizer']
-        log_conf = conf['logger']
+        
+        # Clustering 
+        PARAM_clu_dir        = str  (conf[ExperimentArgParams.ClusterDir    .value])
+        PARAM_clu_algo       = str  (conf[ExperimentArgParams.ClusterAlgo   .value])
+        PARAM_clu_idx        = int  (conf[ExperimentArgParams.ClusterIdx    .value])
+        PARAM_weighted_score = bool (conf[ExperimentArgParams.WeightedScore .value])
+        PARAM_scr_type       = str  (conf[ExperimentArgParams.ScoringType   .value])
+        PARAM_optim_units    = str  (conf[ExperimentArgParams.OptimUnits    .value])
+        PARAM_clu_layer      = str  (conf[ExperimentArgParams.ClusterLayer  .value])
+        
+        # Generator
+        PARAM_gen_weights    = str  (conf[ExperimentArgParams.GenWeights    .value])
+        PARAM_gen_variant    = str  (conf[ExperimentArgParams.GenVariant    .value])
+        
+        # Natural image
+        PARAM_dataset        = str  (conf[ExperimentArgParams.Dataset       .value])
+        PARAM_batch_size     = int  (conf[ExperimentArgParams.BatchSize     .value])
+        PARAM_template       = str  (conf[ExperimentArgParams.Template      .value])
+        PARAM_shuffle        = bool (conf[ExperimentArgParams.Shuffle       .value])
+        
+        # Subject
+        PARAM_net_name       = str  (conf[ExperimentArgParams.NetworkName   .value])
+        
+        # Scorer
+        PARAM_layer_red      = str  (conf[ExperimentArgParams.LayerReduction.value])
+        
+        # Optimizer
+        PARAM_pop_size       = int  (conf[ExperimentArgParams.PopulationSize.value])
+        PARAM_sigma_0        = float(conf[ExperimentArgParams.Sigma0        .value])
+        
+        # Logger
+        PARAM_output_dir     = str  (conf[ArgParams.OutputDirectory         .value])
+        PARAM_exp_name       = str  (conf[ArgParams.ExperimentName          .value])
+        PARAM_rand_seed      = int  (conf[ArgParams.RandomSeed              .value])
+        
+        # Experiment
+        PARAM_iter           = int  (conf[ArgParams.NumIterations           .value])
+        PARAM_rand_seed      = int  (conf[ArgParams.RandomSeed              .value])
+        PARAM_render         = bool (conf[ArgParams.Render                  .value])
 
         # Set numpy random seed
-        np.random.seed(conf[str(Args.RandomSeed)])
+        np.random.seed(PARAM_rand_seed)
         
         # --- NATURAL IMAGE LOADER ---
 
         # Parse template and derive if to use natural images
-        template = parse_boolean_string(boolean_str=nsl_conf[str(Args.Template)])
+        template = parse_boolean_string(boolean_str=PARAM_template)
         use_nat  = template.count(False) > 0
         
         # Create dataset and loader
-        dataset  = MiniImageNet(root=nsl_conf[str(Args.Dataset)])
+        dataset  = MiniImageNet(root=PARAM_dataset)
         nat_img_loader = NaturalStimuliLoader(
             dataset=dataset,
             template=template,
-            shuffle=nsl_conf[str(Args.Shuffle)]
+            shuffle=PARAM_shuffle
         )
         
         # --- GENERATOR ---
 
         generator = DeePSiMGenerator(
-            root=gen_conf[str(Args.GenWeights)],
-            variant=gen_conf[str(Args.GenVariant)]
+            root=PARAM_gen_weights,
+            variant=PARAM_gen_variant # type: ignore - literal
         ).to(device)
         
         # --- SUBJECT ---
         
         # Extract layer idx clustering was performed with
-        layer_idx = clu_conf[str(Args.ClusterLayer)]
+        layer_idx = PARAM_clu_layer
 
         # Create a on-the-fly network subject to extract all network layer names
-        layer_info: Dict[str, Tuple[int, ...]] = TorchNetworkSubject(network_name=sbj_conf[str(Args.NetworkName)]).layer_info
+        layer_info: Dict[str, Tuple[int, ...]] = TorchNetworkSubject(network_name=PARAM_net_name).layer_info
 
         # Probe
 
@@ -99,13 +131,13 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         #       For the FUTURE in case this is computational demanding we can record only
         #       cluster neurons and score from all.
         
-        layer_name = list(layer_info.keys())[layer_idx]
-        probe = RecordingProbe(target = {layer_name: None}) # type: ignore
+        layer_name = list(layer_info.keys())[layer_idx]          # type: ignore
+        probe      = RecordingProbe(target = {layer_name: None}) # type: ignore
 
         # Subject with attached recording probe
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
-            network_name=sbj_conf[str(Args.NetworkName)]
+            network_name=PARAM_net_name
         ).to(device)
 
         sbj_net.eval()
@@ -113,8 +145,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # --- CLUSTERING ---
 
         # Read clustering from file and extract the i-th cluster as specified by conf
-        clu_type = clu_conf[str(Args.ClusterAlgo)]
-        clu_fp   = path.join(clu_conf[str(Args.ClusterDir)], FILE_NAMES[clu_type])
+        clu_type = PARAM_clu_algo
+        clu_fp   = path.join(PARAM_clu_dir, FILE_NAMES[clu_type])
         
         match clu_type:
             
@@ -132,7 +164,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 
                 raise ValueError(f'Invalid clustering type: {clu_type}. Choose one between `ds`, `gmm`, `nc`', '`adj`, `rand`')
         
-        cluster = clusters[clu_conf[str(Args.ClusterIdx)]]
+        cluster = clusters[PARAM_clu_idx]
 
         # Choose random units depending on their random type
         tot_obj = clusters.obj_tot_count # tot number of objects
@@ -147,11 +179,11 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         units_reduction = 'mean'
         
         # Retrieve all units idx in the layer
-        layer_shape     = list(layer_info.values())[layer_idx]
+        layer_shape     = list(layer_info.values())[layer_idx]  # type: ignore
         tot_layer_units = np.prod(layer_shape)
         layer_idx       = list(range(tot_layer_units))
 
-        scr_type = clu_conf[str(Args.ScoringType)]
+        scr_type = PARAM_scr_type
         
         scoring_units: ScoringUnit
         
@@ -167,7 +199,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 
                     units_mapping: UnitsMapping = partial(
                         cluster.units_mapping,
-                        weighted=clu_conf[str(Args.WeightedScore)]
+                        weighted=PARAM_weighted_score
                     )
                     
                 else:
@@ -207,7 +239,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             case 'subset' | 'subset_top' | 'subset_bot' | 'subset_rand':
                 
                 # Extract the optimizer units
-                opt_units: List[int] = [int(idx) for idx in clu_conf[str(Args.OptimUnits)].split()]
+                opt_units: List[int] = [int(idx) for idx in PARAM_optim_units.split()]
                 
                 # For subset specific indexes they are the specific indexes
                 # while for the other ones it just the number of units and it is a single number
@@ -228,7 +260,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 clu_idx: ScoringUnit = cluster.scoring_units  # NOTE: They are already sorted by descending rank
                 
                 clu_opt_idx: ScoringUnit
-                match clu_conf[str(Args.ScoringType)]:
+                match scr_type:
                     
                     case 'subset'     : clu_opt_idx = [clu_idx[opt_unit-1] for opt_unit in opt_units]             # Use specified list of index (off-by-one)
                     case 'subset_top' : clu_opt_idx = clu_idx[:opt_units_]                                        # Use top-k units
@@ -254,7 +286,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
             # Default - raise an error
             case _:
-                err_msg =  f'Invalid `scr_type`: {clu_conf[str(Args.ScoringType)]}. '\
+                err_msg =  f'Invalid `scr_type`: {scr_type}. '\
                             'Choose one between {cluster, random, random_adj, subset_top, subset_bot, fraction rand}. '
                 raise ValueError(err_msg)  
 
@@ -263,7 +295,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         scorer = ActivityScorer(
             scoring_units={layer_name: scoring_units},
             units_reduction=units_reduction,
-            layer_reduction=scr_conf[str(Args.LayerReduction)],
+            layer_reduction=PARAM_layer_red,
             units_map=units_mapping
         )
 
@@ -271,11 +303,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         
         optim = CMAESOptimizer(
             codes_shape  = generator.input_dim,
-            rnd_seed     =     conf[str(Args.RandomSeed)],
-            rnd_distr    = opt_conf[str(Args.RandomDistr)],
-            rnd_scale    = opt_conf[str(Args.RandomScale)],
-            pop_size     = opt_conf[str(Args.PopulationSize)],
-            sigma0       = opt_conf[str(Args.Sigma0)]
+            rnd_seed     = PARAM_rand_seed,
+            pop_size     = PARAM_pop_size,
+            sigma0       = PARAM_sigma_0
         )
         
         # optim = GeneticOptimizer(
@@ -288,16 +318,16 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         #  --- LOGGER --- 
 
-        log_conf[str(Args.ExperimentTitle)] = ClusteringOptimizationExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=log_conf)
+        conf[ArgParams.ExperimentTitle.value] = ClusteringOptimizationExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # In the case render option is enabled we add display screens
-        if conf[str(Args.Render)]:
+        if PARAM_render:
 
             # In the case of multi-experiment run, the shared screens
             # are set in `str(Args.DisplayScreens)` entry
-            if str(Args.DisplayScreens) in conf:
-                for screen in conf[str(Args.DisplayScreens)]:
+            if ArgParams.DisplayScreens.value in conf:
+                for screen in conf[ArgParams.DisplayScreens.value]:  # type: ignore
                     logger.add_screen(screen=screen)
 
             # If the key is not set it is the case of a single experiment
@@ -318,9 +348,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # --- DATA ---
         
         data = {
-            'render'         : conf[str(Args.Render)],
+            'render'         : PARAM_render,
             'use_nat'        : use_nat,
-            'close_screen'   : conf.get('close_screen', False),
+            'close_screen'   : conf.get(ArgParams.CloseScreen.value, False),
             'activation_idx' : activations_idx
         }
 
@@ -331,10 +361,10 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             optimizer      = optim,
             subject        = sbj_net,
             logger         = logger,
-            iteration      = conf[str(Args.NumIterations)],
+            iteration      = PARAM_iter,
             nat_img_loader = nat_img_loader,
             data           = data, 
-            name           = log_conf[str(Args.ExperimentName)]
+            name           = PARAM_exp_name
         )
 
         return experiment
@@ -541,47 +571,46 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
 # --- MULTI-EXPERIMENT ---
 
-class _ClusteringOptimizationMultiExperiment(MultiExperiment):
-
-    def __init__(
-            self, 
-            experiment:      Type['ClusteringOptimizationExperiment'], 
-            experiment_conf: Dict[str, List[Any]], 
-            default_conf:    Dict[str, Any]
-    ) -> None:
-        
-        super().__init__(experiment, experiment_conf, default_conf)
-
-        # Add the close screen flag to the last configuration
-        self._search_config[-1]['close_screen'] = True
-    
-    def _get_display_screens(self) -> List[DisplayScreen]:
-
-        # Screen for synthetic images
-        screens = [
-            DisplayScreen(
-                title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
-                display_size=(1200, 1200)
-            )
-        ]
-
-        # Add screen for natural images if at least one will use it
-        use_nat = any(
-            parse_boolean_string(conf['natural_stimuli_loader'][str(Args.Template)]).count(False) > 0 
-            for conf in self._search_config
-        )
-        
-        if use_nat:
-            screens.append( DisplayScreen(title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, display_size=(400, 400)) )
-
-        return screens
-    
-    @property
-    def _logger_type(self) -> Type[Logger]:
-        return LoguruLogger
-    
-
-class UnitsWeightingMultiExperiment(_ClusteringOptimizationMultiExperiment):
+# class _ClusteringOptimizationMultiExperiment(MultiExperiment):
+# 
+#     def __init__(
+#             self, 
+#             experiment:      Type['ClusteringOptimizationExperiment'], 
+#             experiment_conf: Dict[str, List[Any]], 
+#             default_conf:    Dict[str, Any]
+#     ) -> None:
+#         
+#         super().__init__(experiment, experiment_conf, default_conf)
+# 
+#         # Add the close screen flag to the last configuration
+#         self._search_config[-1]['close_screen'] = True
+#     
+#     def _get_display_screens(self) -> List[DisplayScreen]:
+# 
+#         # Screen for synthetic images
+#         screens = [
+#             DisplayScreen(
+#                 title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
+#                 display_size=(1200, 1200)
+#             )
+#         ]
+# 
+#         # Add screen for natural images if at least one will use it
+#         use_nat = any(
+#             parse_boolean_string(conf['natural_stimuli_loader'][str(Args.Template)]).count(False) > 0 
+#             for conf in self._search_config
+#         )
+#         
+#         if use_nat:
+#             screens.append( DisplayScreen(title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, display_size=(400, 400)) )
+# 
+#         return screens
+#     
+#     @property
+#     def _logger_type(self) -> Type[Logger]:
+#         return LoguruLogger
+#     
+class UnitsWeightingMultiExperiment(BaseZdreamMultiExperiment):
         
     def _init(self):
         
@@ -595,18 +624,16 @@ class UnitsWeightingMultiExperiment(_ClusteringOptimizationMultiExperiment):
     def _progress(
         self, 
         exp: ClusteringOptimizationExperiment, 
-        conf: Dict[str, Any],
+        conf: ParamConfig,
         msg : ZdreamMessage, 
         i: int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
         
-        clu_conf = conf['clustering']
-        
-        self._data['scores']      .append(msg.scores_gen_history)
-        self._data['cluster_idx'].append(clu_conf[str(Args.ClusterIdx)])
-        self._data['weighted']   .append(clu_conf[str(Args.WeightedScore)])    
+        self._data['scores']     .append(msg.scores_gen_history)
+        self._data['cluster_idx'].append(conf[ExperimentArgParams.ClusterIdx   .value])
+        self._data['weighted']   .append(conf[ExperimentArgParams.WeightedScore.value])    
 
     def _finish(self):
         
@@ -621,7 +648,7 @@ class UnitsWeightingMultiExperiment(_ClusteringOptimizationMultiExperiment):
         )
 
 
-class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperiment):
+class ClusteringScoringTypeMultiExperiment(BaseZdreamMultiExperiment):
 
     def _init(self):
         
@@ -636,17 +663,15 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
     def _progress(
         self, 
         exp: ClusteringOptimizationExperiment,
-        conf: Dict[str, Any],
+        conf: ParamConfig,
         msg : ZdreamMessage, 
         i: int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
-        
-        clu_conf = conf['clustering']
-        
-        clu_idx  = clu_conf[str(Args.ClusterIdx)]
-        scr_type = clu_conf[str(Args.ScoringType)]
+                
+        clu_idx  = conf[ExperimentArgParams.ClusterIdx .value]
+        scr_type = conf[ExperimentArgParams.ScoringType.value]
         score    = float(msg.stats_gen['best_score'])
         
         self._data['scr_type'][clu_idx][scr_type].append(score)
@@ -673,7 +698,7 @@ class ClusteringScoringTypeMultiExperiment(_ClusteringOptimizationMultiExperimen
         )
 
 
-class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiExperiment):
+class ClusteringSubsetOptimizationMultiExperiment(BaseZdreamMultiExperiment):
 
     def _init(self):
         
@@ -688,19 +713,21 @@ class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiEx
     def _progress(
         self, 
         exp: ClusteringOptimizationExperiment, 
-        conf: Dict[str, Any],
+        conf: ParamConfig,
         msg : ZdreamMessage,
         i: int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+                
+        assert str(conf[ExperimentArgParams.ScoringType.value]).startswith('subset')
         
-        clu_conf = conf['clustering']
-        
-        assert clu_conf[str(Args.ScoringType)].startswith('subset')
-        
-        cluster_idx  = clu_conf[str(Args.ClusterIdx)]
-        cluster_unit = int(clu_conf[str(Args.OptimUnits)])
+        cluster_idx  = conf[ExperimentArgParams.ClusterIdx.value]
+        try:
+            cu = conf[ExperimentArgParams.OptimUnits.value]
+            cluster_unit = int(cu)
+        except ValueError:
+            raise ValueError(f'Invalid cluster unit: {cu}') # TODO
         
         # Compute average of final activation
         # as the average of the last column
@@ -738,7 +765,7 @@ class ClusteringSubsetOptimizationMultiExperiment(_ClusteringOptimizationMultiEx
         self._logger.info(mess='')
 
 
-class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment):
+class ClustersBestStimuliMultiExperiment(BaseZdreamMultiExperiment):
 
     def _init(self):
         
@@ -753,17 +780,20 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
     def _progress(
         self, 
         exp: ClusteringOptimizationExperiment, 
-        conf: Dict[str, Any],
+        conf: ParamConfig,
         msg : ZdreamMessage,
         i: int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
         
-        clu_conf = conf['clustering']
+        cluster_idx  = conf[ExperimentArgParams.ClusterIdx.value]
         
-        cluster_idx  = clu_conf[str(Args.ClusterIdx)]
-        cluster_unit = int(clu_conf[str(Args.OptimUnits)])
+        try:
+            cu = conf[ExperimentArgParams.OptimUnits.value]
+            cluster_unit = int(cu)
+        except ValueError:
+            raise ValueError(f'Invalid cluster unit: {cu}') # TODO
         
         best_score : float = msg.stats_gen['best_score']
         best_code  : Codes = msg.best_code[0]
@@ -801,11 +831,11 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
         os.makedirs(stimuli_dir)
         
-        gen_conf = self._search_config[0]['generator']
+        conf = self._search_config[0]
         
         generator = DeePSiMGenerator(
-            root    = gen_conf[str(Args.GenWeights)],
-            variant = gen_conf[str(Args.GenVariant)]
+            root    = str(conf[ExperimentArgParams.GenWeights.value]),
+            variant = str(conf[ExperimentArgParams.GenVariant.value])  #  type: ignore
         )
         
         self._logger.formatting = lambda x: f'> {x}'
@@ -819,7 +849,7 @@ class ClustersBestStimuliMultiExperiment(_ClusteringOptimizationMultiExperiment)
         
         self._logger.info(mess='')
 
-class ClusterStimuliTargetMultiExperiment(_ClusteringOptimizationMultiExperiment):
+class ClusterStimuliTargetMultiExperiment(BaseZdreamMultiExperiment):
     
     def _init(self):
         
@@ -834,17 +864,15 @@ class ClusterStimuliTargetMultiExperiment(_ClusteringOptimizationMultiExperiment
     def _progress(
         self, 
         exp: ClusteringOptimizationExperiment, 
-        conf: Dict[str, Any],
+        conf: ParamConfig,
         msg : ZdreamMessage,
         i: int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
-        
-        clu_conf = conf['clustering']
-        
-        cluster_idx        = clu_conf[str(Args.ClusterIdx)]
-        cluster_weighting  = clu_conf[str(Args.WeightedScore)]
+                
+        cluster_idx        = conf[ExperimentArgParams.ClusterIdx.value]
+        cluster_weighting  = conf[ExperimentArgParams.WeightedScore.value]
         
         best_score : float = msg.stats_gen['best_score']
         best_code  : Codes = msg.best_code[0]
@@ -882,11 +910,11 @@ class ClusterStimuliTargetMultiExperiment(_ClusteringOptimizationMultiExperiment
         self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
         os.makedirs(stimuli_dir)
         
-        gen_conf = self._search_config[0]['generator']
+        conf = self._search_config[0]
         
         generator = DeePSiMGenerator(
-            root    = gen_conf[str(Args.GenWeights)],
-            variant = gen_conf[str(Args.GenVariant)]
+            root    = str(conf[ExperimentArgParams.GenWeights.value]),
+            variant = str(conf[ExperimentArgParams.GenVariant.value])  # type: ignore - literal
         ).to(device)
         
         self._logger.formatting = lambda x: f'> {x}'
