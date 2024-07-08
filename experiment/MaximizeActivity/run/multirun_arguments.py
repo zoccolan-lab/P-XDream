@@ -36,12 +36,13 @@ def neuron_scaling_args() -> Tuple[str, str, str]:
         for neuron in generate_log_numbers(N_POINTS, neurons)
         for _ in range(SAMPLE)
     ]
-        
+
     rec_layer_str = '#'.join(a for a, _, _ in args)
     scr_layer_str = '#'.join(a for _, a, _ in args)
     rand_seed_str = '#'.join(a for _, _, a in args)
     
     return rec_layer_str, scr_layer_str, rand_seed_str
+
 
 def layers_correlation_arg() -> Tuple[str, str, str]:
 
@@ -59,12 +60,27 @@ def layers_correlation_arg() -> Tuple[str, str, str]:
     return rec_layers_str, scr_layers_str, rand_seed_str
 
 
+def generator_variants() -> Tuple[str, str]:
+
+    args = [
+        ( f'{variant}', str(random.randint(1000, 1000000)) )
+        for variant in VARIANTS
+        for _ in range(SAMPLE)
+    ]
+    
+    variant_str    = '#'.join(a for a, _ in args)
+    rand_seed_str  = '#'.join(a for _, a in args)
+    
+    return variant_str, rand_seed_str
+
+
 if __name__ == '__main__':
 
     print('Multiple run: ')
     print('[1] Neural scaling')
     print('[2] Layers correlation')
     print('[3] Maximize samples')
+    print('[4] Generator variants')
     
     option = int(input('Choose option: '))
     
@@ -103,6 +119,19 @@ if __name__ == '__main__':
             }
             
             file = 'run_multiple_maximize_samples.py'
+            
+        case 4:
+            
+            variant_str, rnd_seed_str = generator_variants()
+            
+            args = {
+                'rec_layers'  : SAMPLE_REC_LAYER,
+                'scr_layers'  : SAMPLE_SCR_LAYER,
+                'variant'     : variant_str,
+                'random_seed' : rnd_seed_str
+            }
+            
+            file = 'run_multiple_generator_variants.py'
             
         case _:
             
