@@ -651,7 +651,7 @@ def save_stimuli_samples(
         
         # Get the corresponding axis for the current image
         if n_row == 1 : ax = axs[i]
-        else          : ax = axs[i%n_row][i//n_col]
+        else          : ax = axs[i // n_col, i % n_col]
 
         # Plot the image
         img = image.detach().cpu().numpy().transpose(1, 2, 0)
@@ -662,9 +662,13 @@ def save_stimuli_samples(
 
         # Remove the axis ticks and labels
         ax.axis('off')
-
-    # Adjust the spacing between subplots
-    plt.tight_layout()
+        
+    # Fill empty subplots with white color
+    for i in range(len(images_scores), n_row*n_col):
+        if n_row == 1 : ax = axs[i]
+        else          : ax = axs[i // n_col, i % n_col]
+        ax.set_facecolor('white')
+        ax.axis('off')
     
     # Save 
     out_fp = path.join(out_dir, 'stimuli_samples.png')

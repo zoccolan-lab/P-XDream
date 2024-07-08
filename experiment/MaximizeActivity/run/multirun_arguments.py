@@ -8,11 +8,13 @@ from zdream.utils.misc import copy_exec
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
-NAME = '4layers_450points_10samples_150iter'
+IDX_SAMPLE = 145
 
-ITER     = 150
-SAMPLE   =  10
-N_POINTS =  45
+NAME = f'sample_activity_maximization_neuron{IDX_SAMPLE}_250iter'
+
+ITER     =  250
+SAMPLE   =   30
+N_POINTS =   45
 
 # Layer : Neurons
 LAYERS = [
@@ -21,6 +23,9 @@ LAYERS = [
     (20, 4096), # FC7 Relu
     (21, 1000)  # FC8 Maxpool
 ]
+
+SAMPLE_REC_LAYER = f"21=[{IDX_SAMPLE}]"
+SAMPLE_SCR_LAYER = "21=[]"
 
 
 def neuron_scaling_args() -> Tuple[str, str, str]:
