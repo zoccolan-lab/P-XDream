@@ -1,4 +1,4 @@
-from experiment.utils.args import DATASET, OUT_DIR, WEIGHTS, ExperimentArgParams
+from experiment.utils.args import DATASET, OUT_DIR, ExperimentArgParams
 from zdream.utils.parameters import ArgParams, ParamConfig
 
 ARGS: ParamConfig = {

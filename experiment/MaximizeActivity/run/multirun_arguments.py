@@ -59,6 +59,7 @@ if __name__ == '__main__':
     print('Multiple run: ')
     print('[1] Neural scaling')
     print('[2] Layers correlation')
+    print('[3] Maximize samples')
     
     option = int(input('Choose option: '))
     
@@ -87,6 +88,16 @@ if __name__ == '__main__':
             }
             
             file = 'run_multiple_layer_correlation.py'
+            
+        case 3:
+                        
+            args = {
+                'rec_layers'  : SAMPLE_REC_LAYER,
+                'scr_layers'  : SAMPLE_SCR_LAYER,
+                'random_seed' : '#'.join(str(random.randint(1000, 1000000)) for _ in range(SAMPLE))
+            }
+            
+            file = 'run_multiple_maximize_samples.py'
             
         case _:
             

@@ -9,11 +9,13 @@ from pandas import DataFrame
 from matplotlib import cm, pyplot as plt
 from matplotlib.axes import Axes
 
+from zdream.generator import Generator
 from zdream.utils.misc import default
 from zdream.utils.logger import Logger, SilentLogger
 from zdream.optimizer import Optimizer
 from zdream.utils.dataset import ExperimentDataset, MiniImageNet
 from zdream.utils.misc import SEM, default
+from zdream.utils.types import Codes, Scores, Stimuli
 
 # --- DEFAULT PLOTTING PARAMETERS ----
 
@@ -521,7 +523,7 @@ def plot_optimizing_units(
     '''
     '''
     
-        # Define custom color palette with as many colors as layers
+    # Define custom color palette with as many colors as layers
     custom_palette = sns.color_palette("husl", len(data))
 
     for log_scale in [True, False]:
@@ -604,7 +606,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
                 yerr=layer[(y_var, 'sem')], label=l, color = colors[i])
 
             #TODO: think to other metrics to plot
-      
+    
     ax.set_xlabel('Neurons')
     ax.set_xscale('log')
     ax.set_ylabel(y_var.capitalize())
@@ -616,3 +618,57 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
         out_fp = path.join(out_dir, fn)
         logger.info(f'Saving {fn} to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
+
+
+def save_stimuli_samples(
+    stimuli_scores: List[Tuple[Scores, Codes]],
+    generator: Generator,
+    out_dir: str,
+    logger: Logger = SilentLogger(),
+    n_col: int = 5
+):
+
+    # Convert codes to images
+    images_scores: List[Tuple[float, Stimuli]] = [
+        (score.tolist()[0], generator(code)[0])
+        for score, code in stimuli_scores
+    ]
+    
+    # Sort by score
+    images_scores.sort(key=lambda x: x[0], reverse=True)
+
+    # Generate image
+    if(len(images_scores) <= n_col): n_col = len(images_scores)
+    n_row = len(images_scores) // n_col + 1
+    
+    fig, axs = plt.subplots(n_row, n_col, figsize=(12, 3*n_row))
+
+    # Flatten the axis array if there is only one row
+    if n_row == 1: axs = axs.flatten()
+
+    # Iterate over the images and scores
+    for i, (score, image) in enumerate(images_scores):
+        
+        # Get the corresponding axis for the current image
+        if n_row == 1 : ax = axs[i]
+        else          : ax = axs[i%n_row][i//n_row]
+
+        # Plot the image
+        img = image.detach().cpu().numpy().transpose(1, 2, 0)
+        ax.imshow(img)
+
+        # Set the title as the score
+        ax.set_title(f"Score: {round(score, 3)}", fontsize=11)
+
+        # Remove the axis ticks and labels
+        ax.axis('off')
+
+    # Adjust the spacing between subplots
+    plt.tight_layout()
+    
+    # Save 
+    out_fp = path.join(out_dir, 'stimuli_samples.png')
+    
+    logger.info(f'Saving stimuli samples plot to {out_fp}')
+    fig.savefig(out_fp, bbox_inches="tight")
+    

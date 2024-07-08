@@ -43,7 +43,7 @@ class NeuralRecordingExperiment(Experiment):
         self._subject   = subject
         self._image_ids = image_ids
         self._dataset   = dataset
-        self._log_chk   = cast(int, data['log_chk'])
+        self._log_chk   = cast(int, data.get('log_chk', 1))
 
     @classmethod
     def _from_config(cls, conf : ParamConfig) -> 'NeuralRecordingExperiment':

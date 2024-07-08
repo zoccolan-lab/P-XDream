@@ -1,7 +1,6 @@
 
 from os import path
-import os
-from typing import Any, Dict, List, Tuple, Type, cast
+from typing import Any, Dict, List, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,17 +8,17 @@ from torchvision.transforms.functional import to_pil_image
 
 from PIL import Image
 
-from experiment.OptimizerTuning.plotting import plot_hyperparam, plot_optim_type_comparison
-from experiment.utils.args import Args
-from experiment.utils.misc import make_dir
-from zdream.experiment import ZdreamExperiment, MultiExperiment
+from experiment.OptimizerTuning.plot import plot_hyperparam, plot_optim_type_comparison
+from experiment.utils.args import ExperimentArgParams
+from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
+from zdream.experiment import ZdreamExperiment
 from zdream.generator import Generator, DeePSiMGenerator
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
 from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
 from zdream.subject import InSilicoSubject, TorchNetworkSubject
+from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
 from zdream.utils.probe import RecordingProbe
-from zdream.utils.types import MaskGenerator
 from zdream.utils.misc import device
 from experiment.utils.parsing import parse_recording, parse_scoring
 from zdream.utils.message import ZdreamMessage
@@ -40,39 +39,69 @@ class OptimizationTuningExperiment(ZdreamExperiment):
     def subject(self) -> TorchNetworkSubject: return cast(TorchNetworkSubject, self._subject) 
 
     @classmethod
-    def _from_config(cls, conf : Dict[str, Any]) -> 'OptimizationTuningExperiment':
+    def _from_config(cls, conf : ParamConfig) -> 'OptimizationTuningExperiment':
 
-        # Extract components configurations
-        gen_conf = conf['generator']
-        sbj_conf = conf['subject']
-        scr_conf = conf['scorer']
-        opt_conf = conf['optimizer']
-        log_conf = conf['logger']
+        # Generator
+        PARAM_gen_weights  = str  (conf[ExperimentArgParams.GenWeights       .value])
+        PARAM_gen_variant  = str  (conf[ExperimentArgParams.GenVariant       .value])
+        PARAM_net_name     = str  (conf[ExperimentArgParams.NetworkName      .value])
+
+        # Subject
+        PARAM_rec_layers   = str  (conf[ExperimentArgParams.RecordingLayers  .value])
+        
+        # Scorer
+        PARAM_scr_layers   = str  (conf[ExperimentArgParams.ScoringLayers    .value])
+        PARAM_units_red    = str  (conf[ExperimentArgParams.UnitsReduction   .value])
+        PARAM_layer_red    = str  (conf[ExperimentArgParams.LayerReduction   .value])
+    
+        # Optimizer
+        PARAM_optim_type   = str  (conf[ExperimentArgParams.OptimType        .value])
+        PARAM_rand_distr   = str  (conf[ExperimentArgParams.RandomDistr      .value])
+        PARAM_rand_scale   = float(conf[ExperimentArgParams.RandomScale      .value])
+        PARAM_pop_size     = int  (conf[ExperimentArgParams.PopulationSize   .value])
+        PARAM_mut_size     = float(conf[ExperimentArgParams.MutationSize     .value])
+        PARAM_mut_rate     = float(conf[ExperimentArgParams.MutationRate     .value])
+        PARAM_num_parents  = int  (conf[ExperimentArgParams.NumParents       .value])
+        PARAM_allow_clones = bool (conf[ExperimentArgParams.AllowClones      .value])
+        PARAM_topk         = int  (conf[ExperimentArgParams.TopK             .value])
+        PARAM_temp         = float(conf[ExperimentArgParams.Temperature      .value])
+        PARAM_temp_factor  = float(conf[ExperimentArgParams.TemperatureFactor.value])
+        PARAM_sigma0       = float(conf[ExperimentArgParams.Sigma0           .value])
+    
+        # Logger
+        PARAM_exp_name    = str  (conf[ArgParams          .ExperimentName   .value])
+        PARAM_exp_version = str  (conf[ArgParams          .ExperimentVersion.value])
+        PARAM_out_dir     = str  (conf[ArgParams          .OutputDirectory  .value])
+    
+        # Globals
+        PARAM_iter        = int  (conf[ArgParams          .NumIterations    .value])
+        PARAM_rand_seed   = int  (conf[ArgParams          .RandomSeed       .value])
+        PARAM_render      = bool (conf[ArgParams          .Render           .value])
 
         # Set numpy random seed
-        np.random.seed(conf[str(Args.RandomSeed)])
+        np.random.seed(PARAM_rand_seed)
 
         # --- GENERATOR ---
 
         generator = DeePSiMGenerator(
-            root           = gen_conf[str(Args.GenWeights)],
-            variant        = gen_conf[str(Args.GenVariant)],
+            root           = PARAM_gen_weights,
+            variant        = PARAM_gen_variant  # type: ignore - literal
         ).to(device)
 
 
         # --- SUBJECT ---
 
         # Create a on-the-fly network subject to extract all network layer names
-        layer_info: Dict[str, Tuple[int, ...]] = TorchNetworkSubject(network_name=sbj_conf[str(Args.NetworkName)]).layer_info
+        layer_info: Dict[str, Tuple[int, ...]] = TorchNetworkSubject(network_name=PARAM_net_name).layer_info
 
         # Probe
-        record_target = parse_recording(input_str=sbj_conf[str(Args.RecordingLayers)], net_info=layer_info)
+        record_target = parse_recording(input_str=PARAM_rec_layers, net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
 
         # Subject with attached recording probe
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
-            network_name=sbj_conf[str(Args.NetworkName)]
+            network_name=PARAM_net_name
         )
         
         sbj_net.eval()
@@ -81,48 +110,46 @@ class OptimizationTuningExperiment(ZdreamExperiment):
 
         # Target neurons
         scoring_units = parse_scoring(
-            input_str=scr_conf[str(Args.ScoringLayers)], 
+            input_str=PARAM_scr_layers, 
             net_info=layer_info,
             rec_info=record_target
         )
 
         scorer = ActivityScorer(
             scoring_units=scoring_units,
-            units_reduction=scr_conf[str(Args.UnitsReduction)],
-            layer_reduction=scr_conf[str(Args.LayerReduction)],
+            units_reduction=PARAM_units_red,
+            layer_reduction=PARAM_layer_red,
         )
 
         # --- OPTIMIZER ---
         
-        opt_type = opt_conf[str(Args.OptimType)]
+        opt_type = PARAM_optim_type
         match opt_type:
             
             case 'genetic':
         
                 optim =  GeneticOptimizer(
                     codes_shape  = generator.input_dim,
-                    rnd_seed     =     conf[str(Args.RandomSeed)],
-                    rnd_distr    = opt_conf[str(Args.RandomDistr)],
-                    rnd_scale    = opt_conf[str(Args.RandomScale)],
-                    pop_size     = opt_conf[str(Args.PopulationSize)],
-                    mut_size     = opt_conf[str(Args.MutationSize)],
-                    mut_rate     = opt_conf[str(Args.MutationRate)],
-                    n_parents    = opt_conf[str(Args.NumParents)],
-                    allow_clones = opt_conf[str(Args.AllowClones)],
-                    topk         = opt_conf[str(Args.TopK)],
-                    temp         = opt_conf[str(Args.Temperature)],
-                    temp_factor  = opt_conf[str(Args.TemperatureFactor)]
+                    rnd_seed     = PARAM_rand_seed,
+                    rnd_distr    = PARAM_rand_distr, # type: ignore - literal
+                    rnd_scale    = PARAM_rand_scale,
+                    pop_size     = PARAM_pop_size,
+                    mut_size     = PARAM_mut_size,
+                    mut_rate     = PARAM_mut_rate,
+                    n_parents    = PARAM_num_parents,
+                    allow_clones = PARAM_allow_clones,
+                    topk         = PARAM_topk,
+                    temp         = PARAM_temp,
+                    temp_factor  = PARAM_temp_factor,
                 )
                 
             case 'cmaes': 
                 
                 optim = CMAESOptimizer(
                     codes_shape  = generator.input_dim,
-                    rnd_seed     =     conf[str(Args.RandomSeed)],
-                    rnd_distr    = opt_conf[str(Args.RandomDistr)],
-                    rnd_scale    = opt_conf[str(Args.RandomScale)],
-                    pop_size     = opt_conf[str(Args.PopulationSize)],
-                    sigma0       = opt_conf[str(Args.Sigma0)],
+                    rnd_seed     = PARAM_rand_seed,
+                    pop_size     = PARAM_pop_size,
+                    sigma0       = PARAM_sigma0
                 )
                 
             case _: 
@@ -131,16 +158,16 @@ class OptimizationTuningExperiment(ZdreamExperiment):
 
         #  --- LOGGER --- 
 
-        log_conf[str(Args.ExperimentTitle)] = OptimizationTuningExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=log_conf)
+        conf[ArgParams.ExperimentTitle.value] = OptimizationTuningExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # In the case render option is enabled we add display screens
-        if conf[str(Args.Render)]:
+        if PARAM_render:
 
             # In the case of multi-experiment run, the shared screens
             # are set in `str(Args.DisplayScreens)` entry
-            if str(Args.DisplayScreens) in conf:
-                for screen in conf[str(Args.DisplayScreens)]:
+            if ArgParams.DisplayScreens.value in conf:
+                for screen in conf[ArgParams.DisplayScreens.value]:  # type: ignore
                     logger.add_screen(screen=screen)
 
             # If the key is not set it is the case of a single experiment
@@ -155,9 +182,9 @@ class OptimizationTuningExperiment(ZdreamExperiment):
         # --- DATA ---
         
         data = {
-            'optim_type'   : opt_conf['optimizer_type'],
-            'render'       : conf['render'],
-            'close_screen' : conf.get('close_screen', False),
+            'optim_type'   : PARAM_optim_type,
+            'render'       : PARAM_render,
+            'close_screen' : conf.get(ArgParams.CloseScreen.value, False),
         }
 
         # Experiment configuration
@@ -167,9 +194,9 @@ class OptimizationTuningExperiment(ZdreamExperiment):
             optimizer = optim,
             subject   = sbj_net,
             logger    = logger,
-            iteration = conf['iter'],
+            iteration = PARAM_iter,
             data      = data, 
-            name      = log_conf['name']
+            name      = PARAM_exp_name
         )
 
         return experiment
@@ -272,36 +299,7 @@ class OptimizationTuningExperiment(ZdreamExperiment):
 
 # --- MULTI-EXPERIMENT ---
 
-class _OptimizerTuningMultiExperiment(MultiExperiment):
-
-    def __init__(
-        self, 
-        experiment:      Type['OptimizationTuningExperiment'], 
-        experiment_conf: Dict[str, List[Any]], 
-        default_conf:    Dict[str, Any],
-    ) -> None:
-        
-        super().__init__(experiment, experiment_conf, default_conf)
-
-        # Add the close screen flag to the last configuration
-        self._search_config[-1]['close_screen'] = True
-    
-    def _get_display_screens(self) -> List[DisplayScreen]:
-
-        # Screen for synthetic images
-        return [
-            DisplayScreen(
-                title=OptimizationTuningExperiment.GEN_IMG_SCREEN, 
-                display_size=(400, 400)
-            )
-        ]
-    
-    @property
-    def _logger_type(self) -> Type[Logger]:
-        return LoguruLogger
-    
-
-class OptimizerComparisonMultiExperiment(_OptimizerTuningMultiExperiment):
+class OptimizerComparisonMultiExperiment(BaseZdreamMultiExperiment):
         
     def _init(self):
         
@@ -315,7 +313,7 @@ class OptimizerComparisonMultiExperiment(_OptimizerTuningMultiExperiment):
     def _progress(
         self, 
         exp  : OptimizationTuningExperiment, 
-        conf : Dict[str, Any],
+        conf : ParamConfig,
         msg  : ZdreamMessage, 
         i    : int
     ):
@@ -336,13 +334,13 @@ class OptimizerComparisonMultiExperiment(_OptimizerTuningMultiExperiment):
             logger    = self._logger
         )
 
-class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
+class HyperparameterTuningMultiExperiment(BaseZdreamMultiExperiment):
     
     def __init__(
         self,
         experiment: type[OptimizationTuningExperiment], 
-        experiment_conf: Dict[str, List[Any]],
-        default_conf: Dict[str, Any]
+        experiment_conf: Dict[ArgParam, List[Parameter]],
+        default_conf: ParamConfig
     ) -> None:
         
         super().__init__(experiment, experiment_conf, default_conf)
@@ -362,7 +360,7 @@ class HyperparameterTuningMultiExperiment(_OptimizerTuningMultiExperiment):
     def _progress(
         self, 
         exp  : OptimizationTuningExperiment, 
-        conf : Dict[str, Any],
+        conf : ParamConfig,
         msg  : ZdreamMessage, 
         i    : int
     ):

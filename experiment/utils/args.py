@@ -11,11 +11,11 @@ LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 local_setting = read_json(LOCAL_SETTINGS)
 
-OUT_DIR    = local_setting['out_dir']
-WEIGHTS    = local_setting['weights']
-DATASET    = local_setting['dataset']
-IMAGE      = local_setting['image']
-CLUSTERING = local_setting['clu_dir']
+OUT_DIR   : str = local_setting['out_dir']
+WEIGHTS   : str = local_setting['weights']
+DATASET   : str = local_setting['dataset']
+IMAGE     : str = local_setting['image']
+CLUSTERING: str = local_setting['clu_dir']
 
 LAYERS_NEURONS_SPECIFICATION = '''
 TODO write here how to specify neurons
@@ -89,6 +89,5 @@ class ExperimentArgParams(Enum):
             if str(arg) == name: return arg.value
         
         raise ValueError(f'Argument with name {name} not found')
-
-
+    
 
