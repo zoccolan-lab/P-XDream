@@ -31,7 +31,7 @@ Possible variants for the DeePSiM
 They refer to the specific .pt file with trained model weights.
 The weights are available at [https://drive.google.com/drive/folders/1sV54kv5VXvtx4om1c9kBPbdlNuurkGFi]
 '''
-DeePSIMVariant = Literal[
+DeePSiMVariant = Literal[
     'conv3', 'conv4', 'norm1', 'norm2', 'pool5', 'fc6', 'fc7', 'fc8'
 ]
 
@@ -210,7 +210,7 @@ class DeePSiMGenerator(Generator):
     def __init__(
         self,
         root : str,
-        variant : DeePSIMVariant = 'fc8',
+        variant : DeePSiMVariant = 'fc8',
         output_pipe : Callable[[Tensor], Tensor] | None = None
     ) -> None:
         '''
@@ -346,7 +346,7 @@ class DeePSiMGenerator(Generator):
             case 'norm2': return (3, 240, 240)
             case _      : return (3, 256, 256)
             
-    def _get_pipe(self, variant : DeePSIMVariant) -> Callable[[Tensor], Tensor]:
+    def _get_pipe(self, variant : DeePSiMVariant) -> Callable[[Tensor], Tensor]:
         ''' Return the output pipe for the generator variant. '''
         
         def _opt1(imgs : Tensor) -> Tensor:

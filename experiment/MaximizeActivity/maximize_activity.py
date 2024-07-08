@@ -12,18 +12,17 @@ from torchvision.transforms.functional import to_pil_image
 
 from zdream.experiment                import ZdreamExperiment
 from zdream.generator                 import Generator, DeePSiMGenerator
-from zdream.optimizer                 import CMAESOptimizer, Optimizer
+from zdream.optimizer                 import GeneticOptimizer, Optimizer
 from zdream.scorer                    import ActivityScorer, Scorer
 from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
-from zdream.utils.io_                 import to_gif
 from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
 from zdream.utils.message             import ZdreamMessage
 from zdream.utils.misc                import concatenate_images, device
 from zdream.utils.parameters          import ArgParams, ParamConfig
 from zdream.utils.probe               import RecordingProbe
 from zdream.utils.types               import Codes, ScoringUnit, Stimuli, Scores, States
-from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_stimuli_samples
+from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_best_stimulus_per_variant, save_stimuli_samples
 from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_recording, parse_scoring
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
@@ -145,11 +144,17 @@ class MaximizeActivityExperiment(ZdreamExperiment):
 
         # --- OPTIMIZER ---
 
-        optim = CMAESOptimizer(
+        # optim = CMAESOptimizer(
+        #     codes_shape = generator.input_dim,
+        #     rnd_seed    = PARAM_rnd_seed,
+        #     pop_size    = PARAM_pop_size,
+        #     sigma0      = PARAM_sigma0
+        # )
+        
+        optim = GeneticOptimizer(
             codes_shape = generator.input_dim,
             rnd_seed    = PARAM_rnd_seed,
-            pop_size    = PARAM_pop_size,
-            sigma0      = PARAM_sigma0
+            pop_size    = PARAM_pop_size
         )
 
         #  --- LOGGER --- 
@@ -532,6 +537,57 @@ class NeuronScalingMultiExperiment(BaseZdreamMultiExperiment):
             data    = self._data['score'],
             out_dir = plot_dir,
             logger  = self._logger
+        )
+        
+        self._logger.reset_formatting()
+        self._logger.info("")
+
+class GeneratorVariantMultiExperiment(BaseZdreamMultiExperiment):
+
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'   ] = 'Best stimuli for each variant version of a generator' # TODO
+        
+        # Stores the best code and score for each variant
+        self._data['best_variant'] = dict()
+
+    def _progress(
+        self, 
+        exp  : MaximizeActivityExperiment, 
+        conf : ParamConfig,
+        msg  : ZdreamMessage, 
+        i    : int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        code    = msg.best_code
+        score   = msg.stats_gen['best_score']
+        variant = str(conf[ExperimentArgParams.GenVariant.value])
+        
+        if variant not in self._data['best_variant']:
+            self._data['best_variant'][variant] = (code, score)
+        else:
+            _, best_score = self._data['best_variant'][variant]
+            if score > best_score:
+                self._data['best_variant'][variant] = (code, score)
+
+    def _finish(self):
+        
+        super()._finish()
+        
+        plot_dir = make_dir(path=path.join(self.target_dir, 'plots'), logger=self._logger)
+
+        self._logger.info("Saving plots...")
+        self._logger.formatting = lambda x: f'> {x}'
+        
+        save_best_stimulus_per_variant(
+            variant_codes=self._data['best_variant'],
+            gen_weights=self._search_config[0][ExperimentArgParams.GenWeights.value], # type: ignore - literal
+            out_dir=plot_dir,
+            logger=self._logger
         )
         
         self._logger.reset_formatting()

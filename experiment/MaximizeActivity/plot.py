@@ -9,7 +9,7 @@ from pandas import DataFrame
 from matplotlib import cm, pyplot as plt
 from matplotlib.axes import Axes
 
-from zdream.generator import Generator
+from zdream.generator import DeePSiMGenerator, DeePSiMVariant, Generator, DeePSiMVariant
 from zdream.utils.misc import default
 from zdream.utils.logger import Logger, SilentLogger
 from zdream.optimizer import Optimizer
@@ -671,4 +671,48 @@ def save_stimuli_samples(
     
     logger.info(f'Saving stimuli samples plot to {out_fp}')
     fig.savefig(out_fp, bbox_inches="tight")
+
+def save_best_stimulus_per_variant(
+    variant_codes: Dict[DeePSiMVariant, Tuple[Codes, Scores]],
+    gen_weights: str,
+    out_dir: str,
+    logger: Logger = SilentLogger()
+):
     
+    # Load each generator per variant
+    generators = {
+        variant: DeePSiMGenerator(gen_weights, variant=variant)
+        for variant in variant_codes
+    }
+
+    # Convert codes to images
+    images = {
+        variant: (score.tolist()[0], generators[variant](code)[0])
+        for variant, (code, score) in variant_codes.items()
+    }
+    
+    fig, axs = plt.subplots(1, len(variant_codes), figsize=(12, 3*len(variant_codes)))
+
+    # Iterate over the images and scores
+    for i, (variant, (score, image)) in enumerate(images.items()):
+        
+        ax = axs[i]
+
+        # Plot the image
+        img = image.detach().cpu().numpy().transpose(1, 2, 0)
+        ax.imshow(img)
+
+        # Set the title as the score
+        ax.set_title(f"{variant} - score: {round(score, 3)}", fontsize=14)
+
+        # Remove the axis ticks and labels
+        ax.axis('off')
+
+    # Adjust the spacing between subplots
+    plt.tight_layout()
+    
+    # Save 
+    out_fp = path.join(out_dir, 'variant_stimuli.png')
+    
+    logger.info(f'Saving stimuli per variant plot to {out_fp}')
+    fig.savefig(out_fp, bbox_inches="tight")
