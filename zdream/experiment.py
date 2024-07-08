@@ -1125,7 +1125,7 @@ class MultiExperiment:
         
         # We need to specify end=''" as log message already ends with \n (thus the lambda function)
 		# Also forcing 'colorize=True' otherwise Loguru won't recognize that the sink support colors
-        # self._logger.set_progress_bar()
+        self._logger.set_progress_bar()
         
         with Progress(console=Logger.CONSOLE) as progress:
 

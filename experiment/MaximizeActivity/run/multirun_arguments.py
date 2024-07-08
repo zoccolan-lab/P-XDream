@@ -8,17 +8,18 @@ from zdream.utils.misc import copy_exec
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
-NAME = 'prova'
+NAME = '4layers_450points_10samples_150iter'
 
-ITER     = 2
-SAMPLE   = 2
-N_POINTS = 3
+ITER     = 150
+SAMPLE   =  10
+N_POINTS =  45
 
 # Layer : Neurons
 LAYERS = [
-    (16, 4096),
-    (20, 4096),
-    (21, 1000)
+    (13, 9216), # Conv5 MaxPool
+    (17, 4096), # FC6 Relu
+    (20, 4096), # FC7 Relu
+    (21, 1000)  # FC8 Maxpool
 ]
 
 

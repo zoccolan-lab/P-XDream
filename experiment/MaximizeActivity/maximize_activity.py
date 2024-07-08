@@ -108,7 +108,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         generator = DeePSiMGenerator(
             root    = str(PARAM_weights),
             variant = str(PARAM_variant) # type: ignore
-        )
+        ).to(device)
         
         # --- SUBJECT ---
 
@@ -395,9 +395,9 @@ class MaximizeActivityExperiment(ZdreamExperiment):
             img.save(out_fp)
         
         # Saving gif
-        out_fp = path.join(img_dir, 'evolving_best.gif')
-        self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
-        to_gif(image_list=self._gif, out_fp=out_fp)
+        # out_fp = path.join(img_dir, 'evolving_best.gif')
+        # self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
+        # to_gif(image_list=self._gif, out_fp=out_fp)
 
         self._logger.info(mess='')
         
