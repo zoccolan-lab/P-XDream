@@ -625,7 +625,7 @@ def save_stimuli_samples(
     generator: Generator,
     out_dir: str,
     logger: Logger = SilentLogger(),
-    n_col: int = 5
+    n_col: int = 6
 ):
 
     # Convert codes to images
@@ -651,7 +651,7 @@ def save_stimuli_samples(
         
         # Get the corresponding axis for the current image
         if n_row == 1 : ax = axs[i]
-        else          : ax = axs[i%n_row][i//n_row]
+        else          : ax = axs[i%n_row][i//n_col]
 
         # Plot the image
         img = image.detach().cpu().numpy().transpose(1, 2, 0)
