@@ -8,10 +8,10 @@ from zdream.utils.misc import copy_exec
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
-NAME = 'prova'
+NAME = 'max_samples'
 
 ITER     = 2
-SAMPLE   = 2
+SAMPLE   = 14
 N_POINTS = 3
 
 # Layer : Neurons
@@ -20,6 +20,10 @@ LAYERS = [
     (20, 4096),
     (21, 1000)
 ]
+
+# Samples rec layer
+SAMPLE_REC_LAYER = "21=[576]"
+SAMPLE_SCR_LAYER = "21=[]"
 
 
 def neuron_scaling_args() -> Tuple[str, str, str]:
@@ -58,6 +62,7 @@ if __name__ == '__main__':
     print('Multiple run: ')
     print('[1] Neural scaling')
     print('[2] Layers correlation')
+    print('[3] Maximize samples')
     
     option = int(input('Choose option: '))
     
@@ -86,6 +91,16 @@ if __name__ == '__main__':
             }
             
             file = 'run_multiple_layer_correlation.py'
+            
+        case 3:
+                        
+            args = {
+                'rec_layers'  : SAMPLE_REC_LAYER,
+                'scr_layers'  : SAMPLE_SCR_LAYER,
+                'random_seed' : '#'.join(str(random.randint(1000, 1000000)) for _ in range(SAMPLE))
+            }
+            
+            file = 'run_multiple_maximize_samples.py'
             
         case _:
             

@@ -23,7 +23,7 @@ from zdream.utils.misc                import concatenate_images, device
 from zdream.utils.parameters          import ArgParams, ParamConfig
 from zdream.utils.probe               import RecordingProbe
 from zdream.utils.types               import Codes, ScoringUnit, Stimuli, Scores, States
-from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label
+from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_stimuli_samples
 from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_recording, parse_scoring
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
@@ -73,8 +73,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_unit_red   = str  (conf[ExperimentArgParams.UnitsReduction .value])
         PARAM_layer_red  = str  (conf[ExperimentArgParams.LayerReduction .value])
         PARAM_pop_size   = int  (conf[ExperimentArgParams.PopulationSize .value])
-        PARAM_rnd_distr  = str  (conf[ExperimentArgParams.RandomDistr    .value])
-        PARAM_rnd_scale  = float(conf[ExperimentArgParams.RandomScale    .value])
         PARAM_sigma0     = float(conf[ExperimentArgParams.Sigma0         .value])
         PARAM_exp_name   = str  (conf[          ArgParams.ExperimentName .value])
         PARAM_iter       = int  (conf[          ArgParams.NumIterations  .value])
@@ -534,6 +532,57 @@ class NeuronScalingMultiExperiment(BaseZdreamMultiExperiment):
             data    = self._data['score'],
             out_dir = plot_dir,
             logger  = self._logger
+        )
+        
+        self._logger.reset_formatting()
+        self._logger.info("")
+
+class SamplesMaximizationMultiExperiment(BaseZdreamMultiExperiment):
+
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'   ] = 'Scores for multiple optimization for the same neuron' # TODO
+        
+        self._data['samples'] = []
+
+    def _progress(
+        self, 
+        exp  : MaximizeActivityExperiment, 
+        conf : ParamConfig,
+        msg  : ZdreamMessage, 
+        i    : int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        score = msg.stats_gen['best_score']
+        code  = msg.best_code
+        
+        self._data['samples'].append((score, code))
+        
+    def _finish(self):
+        
+        super()._finish()
+        
+        plot_dir = make_dir(path=path.join(self.target_dir, 'plots'), logger=self._logger)
+
+        self._logger.info("Saving stimuli samples...")
+        self._logger.formatting = lambda x: f'> {x}'
+        
+        conf = self._search_config[0]
+        
+        generator = DeePSiMGenerator(
+            root    = str(conf[ExperimentArgParams.GenWeights.value]),
+            variant = str(conf[ExperimentArgParams.GenVariant.value])  # type: ignore - literal
+        ).to(device)
+        
+        save_stimuli_samples(
+            stimuli_scores = self._data['samples'],
+            generator      = generator,
+            out_dir        = plot_dir,
+            logger         = self._logger
         )
         
         self._logger.reset_formatting()
