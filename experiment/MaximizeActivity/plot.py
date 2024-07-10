@@ -1,5 +1,6 @@
 from os import path
 from collections import defaultdict
+import re
 from typing import Any, Dict, Literal, List, Tuple, cast
 
 import numpy as np
@@ -9,6 +10,8 @@ from pandas import DataFrame
 from matplotlib import cm, pyplot as plt
 from matplotlib.axes import Axes
 
+from analysis.utils.settings import FILE_NAMES, WORDNET_DIR
+from analysis.utils.wordnet import ImageNetWords, WordNet
 from zdream.generator import DeePSiMGenerator, DeePSiMVariant, Generator, DeePSiMVariant
 from zdream.utils.misc import default
 from zdream.utils.logger import Logger, SilentLogger
@@ -673,46 +676,97 @@ def save_stimuli_samples(
     fig.savefig(out_fp, bbox_inches="tight")
 
 def save_best_stimulus_per_variant(
-    variant_codes: Dict[DeePSiMVariant, Tuple[Codes, Scores]],
+    neurons_variant_codes: Dict[str, Dict[DeePSiMVariant, Tuple[Codes, Scores]]],
     gen_weights: str,
     out_dir: str,
     logger: Logger = SilentLogger()
 ):
     
+    variants = list(list(neurons_variant_codes.values())[0].keys())
+    
+    # Load imagenet labels
+    wordnet = WordNet.from_precomputed(
+        wordnet_fp        = path.join(WORDNET_DIR, FILE_NAMES['words']),
+        hierarchy_fp      = path.join(WORDNET_DIR, FILE_NAMES['hierarchy']),
+        words_precomputed = path.join(WORDNET_DIR, FILE_NAMES['words_precomputed']),
+        logger=logger
+    )
+    
+    inet = ImageNetWords(
+        imagenet_fp=path.join(WORDNET_DIR, FILE_NAMES['imagenet']), 
+        wordnet=wordnet
+    )
+    
     # Load each generator per variant
     generators = {
         variant: DeePSiMGenerator(gen_weights, variant=variant)
-        for variant in variant_codes
-    }
-
-    # Convert codes to images
-    images = {
-        variant: (score.tolist()[0], generators[variant](code)[0])
-        for variant, (code, score) in variant_codes.items()
+        for variant in variants
     }
     
-    fig, axs = plt.subplots(1, len(variant_codes), figsize=(12, 3*len(variant_codes)))
-
-    # Iterate over the images and scores
-    for i, (variant, (score, image)) in enumerate(images.items()):
+    # Create count to see which variant is the best
+    variants_counts = {variant: 0 for variant in variants}
+    
+    for neurons, variant_codes in neurons_variant_codes.items():
+    
+        # Convert codes to images
+        images = {
+            variant: (score.tolist()[0], generators[variant](code)[0])
+            for variant, (code, score) in variant_codes.items()
+        }
         
-        ax = axs[i]
+        best_variant, best_score = variants[0], 0
+        
+        neuron_n = int(re.search(r"(\d+)=\[(\d+)\]", neurons).groups()[1]) # type: ignore
+        label    = inet[neuron_n].name
 
-        # Plot the image
-        img = image.detach().cpu().numpy().transpose(1, 2, 0)
-        ax.imshow(img)
+        fig, axs = plt.subplots(1, len(variant_codes), figsize=(12, 3*len(variant_codes)))
+        
+        # Add a common general title
+        fig.suptitle(label, fontsize=16)
+        
+        # Iterate over the images and scores
+        for i, (variant, (score, image)) in enumerate(images.items()):
+            
+            if score > best_score:
+                best_variant, best_score = variant, score
+            
+            ax = axs[i]
 
-        # Set the title as the score
-        ax.set_title(f"{variant} - score: {round(score, 3)}", fontsize=14)
+            # Plot the image
+            img = image.detach().cpu().numpy().transpose(1, 2, 0)
+            ax.imshow(img)
 
-        # Remove the axis ticks and labels
-        ax.axis('off')
+            # Set the title as the score
+            ax.set_title(f"{variant} - score: {round(score, 3)}", fontsize=14)
 
-    # Adjust the spacing between subplots
-    plt.tight_layout()
+            # Remove the axis ticks and labels
+            ax.axis('off')
+        
+        variants_counts[best_variant] += 1
+            
+        # Adjust the spacing between subplots
+        plt.tight_layout()
+        
+        # Save 
+        out_fp = path.join(out_dir, f'{neuron_n}_variant_stimuli.png')
+        
+        logger.info(f'Saving stimuli per variant plot to {out_fp}')
+        fig.savefig(out_fp, bbox_inches="tight")
     
-    # Save 
-    out_fp = path.join(out_dir, 'variant_stimuli.png')
+    # Create a barplot using variants_counts dictionary
     
-    logger.info(f'Saving stimuli per variant plot to {out_fp}')
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+    
+    custom_palette = sns.color_palette("husl", len(variants_counts))
+    
+    ax.bar(variants_counts.keys(), variants_counts.values(), color=custom_palette)
+    
+    ax.set_title('Best variant count per neuron')
+    
+    out_fp = path.join(out_dir, 'best_variant_count.png')
+    
+    logger.info(f'Saving best variant count plot to {out_fp}')
+    
     fig.savefig(out_fp, bbox_inches="tight")
+
+    

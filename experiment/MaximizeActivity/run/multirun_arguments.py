@@ -8,10 +8,10 @@ from zdream.utils.misc import copy_exec
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
-NAME = 'a'
+NAME = 'diopo'
 
-ITER     = 2
-SAMPLE   =  2
+ITER     =   2
+SAMPLE   =   2
 N_POINTS =  45
 
 # Layer : Neurons
@@ -26,8 +26,8 @@ LAYERS = [
 # VARIANTS = ['fc8', 'fc7', 'fc6', 'pool5', 'conv4', 'conv3', 'norm2', 'norm1'] 
 VARIANTS = ['fc8', 'fc7'] 
 
-SAMPLE_REC_LAYER = "21=[14]"
-SAMPLE_SCR_LAYER = "21=[]"
+VARIANT_LAYER = 21
+VARIANT_NEURONS = list(range(2))
 
 def neuron_scaling_args() -> Tuple[str, str, str]:
 
@@ -61,18 +61,20 @@ def layers_correlation_arg() -> Tuple[str, str, str]:
     return rec_layers_str, scr_layers_str, rand_seed_str
 
 
-def generator_variants() -> Tuple[str, str]:
+def generator_variants() -> Tuple[str, str, str]:
 
     args = [
-        ( f'{variant}', str(random.randint(1000, 1000000)) )
+        (f'{VARIANT_LAYER}=[{neuron}]', f'{variant}', str(random.randint(1000, 1000000)) )
+        for neuron in VARIANT_NEURONS
         for variant in VARIANTS
         for _ in range(SAMPLE)
     ]
     
-    variant_str    = '#'.join(a for a, _ in args)
-    rand_seed_str  = '#'.join(a for _, a in args)
+    rec_str        = '#'.join(a for a, _, _ in args)
+    variant_str    = '#'.join(a for _, a, _ in args)
+    rand_seed_str  = '#'.join(a for _, _, a in args)
     
-    return variant_str, rand_seed_str
+    return rec_str, variant_str, rand_seed_str
 
 
 if __name__ == '__main__':
@@ -112,22 +114,24 @@ if __name__ == '__main__':
             file = 'run_multiple_layer_correlation.py'
             
         case 3:
-                        
-            args = {
-                'rec_layers'  : SAMPLE_REC_LAYER,
-                'scr_layers'  : SAMPLE_SCR_LAYER,
-                'random_seed' : '#'.join(str(random.randint(1000, 1000000)) for _ in range(SAMPLE))
-            }
             
-            file = 'run_multiple_maximize_samples.py'
+            args = {}
+                        
+            # args = {
+            #     'rec_layers'  : SAMPLE_REC_LAYER,
+            #     'scr_layers'  : SAMPLE_SCR_LAYER,
+            #     'random_seed' : '#'.join(str(random.randint(1000, 1000000)) for _ in range(SAMPLE))
+            # }
+            # 
+            # file = 'run_multiple_maximize_samples.py'
             
         case 4:
             
-            variant_str, rnd_seed_str = generator_variants()
+            rec_layer_str, variant_str, rnd_seed_str = generator_variants()
             
             args = {
-                'rec_layers'  : SAMPLE_REC_LAYER,
-                'scr_layers'  : SAMPLE_SCR_LAYER,
+                'rec_layers'  : rec_layer_str,
+                'scr_layers'  : f'{VARIANT_LAYER}=[]',
                 'variant'     : variant_str,
                 'random_seed' : rnd_seed_str
             }

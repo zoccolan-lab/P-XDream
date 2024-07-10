@@ -551,7 +551,7 @@ class GeneratorVariantMultiExperiment(BaseZdreamMultiExperiment):
         self._data['desc'   ] = 'Best stimuli for each variant version of a generator' # TODO
         
         # Stores the best code and score for each variant
-        self._data['best_variant'] = dict()
+        self._data['best_variant'] = defaultdict(lambda: defaultdict(tuple))
 
     def _progress(
         self, 
@@ -563,18 +563,39 @@ class GeneratorVariantMultiExperiment(BaseZdreamMultiExperiment):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
         
-        code    = msg.best_code
-        score   = msg.stats_gen['best_score']
-        variant = str(conf[ExperimentArgParams.GenVariant.value])
+        code      = msg.best_code
+        score     = msg.stats_gen['best_score']
+        scr_layer = str(conf[ExperimentArgParams.RecordingLayers.value])
+        variant   = str(conf[ExperimentArgParams.GenVariant     .value])
         
-        if variant not in self._data['best_variant']:
-            self._data['best_variant'][variant] = (code, score)
+        # Check if new scoring layer
+        if scr_layer in self._data['best_variant']:
+            
+            # Check if new variant
+            if variant in self._data['best_variant'][scr_layer]:
+                
+                # Extract best score
+                _, best_score = self._data['best_variant'][scr_layer][variant]
+                
+                # Update if new best score
+                if score > best_score:
+                    self._data['best_variant'][scr_layer][variant] = (code, score)
+            
+            # If new variant
+            else:
+                self._data['best_variant'][scr_layer][variant] = (code, score)
+        
+        # If new scoring layer (and new variant)
         else:
-            _, best_score = self._data['best_variant'][variant]
-            if score > best_score:
-                self._data['best_variant'][variant] = (code, score)
+            self._data['best_variant'][scr_layer][variant] = (code, score)
+
 
     def _finish(self):
+        
+        self._data['best_variant'] = {
+            neuron: {variant: code_score for variant, code_score in scores.items()} 
+            for neuron, scores in self._data['best_variant'].items()
+        }
         
         super()._finish()
         
@@ -584,7 +605,7 @@ class GeneratorVariantMultiExperiment(BaseZdreamMultiExperiment):
         self._logger.formatting = lambda x: f'> {x}'
         
         save_best_stimulus_per_variant(
-            variant_codes=self._data['best_variant'],
+            neurons_variant_codes=self._data['best_variant'],
             gen_weights=self._search_config[0][ExperimentArgParams.GenWeights.value], # type: ignore - literal
             out_dir=plot_dir,
             logger=self._logger
