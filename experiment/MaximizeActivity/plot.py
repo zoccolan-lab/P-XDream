@@ -639,7 +639,9 @@ def save_stimuli_samples(
 
     # Generate image
     if(len(images_scores) <= n_col): n_col = len(images_scores)
-    n_row = len(images_scores) // n_col + 1
+    n_row = len(images_scores) // n_col
+    
+    if len(images_scores) % n_col != 0: nrow += 1
     
     fig, axs = plt.subplots(n_row, n_col, figsize=(12, 3*n_row))
 
