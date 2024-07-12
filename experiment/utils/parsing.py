@@ -98,6 +98,8 @@ def parse_recording(
           it requires as many range specifications as neuron dimension:
             Nr[A1_from:A1_to: A2_from:A2_to ...]
             
+        TODO add for adjacent random Nadjr
+            
     :param input_str: The input string to parse.
     :type input_str: str
     :param net_info: Dictionary mapping layer names to its target unit.
@@ -191,6 +193,26 @@ def parse_recording(
 
             except Exception as e:
                 raise SyntaxError(f'Invalid units specification in {units}: {e}.')
+            
+        # TODO add for adjacent random
+        elif is_random and 'radj' in units:
+            
+            try:
+
+                n_rand, _ = units.split('radj')
+                n_rand = int(n_rand)
+                
+                tot_neurons = np.prod(shape)
+                
+                start_rnd_adj = np.random.choice(a=tot_neurons - n_rand + 1)
+                
+                neurons = np.unravel_index(
+                    np.arange(start_rnd_adj, start_rnd_adj + n_rand),
+                    shape = shape
+                )
+                    
+            except Exception as e:
+                raise SyntaxError(f'Invalid random bounds specification in {units}: {e}.')
             
         # E) Random units from interval
         elif is_random and ':' in units:

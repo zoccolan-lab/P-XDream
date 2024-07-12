@@ -769,4 +769,4 @@ def save_best_stimulus_per_variant(
     
     fig.savefig(out_fp, bbox_inches="tight")
 
-    
+    plt.close()
