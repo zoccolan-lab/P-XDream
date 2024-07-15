@@ -1,8 +1,10 @@
 from copy import copy
+import itertools
 
-from sklearn.cluster import SpectralClustering
+from sklearn.cluster import SpectralClustering, DBSCAN
 from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
+
 import torch
 from zdream.clustering.cluster import Clusters
 from zdream.clustering.ds import DSCluster, DSClusters
@@ -16,7 +18,20 @@ from numpy.typing import NDArray
 
 
 from abc import ABC, abstractmethod
-from typing import Tuple, cast
+from typing import List, Tuple, cast
+
+def pca(data: NDArray, n_components: int | None, logger: Logger = SilentLogger()):
+    
+    # Perform PCA
+    if n_components is None: return data
+        
+    logger.info(f'Performing PCA up to {n_components} components.')
+    
+    pca = PCA(n_components=n_components)
+    pca.fit(data)
+    data_new = pca.transform(data)
+    
+    return data_new
 
 class ClusteringAlgorithm(ABC):
     '''
@@ -28,16 +43,28 @@ class ClusteringAlgorithm(ABC):
         Create a new instance of ClusteringAlgorithm.
         '''
         
+        self._run_flag  = False
         self._clusters = Clusters()
+        
+    def __str__ (self) -> str : return f'ClusteringAlgorithm[]'
+    def __repr__(self) -> str : return str(self)
+    def __bool__(self) -> bool: return self._run_flag
+        
+    def run(self) -> Clusters:
+        '''
+        Run the clustering algorithm and return the clusters found.
+        The method saves the clusters in the internal state to avoid recomputation.
+        '''
+        
+        self._clusters = self._run()
+        self._run_flag = True
+        
+        return self.clusters
 
     @abstractmethod
-    def run(self):
-        '''
-        Run the clustering algorithm.
-        Result are supposed to be saved in the _clusters attribute.
-        '''
+    def _run(self) -> Clusters: pass
+    ''' Run the clustering algorithm. '''
 
-        pass
     
     @property
     def clusters(self) -> Clusters:
@@ -46,12 +73,12 @@ class ClusteringAlgorithm(ABC):
         It raises an error if not computed yet.
         '''
 
-        if self._clusters:
-            return self._clusters
+        if self: return self._clusters
 
         raise ValueError('Cluster not computed yet')
 
-class GMMClusteringAlgorithm(ClusteringAlgorithm):
+
+class GaussianMixtureModelsClusteringAlgorithm(ClusteringAlgorithm):
     '''
     Class for performing Gaussian Mixture Model clustering
     by performing PCA and clustering on the reduced space.
@@ -72,33 +99,30 @@ class GMMClusteringAlgorithm(ClusteringAlgorithm):
         self._n_components = n_components
         self._logger       = logger
     
-    def __str__(self): 
+    def __str__(self) -> str:         
         
-        return  f'GMMClustering[n-clusters: {len(self._clusters)}, '\
+        return  f'GaussianMixtureModels{super().__str__()[:-1]}n-clusters: {len(self._clusters)}; '\
                 f'n-components: {self._n_components if self._n_components else "All"}]'
 
-    def run(self):
+    def _run(self) -> Clusters:
         
         # Perform PCA
-        if self._n_components is None:
-            data = self._data
-            
-        else: 
-            self._logger.info(f'Performing PCA up to {self._n_components} components.')
-            pca = PCA(n_components=self._n_components)
-            pca.fit(self._data)
-            data = pca.transform(self._data)
+        data = pca(data=self._data, n_components=self._n_components, logger=self._logger)
         
         # Perform GMM clustering
         self._logger.info(f'Performing GMM clustering with {self._n_clusters} clusters')
+        
         gmm = GaussianMixture(n_components=self._n_clusters)
         labels = gmm.fit_predict(data)
         
         # Create clusters
-        self._clusters = Clusters.from_labeling(labeling=labels)
+        clusters = Clusters.from_labeling(labeling=labels)
+        setattr(clusters, "NAME", "GMMClusters")
+        
+        return clusters
         
 
-class NCClusteringAlgorithm(ClusteringAlgorithm):
+class NormalizedCutClusteringAlgorithm(ClusteringAlgorithm):
     '''
     Class performing normalized cuts clustering on an affinity matrix.
     '''
@@ -116,11 +140,10 @@ class NCClusteringAlgorithm(ClusteringAlgorithm):
         self._n_clusters = n_clusters
         self._logger     = logger
     
-    def __str__(self):
+    def __str__(self) -> str: return f'NormalizedCut{super().__str__()[:-1]}n-clusters: {len(self._clusters)}]'
         
-        return  f'NCClustering[n-clusters: {len(self._clusters)}]'
+    def _run(self) -> Clusters:
         
-    def run(self):
         self._logger.info(f'Performing Normalized Cuts clustering with {self._n_clusters} clusters')
         
         # Perform spectral clustering
@@ -128,10 +151,101 @@ class NCClusteringAlgorithm(ClusteringAlgorithm):
         labels   = spectral.fit_predict(self._aff_mat.A)
 
         # Create clusters
-        self._clusters = Clusters.from_labeling(labeling=labels)
+        clusters = Clusters.from_labeling(labeling=labels)
+        setattr(clusters, "NAME", "NCClusters")
+        
+        return clusters        
+
+class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
+    '''
+    Class performing normalized cuts clustering on an affinity matrix.
+    '''
+    
+    def __init__(
+        self,
+        data         : NDArray,
+        eps          : float,
+        min_samples  : int,
+        n_components : int | None = None,
+        logger       : Logger     = SilentLogger()
+    ) -> None:
+        
+        super().__init__()
+        
+        self._data         = data
+        self._eps          = eps
+        self._min_samples  = min_samples
+        self._n_components = n_components
+        self._logger       = logger
+    
+    def __str__(self) -> str: return    f'DBSCAN{super().__str__()[:-1]}eps: {self._eps}; '\
+                                        f'min_samples: {self._min_samples}; '\
+                                        f'n-components: {self._n_components if self._n_components else "All"}]'
+        
+    def _run(self) -> Clusters:
+        
+        # Perform PCA
+        data = pca(data=self._data, n_components=self._n_components, logger=self._logger)
+        
+        self._logger.info(f'Performing DBSCAN clustering with parameters: eps={self._eps}, min_samples={self._min_samples}')
+        
+        # Perform spectral clustering
+        dbscan_algo = DBSCAN(eps=self._eps, min_samples=self._min_samples, metric='euclidean', n_jobs=-1)
+        dbscan_algo.fit(data)
+        labels = dbscan_algo.labels_.astype(int)
+
+        # Create clusters
+        clusters = Clusters.from_labeling(labeling=labels)
+        setattr(clusters, "NAME", "DBSCANClusters")
+        
+        return clusters
+    
+    @classmethod
+    def grid_search(
+            cls, 
+            data         : NDArray, 
+            eps          : List[float], 
+            min_samples  : List[int],
+            n_components : int | None = None,
+            logger       : Logger = SilentLogger()
+    ) -> 'DBSCANClusteringAlgorithm':
+        
+        data_pca = pca(data=data, n_components=n_components, logger=logger)
+
+        tpl = list(itertools.product(eps, min_samples))
+        
+        if len(tpl) == 0: raise ValueError('Empty grid search parameters')
+        
+        logger.formatting = lambda x: f' > {x}'
+        
+        best_silhouette = -1
+        best_tpl = (-1., -1)
+        
+        logger.info('Performing DBSCAN grid search')
+        
+        for eps_, min_samples_ in tpl:
+            
+            algo = cls(data=data_pca, eps=eps_, min_samples=min_samples_, logger=logger)
+            algo.run()
+            
+            sil = algo.clusters.silhouette_score(data=data_pca)
+            
+            logger.info(f' > Silhouette coefficient={sil}')
+            
+            if sil > best_silhouette:
+                best_silhouette = sil
+                best_tpl = (eps_, min_samples_)
+
+        logger.reset_formatting()
+        
+        best_esp, best_min_samples = best_tpl
+        
+        logger.info(f'Selected clustering algorithm with eps={best_esp}, min_samples={best_min_samples}.')
+        
+        return DBSCANClusteringAlgorithm(data=data, eps=best_esp, min_samples=best_min_samples, n_components=n_components, logger=logger)
 
 
-class DSClusteringAlgorithm(ClusteringAlgorithm):
+class DominantSetClusteringAlgorithm(ClusteringAlgorithm):
     '''
     Abstract class for performing generic DominantSet clustering
     using an affinity matrix.
@@ -176,7 +290,7 @@ class DSClusteringAlgorithm(ClusteringAlgorithm):
         self._clusters = DSClusters()  # Use DSClusters to store clusters
 
         # Affinity Matrix
-        self._aff_mat = aff_mat
+        self._aff_mat      = aff_mat
 
         # Clustering hyperparameters
         self._min_elements = min_elements
@@ -190,10 +304,10 @@ class DSClusteringAlgorithm(ClusteringAlgorithm):
     # --- STRING REPRESENTATION ---
 
     def __str__(self) -> str:
-        return  f'DSClustering[objects: {len(self._aff_mat)}; '\
-                f'min_elements: {self._min_elements}]'
-
-    def __repr__(self) -> str: return str(self)
+        return  f'DominantSet{super().__str__()[:-1]}max_iter: {self._max_iter}; '\
+                f'min_elements: {self._min_elements}; '\
+                f'delta_eps: {self._delta_eps}; '\
+                f'zero_eps: {self._zero_eps}]'
 
     # --- CLUSTERING ALGORITHM ---
 
@@ -283,16 +397,20 @@ class DSClusteringAlgorithm(ClusteringAlgorithm):
 
         return cast(DSClusters, super().clusters)
 
-    @abstractmethod
-    def run(self):
+    def _run(self):
         '''
         Run DS clustering algorithm with specified class hyper-parameters
         '''
+        
+        err_msg = """
+            The basic Dominant Set class is used to provide a common interface for replicator dynamics and hyperparameters tuning.
+            The specific clustering algorithm should implement the run method in subclasses.
+        """
 
-        pass
+        raise NotImplementedError(err_msg)
 
 
-class BaseDSClustering(DSClusteringAlgorithm):
+class BaseDSClustering(DominantSetClusteringAlgorithm):
 
     def __init__(
         self,
@@ -310,8 +428,8 @@ class BaseDSClustering(DSClusteringAlgorithm):
         self,
         aff_mat   : AffinityMatrix,
         x         : NDArray | None = None, # type: ignore
-        max_iter  : int = 1000,
-        delta_eps : float = 1e-8,
+        max_iter  : int            = 1000,
+        delta_eps : float          = 1e-8,
     ) -> Tuple[NDArray, np.float32, bool]:
 
         # NOTE: The best-practice solution should be to implement a STUB
@@ -382,22 +500,20 @@ class BaseDSClustering(DSClusteringAlgorithm):
 
         return x, w, converged
 
-    def run(self):
+    def _run(self) -> DSClusters:
 
         # NOTE: The matrix is subject to subsetting during the
         #       clustering algorithm so we use a copy to prevent
         #       the original one from modifications
         aff_mat = copy(self._aff_mat)
 
-        # NOTE: If the algorithm was already run, 
-        #       all previous results are lost.
-        self._clusters.empty()
+        clusters = DSClusters()
 
         # Repeat until affinity matrix has positive sum of similarities
 
         iter = 1  # only used for logging
 
-        while np.sum(aff_mat.A) > 0:
+        while aff_mat:
             
             info = f'Running clustering step {iter}. Elements to cluster: {len(aff_mat)}'
             self._logger.info(mess=info)
@@ -425,7 +541,7 @@ class BaseDSClustering(DSClusteringAlgorithm):
 
             # Add the cluster if it satisfies the minimum element constraint
             if len(ds_cluster) >= self._min_elements:
-                self._clusters.add(cluster=ds_cluster)
+                clusters.add(cluster=ds_cluster)
 
             # Warn if the extracted cluster was not added because of minimum
             # element constraint
@@ -443,11 +559,15 @@ class BaseDSClustering(DSClusteringAlgorithm):
         # Add all remaining objects as singleton clusters
         if self._min_elements == 1:
             for singleton in DSCluster.extract_singletons(aff_mat=aff_mat):
-                self._clusters.add(cluster=singleton)
+                clusters.add(cluster=singleton)
         else:
             wrn_msg = f'Excluding from the clustering {len(aff_mat)} singleton_elements'
             self._logger.warn(wrn_msg)
-            
+        
+        setattr(clusters, "NAME", "DSClusters")
+
+        return clusters
+
 class BaseDSClusteringGPU(BaseDSClustering):
     '''
     Perform Dominant Set clustering using GPU acceleration.
@@ -528,7 +648,7 @@ class BaseDSClusteringGPU(BaseDSClustering):
 
         return x_ten.cpu().numpy(), w.cpu().numpy(), converged
 
-class HierarchicalDSClustering(DSClusteringAlgorithm):
+class HierarchicalDSClustering(DominantSetClusteringAlgorithm):
     
     def __init__(
         self, 

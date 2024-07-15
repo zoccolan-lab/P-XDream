@@ -46,6 +46,8 @@ class ExperimentArgParams(Enum):
     UseGPU             = ArgParam(name="gpu",                type=bool,  help="If to use GPU for clustering")
     NComponents        = ArgParam(name="n_components",       type=int,   help="Number of components to use for GMM clustering")
     NClusters          = ArgParam(name="n_clusters",         type=int,   help="Number of clusters to find for GMM and NC clustering")
+    Epsilon            = ArgParam(name="eps",                type=str,   help="Values of eps for DBSCAN clustering separated by a space")
+    MinSamples         = ArgParam(name="min_samples",        type=str,   help="Values of min samples for DBSCAN clustering separated by a space")
     
     # Recording
     ImageIds           = ArgParam(name="image_ids",          type=str,   help="Image indexes for recording separated by a comma")

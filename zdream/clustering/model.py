@@ -64,14 +64,15 @@ class AffinityMatrix:
             raise ValueError(err_msg)
 
         # Save matrix and labels
-        self._A: NDArray = A
+        self._A      : NDArray = A
         self._labels : Labels  = default(labels, np.array(list(range(len(self)))))
 
     # --- MAGIC METHODS ---
 
-    def __len__ (self) -> int: return self.shape[0]
-    def __str__ (self) -> str: return f'AffinityMatrix[objects: {len(self)}]'
-    def __repr__(self) -> str: return str(self)
+    def __len__ (self) -> int:  return self.shape[0]
+    def __str__ (self) -> str:  return f'AffinityMatrix[objects: {len(self)}]'
+    def __repr__(self) -> str:  return str(self)
+    def __bool__(self) -> bool: return np.sum(self.A) > 0
 
     def __copy__(self) -> 'AffinityMatrix':
         return AffinityMatrix(
@@ -82,17 +83,15 @@ class AffinityMatrix:
     # --- PROPERTIES ---
 
     @property
-    def A(self) -> NDArray: return self._A
+    def A(self)              -> NDArray         : return self._A
 
     @property
-    def labels(self) -> Labels: return self._labels
+    def labels(self)         -> Labels          : return self._labels
 
     @property
-    def shape(self) -> Tuple[int, ...]: return self.A.shape
-    
-    @property
-    def max_eigenvalue(self) -> float: return float(np.max(np.linalg.eigvals(self.A))
-)
+    def shape(self)          -> Tuple[int, ...] : return self.A.shape
+
+
     # --- UTILITIES ---
 
     def delete_objects(self, ids: NDArray[np.int32], inplace: bool = False) -> AffinityMatrix | None:
