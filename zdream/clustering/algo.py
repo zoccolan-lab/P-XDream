@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, cast
+from typing import List, Tuple, Union, cast
 
 def pca(data: NDArray, n_components: int | None, logger: Logger = SilentLogger()):
     
@@ -117,7 +117,7 @@ class GaussianMixtureModelsClusteringAlgorithm(ClusteringAlgorithm):
         
         # Create clusters
         clusters = Clusters.from_labeling(labeling=labels)
-        setattr(clusters, "NAME", "GMMClusters")
+        setattr(clusters, "NAME", "GaussianMixtureClusters")
         
         return clusters
         
@@ -152,7 +152,7 @@ class NormalizedCutClusteringAlgorithm(ClusteringAlgorithm):
 
         # Create clusters
         clusters = Clusters.from_labeling(labeling=labels)
-        setattr(clusters, "NAME", "NCClusters")
+        setattr(clusters, "NAME", "NormalizedCutClusters")
         
         return clusters        
 
@@ -206,9 +206,10 @@ class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
             data         : NDArray, 
             eps          : List[float], 
             min_samples  : List[int],
+            len_target   : int | None = None,
             n_components : int | None = None,
             logger       : Logger = SilentLogger()
-    ) -> 'DBSCANClusteringAlgorithm':
+    ) -> Tuple['DBSCANClusteringAlgorithm', Union['DBSCANClusteringAlgorithm', None]]:
         
         data_pca = pca(data=data, n_components=n_components, logger=logger)
 
@@ -221,6 +222,10 @@ class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
         best_silhouette = -1
         best_tpl = (-1., -1)
         
+        if len_target is not None:
+            best_len = float('inf')
+            best_tpl2 = (-1., -1)
+        
         logger.info('Performing DBSCAN grid search')
         
         for eps_, min_samples_ in tpl:
@@ -229,20 +234,36 @@ class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
             algo.run()
             
             sil = algo.clusters.silhouette_score(data=data_pca)
-            
+                
             logger.info(f' > Silhouette coefficient={sil}')
             
             if sil > best_silhouette:
                 best_silhouette = sil
                 best_tpl = (eps_, min_samples_)
+            
+            if len_target is not None:
+                
+                clu_dist = abs(len(algo.clusters) - len_target)
+                
+                logger.info(f' > Cluster found={len(algo.clusters)}')
+                
+                if clu_dist < best_len:
+                    best_len = clu_dist
+                    best_tpl2 = (eps_, min_samples_)
+                
 
         logger.reset_formatting()
         
-        best_esp, best_min_samples = best_tpl
+        best_esp,  best_min_samples  = best_tpl
         
-        logger.info(f'Selected clustering algorithm with eps={best_esp}, min_samples={best_min_samples}.')
+        logger.info(f'Selected clustering algorithm with eps={best_esp}, min_samples={best_min_samples} with silhouette coeff {best_silhouette}.')
         
-        return DBSCANClusteringAlgorithm(data=data, eps=best_esp, min_samples=best_min_samples, n_components=n_components, logger=logger)
+        if len_target is not None:
+            best_esp2, best_min_samples2 = best_tpl2
+            logger.info(f'Selected clustering algorithm with eps={best_esp2}, min_samples={best_min_samples2} with cluster size {abs(best_len - len_target)}.')
+        
+        return DBSCANClusteringAlgorithm(data=data, eps=best_esp,  min_samples=best_min_samples,  n_components=n_components, logger=logger),\
+               DBSCANClusteringAlgorithm(data=data, eps=best_esp2, min_samples=best_min_samples2, n_components=n_components, logger=logger) if len_target is not None else None
 
 
 class DominantSetClusteringAlgorithm(ClusteringAlgorithm):
@@ -564,7 +585,7 @@ class BaseDSClustering(DominantSetClusteringAlgorithm):
             wrn_msg = f'Excluding from the clustering {len(aff_mat)} singleton_elements'
             self._logger.warn(wrn_msg)
         
-        setattr(clusters, "NAME", "DSClusters")
+        setattr(clusters, "NAME", "DominantSetClusters")
 
         return clusters
 

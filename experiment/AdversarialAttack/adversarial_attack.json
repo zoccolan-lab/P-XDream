@@ -1,23 +1,17 @@
 {
     "config": "",
     "generator": {
-        "weights": "",
-        "mini_inet": "",
-        "batch_size": 2,
+        "weights": "", "mini_inet": "", "batch_size": 2,
         "variant": "fc8"
     },
     "mask_generator": {
-        "template": "T",
-        "shuffle": false
+        "template": "T", "shuffle": false
     },
     "subject": {
-        "net_name": "alexnet",
-        "rec_layers": "0=[], 21=[10 11]"
+        "net_name": "alexnet", "rec_layers": "0=[], 21=[10 11]"
     },
     "scorer": {
-        "scr_layers": "0=[], 21=[]",
-        "metric": "euclidean",
-        "signature": "0=2, 21=-1"
+        "scr_layers": "0=[], 21=[]", "metric": "euclidean", "signature": "0=2, 21=-1"
     },
     "optimizer": {
         "pop_size": 20,
@@ -28,9 +22,7 @@
         "rnd_distr": "normal"
     },
     "logger": {
-        "out_dir": "",
-        "name": "experiment",
-        "version": 0
+        "out_dir": "", "name": "experiment", "version": 0
     },
     "iter": 100,
     "display_plots": false,

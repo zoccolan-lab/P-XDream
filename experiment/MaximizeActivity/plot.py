@@ -10,7 +10,8 @@ from pandas import DataFrame
 from matplotlib import cm, pyplot as plt
 from matplotlib.axes import Axes
 
-from analysis.utils.settings import FILE_NAMES, WORDNET_DIR
+from analysis.utils.misc import load_imagenet, load_wordnet
+from analysis.utils.settings import WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 from zdream.generator import DeePSiMGenerator, DeePSiMVariant, Generator, DeePSiMVariant
 from zdream.utils.misc import default
@@ -531,7 +532,7 @@ def plot_optimizing_units(
 
     for log_scale in [True, False]:
 
-        fig, ax = plt.subplots(1)
+        fig, ax = plt.subplots(1, figsize=(20, 10))
         
         for idx, (layer_name, neuron_scores) in enumerate(data.items()):
 
@@ -544,7 +545,7 @@ def plot_optimizing_units(
             color = custom_palette[idx]
 
             # Plot line
-            ax.plot(xs, y_means, label=layer_name, color=color)
+            ax.plot(xs, y_means, label=layer_name, color=color, linestyle='--')
 
             ax.errorbar(xs, y_means, yerr=y_sem, color=color)
 
@@ -557,7 +558,7 @@ def plot_optimizing_units(
         if log_scale: ax.set_xscale('log')
         
         # Save or display  
-        out_fp = path.join(out_dir, f'neurons_optimization_{"logscale" if log_scale else "natscale" }.png')
+        out_fp = path.join(out_dir, f'neurons_optimization_{"logscale" if log_scale else "natscale" }.svg')
         logger.info(f'Saving score histogram plot to {out_fp}')
         fig.savefig(out_fp)
         
@@ -617,7 +618,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
     #customize_axes_bounds(ax)
     # Save or display  
     if out_dir:
-        fn = f'multiexp_{y_var}.png'
+        fn = f'multiexp_{y_var}.svg'
         out_fp = path.join(out_dir, fn)
         logger.info(f'Saving {fn} to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
@@ -685,17 +686,7 @@ def save_best_stimulus_per_variant(
     variants = list(list(neurons_variant_codes.values())[0].keys())
     
     # Load imagenet labels
-    wordnet = WordNet.from_precomputed(
-        wordnet_fp        = path.join(WORDNET_DIR, FILE_NAMES['words']),
-        hierarchy_fp      = path.join(WORDNET_DIR, FILE_NAMES['hierarchy']),
-        words_precomputed = path.join(WORDNET_DIR, FILE_NAMES['words_precomputed']),
-        logger=logger
-    )
-    
-    inet = ImageNetWords(
-        imagenet_fp=path.join(WORDNET_DIR, FILE_NAMES['imagenet']), 
-        wordnet=wordnet
-    )
+    inet, _ = load_imagenet(logger=logger)
     
     # Load each generator per variant
     generators = {
@@ -719,10 +710,10 @@ def save_best_stimulus_per_variant(
         neuron_n = int(re.search(r"(\d+)=\[(\d+)\]", neurons).groups()[1]) # type: ignore
         label    = inet[neuron_n].name
 
-        fig, axs = plt.subplots(1, len(variant_codes), figsize=(12, 3*len(variant_codes)))
+        fig, axs = plt.subplots(1, len(variant_codes), figsize=(18, 3*len(variant_codes)))
         
         # Add a common general title
-        fig.suptitle(label, fontsize=16)
+        fig.suptitle(label, fontsize=18)
         
         # Iterate over the images and scores
         for i, (variant, (score, image)) in enumerate(images.items()):
@@ -737,7 +728,7 @@ def save_best_stimulus_per_variant(
             ax.imshow(img)
 
             # Set the title as the score
-            ax.set_title(f"{variant} - score: {round(score, 3)}", fontsize=14)
+            ax.set_title(f"{variant} - score: {round(score, 3)}", fontsize=16)
 
             # Remove the axis ticks and labels
             ax.axis('off')
@@ -752,6 +743,9 @@ def save_best_stimulus_per_variant(
         
         logger.info(f'Saving stimuli per variant plot to {out_fp}')
         fig.savefig(out_fp, bbox_inches="tight")
+        
+        plt.close()
+        
     
     # Create a barplot using variants_counts dictionary
     
@@ -768,5 +762,3 @@ def save_best_stimulus_per_variant(
     logger.info(f'Saving best variant count plot to {out_fp}')
     
     fig.savefig(out_fp, bbox_inches="tight")
-
-    plt.close()

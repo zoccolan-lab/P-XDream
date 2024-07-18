@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from typing import Any, Counter, Dict, Iterable, List
+from typing import Any, Callable, Counter, Dict, Iterable, List
 
 import numpy as np
 from numpy.typing import NDArray
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, rand_score, silhouette_score
 
 from zdream.clustering.model import Label, Labels
 from zdream.utils.io_ import read_json, save_json
@@ -14,6 +14,8 @@ from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.types import ScoringUnit
 from typing import List
 import random
+from numpy.typing import ArrayLike
+
 
 class Cluster:
     ''' 
@@ -233,7 +235,10 @@ class Clusters:
         
         elements_ids = list(range(elements))
         
-        return cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        clusters = cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        setattr(clusters, 'NAME', 'AdjacentClusters')
+        
+        return clusters
     
     @classmethod
     def random_clusters(
@@ -255,13 +260,26 @@ class Clusters:
         elements_ids = list(range(elements))
         random.shuffle(elements_ids)
         
-        return cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        clusters = cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        setattr(clusters, 'NAME', 'RandomClusters')
+        
+        return clusters
     
     @classmethod
-    def singleton_clusters (cls, elements: int) -> Clusters: return cls.adjacent_clusters(n_clu=elements, elements=elements)
+    def singleton_clusters(cls, elements: int) -> Clusters: 
+        
+        clusters = cls.adjacent_clusters(n_clu=elements, elements=elements)
+        setattr(clusters, 'NAME', 'SingletonClusters')
+        
+        return clusters
     
     @classmethod
-    def degenerate_clusters(cls, elements: int) -> Clusters: return cls.adjacent_clusters(n_clu=1,        elements=elements)
+    def degenerate_clusters(cls, elements: int) -> Clusters: 
+    
+        clusters =cls.adjacent_clusters(n_clu=1, elements=elements)
+        setattr(clusters, 'NAME', 'DegenerateClusters')
+        
+        return clusters
     
     # --- MAGIC METHODS ---   
 
@@ -370,3 +388,26 @@ class Clusters:
         logger.info(f'Saving clusters info to {fp}')
         
         save_json(data=self.info, path=fp)
+    
+    @staticmethod
+    def _metric_comparison(cl1: Clusters, cl2: Clusters, metric: Callable[[ArrayLike, ArrayLike], float]) -> float:
+        '''
+        Compute the metric score between two clusterings.
+        '''
+        
+        return float(metric(cl1.labeling, cl2.labeling))
+        
+    
+    @staticmethod
+    def clusters_rand_score(cl1: Clusters, cl2: Clusters) -> float: 
+        return Clusters._metric_comparison(cl1, cl2, rand_score)  # type: ignore
+    
+    @staticmethod
+    def clusters_adjusted_rand_score(cl1: Clusters, cl2: Clusters) -> float: 
+        return Clusters._metric_comparison(cl1, cl2, adjusted_rand_score)  # type: ignore
+    
+    @staticmethod
+    def clusters_normalized_mutual_info_score(cl1: Clusters, cl2: Clusters) -> float: 
+        return Clusters._metric_comparison(cl1, cl2, normalized_mutual_info_score)  # type: ignore
+        
+

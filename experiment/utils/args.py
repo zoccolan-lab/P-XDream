@@ -35,7 +35,7 @@ class ExperimentArgParams(Enum):
     
     # Clustering
     ClusterDir         = ArgParam(name="clu_dir",            type=str,   help="Path to clustering directory")
-    ClusterAlgo        = ArgParam(name="clu_algo",           type=str,   help="Name for clustering type {`gmm`, `nc`, `ds`}")
+    ClusterAlgo        = ArgParam(name="clu_algo",           type=str,   help="Name for clustering type {`gmm`, `nc`, `ds`, `adj`, `rand`, `fm`}")
     MaxIterations      = ArgParam(name="max_iter",           type=int,   help="Maximum number of iterations")
     MinElements        = ArgParam(name="min_elements",       type=int,   help="Minimum cluster cardinality")
     ClusterIdx         = ArgParam(name="cluster_idx",        type=int,   help="Cluster index to optimize for")

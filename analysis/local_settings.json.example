@@ -1,5 +1,7 @@
 {
-    "out_dir"     : "/path/to/your/output/directory",
-    "wordnet_dir" : "/path/to/your/wordnet/directory",
-    "cluster_dir" : "/path/to/your/cluster/directory"
+    "out_dir"                  : "/path/to/your/output/directory",
+    "wordnet_dir"              : "/path/to/your/wordnet/directory",
+    "cluster_dir"              : "/path/to/your/cluster/directory"
+    "neuron_scaling_file"      : "path/to/neuron_scaling_pickle_data",
+    "neuron_scaling_functions" : "path/to/neuron_scaling_pickle_fitted_functions"
 }

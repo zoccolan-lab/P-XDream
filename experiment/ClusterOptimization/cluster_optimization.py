@@ -51,7 +51,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     @classmethod
     def _from_config(cls, conf : ParamConfig) -> 'ClusteringOptimizationExperiment':
 
-        
         # Clustering 
         PARAM_clu_dir        = str  (conf[ExperimentArgParams.ClusterDir    .value])
         PARAM_clu_algo       = str  (conf[ExperimentArgParams.ClusterAlgo   .value])
@@ -105,7 +104,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         nat_img_loader = NaturalStimuliLoader(
             dataset=dataset,
             template=template,
-            shuffle=PARAM_shuffle
+            shuffle=PARAM_shuffle,
+            batch_size=PARAM_batch_size,
         )
         
         # --- GENERATOR ---
@@ -155,20 +155,19 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 ds = True
                 clusters: Clusters | DSClusters = DSClusters.from_file(fp=clu_fp)
                 
-            case 'gmm' | 'nc' | 'adj' | 'rand':
+            case 'gmm' | 'nc' | 'adj' | 'rand' | 'fm':
                 
                 ds = False
                 clusters: Clusters | DSClusters = Clusters.from_file(fp=clu_fp)
             
             case _:
                 
-                raise ValueError(f'Invalid clustering type: {clu_type}. Choose one between `ds`, `gmm`, `nc`', '`adj`, `rand`')
+                raise ValueError(f'Invalid clustering type: {clu_type}. Choose one between `ds`, `gmm`, `nc`', '`adj`, `rand`, `fm`')
         
         cluster = clusters[PARAM_clu_idx]
 
-        # Choose random units depending on their random type
+        tot_clu = len(cluster)           # tot number of clusters
         tot_obj = clusters.obj_tot_count # tot number of objects
-        clu_obj = len(cluster)           # cluster object count
         
         # Dictionary indicating groups of activations to store
         # mapping key name to neurons indexes
@@ -195,19 +194,10 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 scoring_units = cluster.scoring_units
 
                 # Get units mapping for the weighted sum
-                if ds: 
-                
-                    units_mapping: UnitsMapping = partial(
-                        cluster.units_mapping,
-                        weighted=PARAM_weighted_score
-                    )
-                    
-                else:
-                    
-                    units_mapping: UnitsMapping = partial(
-                        cluster.units_mapping
-                    )
+                if ds : units_mapping: UnitsMapping = partial(cluster.units_mapping, weighted=PARAM_weighted_score)
+                else  : units_mapping: UnitsMapping = partial(cluster.units_mapping)
 
+                # Set units reduction to sum since the units mapping requires a weighted sum
                 units_reduction = 'sum'
                 
                 # Take at random other units outside the cluster with the same cardinality
@@ -225,15 +215,15 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 
                 scoring_units = list(np.random.choice(
                     np.arange(0, tot_obj), 
-                    size=clu_obj, 
+                    size=tot_clu, 
                     replace=False
                 ))
             
             # 3) Random adjacent - use continuos random units with the same dimensionality of the cluster
             case 'random_adj':
 
-                start= np.random.randint(0, tot_obj - clu_obj + 1)
-                scoring_units = list(range(start, start + clu_obj))
+                start= np.random.randint(0, tot_obj - tot_clu + 1)
+                scoring_units = list(range(start, start + tot_clu))
                 
             # 4) Scoring only subset of the cluster
             case 'subset' | 'subset_top' | 'subset_bot' | 'subset_rand':
@@ -263,8 +253,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 match scr_type:
                     
                     case 'subset'     : clu_opt_idx = [clu_idx[opt_unit-1] for opt_unit in opt_units]             # Use specified list of index (off-by-one)
-                    case 'subset_top' : clu_opt_idx = clu_idx[:opt_units_]                                        # Use top-k units
-                    case 'subset_bot' : clu_opt_idx = clu_idx[(-1*opt_units_):]                                   # Use bot-k units
+                    case 'subset_top' : clu_opt_idx = clu_idx[:opt_units_ ]                                       # Use top-k units
+                    case 'subset_bot' : clu_opt_idx = clu_idx[-opt_units_:] # type: ignore                        # Use bot-k units
                     case 'subset_rand': clu_opt_idx = list(np.random.choice(clu_idx, opt_units_, replace=False))  # Sample k units at random
                 
                 # Retrieve the non scoring units
