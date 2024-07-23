@@ -3,7 +3,7 @@ import os
 from os import path
 from collections import defaultdict
 from functools import partial
-from typing import Any, Dict, List, Tuple, Type, cast
+from typing import Any, Dict, List, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,14 +11,14 @@ import torch
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
-from experiment.ClusterOptimization.plot import plot_activations, plot_cluster_best_stimuli, plot_cluster_target, plot_scr, plot_subsetting_optimization, plot_weighted
+from experiment.ClusterOptimization.plot import plot_activations, plot_cluster_units_beststimuli, plot_ds_weigthed_score
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string
 from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
 from experiment.utils.settings import FILE_NAMES
 from zdream.clustering.cluster import Clusters
 from zdream.clustering.ds import DSClusters
-from zdream.experiment import ZdreamExperiment, MultiExperiment
+from zdream.experiment import ZdreamExperiment
 from zdream.generator import Generator, DeePSiMGenerator
 from zdream.optimizer import CMAESOptimizer, Optimizer
 from zdream.scorer import ActivityScorer, Scorer
@@ -58,7 +58,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         PARAM_weighted_score = bool (conf[ExperimentArgParams.WeightedScore .value])
         PARAM_scr_type       = str  (conf[ExperimentArgParams.ScoringType   .value])
         PARAM_optim_units    = str  (conf[ExperimentArgParams.OptimUnits    .value])
-        PARAM_clu_layer      = str  (conf[ExperimentArgParams.ClusterLayer  .value])
+        PARAM_clu_layer      = int  (conf[ExperimentArgParams.ClusterLayer  .value])
         
         # Generator
         PARAM_gen_weights    = str  (conf[ExperimentArgParams.GenWeights    .value])
@@ -155,7 +155,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 ds = True
                 clusters: Clusters | DSClusters = DSClusters.from_file(fp=clu_fp)
                 
-            case 'gmm' | 'nc' | 'adj' | 'rand' | 'fm':
+            case 'gmm' | 'nc' | 'adj' | 'dbscan' | 'true' | 'rand' | 'fm':
                 
                 ds = False
                 clusters: Clusters | DSClusters = Clusters.from_file(fp=clu_fp)
@@ -206,8 +206,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 external_idx    = list(np.random.choice(non_cluster_idx, len(cluster_idx), replace=False))
                 
                 activations_idx = {
-                    'cluster' : cluster_idx,
-                    'external': external_idx
+                    #'cluster' : cluster_idx,
+                    #'external': external_idx
                 }
 
             # 2) Random - use scattered random units with the same dimensionality of the cluster
@@ -297,14 +297,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             pop_size     = PARAM_pop_size,
             sigma0       = PARAM_sigma_0
         )
-        
-        # optim = GeneticOptimizer(
-        #     codes_shape  = generator.input_dim,
-        #     rnd_seed     =     conf[str(Args.RandomSeed)],
-        #     rnd_distr    = opt_conf[str(Args.RandomDistr)],
-        #     rnd_scale    = opt_conf[str(Args.RandomScale)],
-        #     pop_size     = opt_conf[str(Args.PopulationSize)]   
-        # )
 
         #  --- LOGGER --- 
 
@@ -385,10 +377,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         )
 
         # Extract from Data
-        self._render         = cast(bool, data['render'])
-        self._close_screen   = cast(bool, data['close_screen'])
-        self._use_nat        = cast(bool, data['use_nat'])
-        
+        self._render         = cast(bool,                   data['render'])
+        self._close_screen   = cast(bool,                   data['close_screen'])
+        self._use_nat        = cast(bool,                   data['use_nat'])
         self._activation_idx = cast(Dict[str, ScoringUnit], data['activation_idx'])
 
     def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
@@ -398,22 +389,19 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         best_gen = cast(NDArray, stat_gen['best_score']).mean()
         curr_gen = cast(NDArray, stat_gen['curr_score']).mean()
 
+        # Format strings
+        best_gen_str = f'{" " if best_gen < 1 else ""}{best_gen:.1f}' # Pad for decimals
+        curr_gen_str = f'{curr_gen:.1f}'
+        
+        desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str}'
+        
         # Natural (if used)
         if self._use_nat:
             stat_nat = msg.stats_nat
             best_nat = cast(NDArray, stat_nat['best_score']).mean()
-
-        # Format strings
-        best_gen_str = f'{" " if best_gen < 1 else ""}{best_gen:.1f}' # Pad for decimals
-        curr_gen_str = f'{curr_gen:.1f}'
-
-        # Additional description
-        if self._use_nat:
             best_nat_str = f'{best_nat:.1f}'
-            desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str} | best nat: {best_nat_str}'
-        else:
-            desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str}'
-
+            desc = f'{desc} | best nat: {best_nat_str}'
+        
         # Combine with default one
         progress_super = super()._progress_info(i=i, msg=msg)
 
@@ -436,18 +424,14 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     def _progress(self, i: int, msg : ZdreamMessage):
 
         super()._progress(i, msg)
-
-        # Get best stimuli
-        best_code = msg.best_code
-        best_synthetic = self.generator(codes=best_code)
-        best_synthetic_img = to_pil_image(best_synthetic[0])
-
-        # Get best natural image
-        if self._use_nat:
-            best_natural = self._best_nat_img
-            
+        
         # Update screens
         if self._render:
+            
+            # Get best stimuli
+            best_code          = msg.best_code
+            best_synthetic     = self.generator(codes=best_code)
+            best_synthetic_img = to_pil_image(best_synthetic[0])
 
             # Synthetic
             self._logger.update_screen(
@@ -459,7 +443,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             if self._use_nat:
                 self._logger.update_screen(
                     screen_name=self.NAT_IMG_SCREEN,
-                    image=to_pil_image(best_natural)
+                    image=to_pil_image(self._best_nat_img)
                 )   
 
     def _finish(self, msg : ZdreamMessage):
@@ -467,8 +451,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         super()._finish(msg)
 
         # Close screens
-        if self._close_screen:
-            self._logger.close_all_screens()
+        if self._close_screen: self._logger.close_all_screens()
             
         # 1) SAVING BEST STIMULI
 
@@ -480,8 +463,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         best_gen = self.generator(codes=msg.best_code)
 
         # We retrieve the stored best natural image
-        if self._use_nat:
-            best_nat = self._best_nat_img
+        if self._use_nat: best_nat = self._best_nat_img
 
         # Saving images
         to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen[0]), 'best synthetic')]
@@ -499,6 +481,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
             img.save(out_fp)
             
         # 2) PLOT
+        
         if len(self._activations):
             
             # Save visual stimuli (synthetic and natural)
@@ -524,7 +507,8 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         
         states, msg = data
         
-        assert len(states) == 1
+        assert len(states) == 1, 'Only one layer is allowed'
+        
         full_activations = list(states.values())[0][msg.mask]
         
         # Compute mean activations for each group
@@ -557,205 +541,107 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 self._best_nat_img = self._stimuli[torch.tensor(~msg.mask)][argmax]
 
         return super()._scores_to_codes((sub_score, msg))
-    
+
 
 # --- MULTI-EXPERIMENT ---
 
-# class _ClusteringOptimizationMultiExperiment(MultiExperiment):
-# 
-#     def __init__(
-#             self, 
-#             experiment:      Type['ClusteringOptimizationExperiment'], 
-#             experiment_conf: Dict[str, List[Any]], 
-#             default_conf:    Dict[str, Any]
-#     ) -> None:
-#         
-#         super().__init__(experiment, experiment_conf, default_conf)
-# 
-#         # Add the close screen flag to the last configuration
-#         self._search_config[-1]['close_screen'] = True
-#     
-#     def _get_display_screens(self) -> List[DisplayScreen]:
-# 
-#         # Screen for synthetic images
-#         screens = [
-#             DisplayScreen(
-#                 title=ClusteringOptimizationExperiment.GEN_IMG_SCREEN, 
-#                 display_size=(1200, 1200)
-#             )
-#         ]
-# 
-#         # Add screen for natural images if at least one will use it
-#         use_nat = any(
-#             parse_boolean_string(conf['natural_stimuli_loader'][str(Args.Template)]).count(False) > 0 
-#             for conf in self._search_config
-#         )
-#         
-#         if use_nat:
-#             screens.append( DisplayScreen(title=ClusteringOptimizationExperiment.NAT_IMG_SCREEN, display_size=(400, 400)) )
-# 
-#         return screens
-#     
-#     @property
-#     def _logger_type(self) -> Type[Logger]:
-#         return LoguruLogger
-#     
-class UnitsWeightingMultiExperiment(BaseZdreamMultiExperiment):
+class DominantSetWeightingMultiExperiment(BaseZdreamMultiExperiment):
         
     def _init(self):
         
         super()._init()
         
-        self._data['desc'       ] = 'Comparison between cluster-weighted an arithmetic score average'
-        self._data['cluster_idx'] = list()  # Cluster idx in the clustering
-        self._data['scores'     ] = list()  # Scores across generation
-        self._data['weighted'   ] = list()  # Boolean flag if scoring was weighted or not
+        self._data['desc'] = 'Comparison between cluster-weighted an arithmetic score average'
+        
+        # Cluster-idx : Weighted : Scores History
+        self._data['scores'] = defaultdict(lambda: defaultdict(list))
 
     def _progress(
         self, 
-        exp: ClusteringOptimizationExperiment, 
-        conf: ParamConfig,
-        msg : ZdreamMessage, 
-        i: int
+        exp  : ClusteringOptimizationExperiment, 
+        conf : ParamConfig,
+        msg  : ZdreamMessage, 
+        i    : int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
         
-        self._data['scores']     .append(msg.scores_gen_history)
-        self._data['cluster_idx'].append(conf[ExperimentArgParams.ClusterIdx   .value])
-        self._data['weighted']   .append(conf[ExperimentArgParams.WeightedScore.value])    
+        scores      = msg.scores_gen_history
+        cluster_idx = conf[ExperimentArgParams.ClusterIdx   .value]
+        weighted    = conf[ExperimentArgParams.WeightedScore.value]
+        
+        # Best per generation
+        scores_max = [max(score) for score in scores]
+        
+        self._data['scores'][cluster_idx][weighted].append(scores_max)
 
     def _finish(self):
         
+        self._data['scores'] = {
+            cluster_idx : {
+                weighted: [score for score in scores]
+                for weighted, scores in w_scores.items()
+            }
+            for cluster_idx, w_scores in self._data['scores'].items()
+        }
+        
         super()._finish()
         
-        plot_weighted(
-            cluster_idx  = self._data['cluster_idx'],
-            weighted     = self._data['weighted'],
+        plot_ds_weigthed_score(
             scores       = self._data['scores'],
             out_dir      = self.target_dir,
             logger       = self._logger
         )
 
 
-class ClusteringScoringTypeMultiExperiment(BaseZdreamMultiExperiment):
+class ClusterSuperStimulusMultiExperiment(BaseZdreamMultiExperiment):
 
     def _init(self):
         
         super()._init()
         
-        self._data['desc'       ] = 'Comparison between clustering units optimization'
+        self._data['desc']  = 'Optimize each cluster unit saving its final code and activation'
         
-        # Cluster idx: scr_type: scores
-        self._data['scr_type'] = defaultdict(lambda: defaultdict(list))  
+        # Dictionary: cluster-idx: code / activation
+        self._data['superstimulus'] = defaultdict(lambda: {'fitness': [], 'code': None})  
 
 
     def _progress(
         self, 
-        exp: ClusteringOptimizationExperiment,
-        conf: ParamConfig,
-        msg : ZdreamMessage, 
-        i: int
+        exp  : ClusteringOptimizationExperiment,
+        conf : ParamConfig,
+        msg  : ZdreamMessage, 
+        i    : int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
                 
         clu_idx  = conf[ExperimentArgParams.ClusterIdx .value]
-        scr_type = conf[ExperimentArgParams.ScoringType.value]
-        score    = float(msg.stats_gen['best_score'])
+        code     = msg.best_code[0]
+        fitness  = float(msg.stats_gen['best_score'])
         
-        self._data['scr_type'][clu_idx][scr_type].append(score)
+        self._data['superstimulus'][clu_idx]['fitness'].append(fitness)
+        
+        if fitness == max(self._data['superstimulus'][clu_idx]['fitness']):
+            self._data['superstimulus'][clu_idx]['code'   ] = code
 
     def _finish(self):
         
         # Dictionary redefinition with no lambdas
         # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
         
-        self._data['scr_type'] = {
-            cluster_idx: {
-                scr_type: [score for score in scores]
-                for scr_type, scores in scr.items()
-            }
-            for cluster_idx, scr in self._data['scr_type'].items()
+        self._data['superstimulus'] = {
+            cluster_idx: {k: v for k, v in data.items()}
+            for cluster_idx, data in self._data['superstimulus'].items()
         }
         
         super()._finish()
         
-        plot_scr(
-            data    = self._data['scr_type'],
-            out_dir = self.target_dir,
-            logger  = self._logger
-        )
+        # NOTE: The plotting function requires fitness cardinality normalization so 
+        #       The plot is supposed to be performed not from the multi-experiment
 
 
-class ClusteringSubsetOptimizationMultiExperiment(BaseZdreamMultiExperiment):
-
-    def _init(self):
-        
-        super()._init()
-        
-        self._data['desc'] = 'Comparison between co-activation inside and outside cluster for non optimized units'
-        
-        # Dictionary: cluster-idx: optimized_unit: component: list of sample final average activation
-        self._data['cluster_activations'] = defaultdict(lambda: defaultdict(list))
-
-
-    def _progress(
-        self, 
-        exp: ClusteringOptimizationExperiment, 
-        conf: ParamConfig,
-        msg : ZdreamMessage,
-        i: int
-    ):
-
-        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
-                
-        assert str(conf[ExperimentArgParams.ScoringType.value]).startswith('subset')
-        
-        cluster_idx  = conf[ExperimentArgParams.ClusterIdx.value]
-        try:
-            cu = conf[ExperimentArgParams.OptimUnits.value]
-            cluster_unit = int(cu)
-        except ValueError:
-            raise ValueError(f'Invalid cluster unit: {cu}') # TODO
-        
-        # Compute average of final activation
-        # as the average of the last column
-        avg_activation = {
-            name: float(np.mean(activations[-1]))
-            for name, activations in exp._activations.items()
-        }
-        
-        self._data['cluster_activations'][cluster_idx][cluster_unit].append(avg_activation)
-
-    def _finish(self):
-        
-        # Dictionary redefinition with no lambdas
-        # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
-        
-        self._data['cluster_activations'] = {
-            cluster_idx: {
-                cluster_unit: values
-                for cluster_unit, values in units.items()
-            }
-            for cluster_idx, units in self._data['cluster_activations'].items()
-        }
-        
-        super()._finish()
-        
-        plot_dir = path.join(self.target_dir, 'plots')
-        self._logger.info(mess=f'Saving plots to {plot_dir}')
-        self._logger.formatting = lambda x: f'> {x}'
-        plot_subsetting_optimization(
-            clusters_activations=self._data['cluster_activations'],
-            logger=self._logger,
-            out_dir=self.target_dir
-        )
-        
-        self._logger.info(mess='')
-
-
-class ClustersBestStimuliMultiExperiment(BaseZdreamMultiExperiment):
+class ClusterUnitsSuperStimulusMultiExperiment(BaseZdreamMultiExperiment):
 
     def _init(self):
         
@@ -829,7 +715,7 @@ class ClustersBestStimuliMultiExperiment(BaseZdreamMultiExperiment):
         )
         
         self._logger.formatting = lambda x: f'> {x}'
-        plot_cluster_best_stimuli(
+        plot_cluster_units_beststimuli(
             cluster_codes=self._data['best_codes'],
             generator=generator,
             logger=self._logger,
@@ -839,17 +725,16 @@ class ClustersBestStimuliMultiExperiment(BaseZdreamMultiExperiment):
         
         self._logger.info(mess='')
 
-class ClusterStimuliTargetMultiExperiment(BaseZdreamMultiExperiment):
-    
+class ClusterSubsettingOptimizationMultiExperiment(BaseZdreamMultiExperiment):
+
     def _init(self):
         
         super()._init()
         
-        self._data['desc'] = 'Best stimuli for all images of one neuron both using arithmetic or weighted average. '
+        self._data['desc'] = 'Subsetting optimization. '
         
-        # Dictionary: cluster-idx: weighting_type: (score, code)
-        self._data['best_codes'] = defaultdict(lambda: defaultdict(Tuple[float, Codes]))
-
+        # clu_idx : top or bottom : clu_opt : activations
+        self._data['activations'] = defaultdict(lambda: defaultdict(dict))
 
     def _progress(
         self, 
@@ -860,61 +745,42 @@ class ClusterStimuliTargetMultiExperiment(BaseZdreamMultiExperiment):
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
-                
-        cluster_idx        = conf[ExperimentArgParams.ClusterIdx.value]
-        cluster_weighting  = conf[ExperimentArgParams.WeightedScore.value]
         
-        best_score : float = msg.stats_gen['best_score']
-        best_code  : Codes = msg.best_code[0]
+        cluster_idx = conf[ExperimentArgParams.ClusterIdx.value]
+        optim_unit  = conf[ExperimentArgParams.OptimUnits.value]
+        scr_type    = conf[ExperimentArgParams.ScoringType.value]
         
-        cluster_bests = self._data['best_codes'][cluster_idx]
+        activations: Dict[str, NDArray] = {name: np.stack(acts) for name, acts in exp._activations.items()}
         
-        if cluster_weighting not in cluster_bests:
+        try:
+            cluster_unit = int(optim_unit)
+        except ValueError:
+            raise ValueError(f'Invalid cluster unit: {optim_unit}') # TODO
         
-            cluster_bests[cluster_weighting] = best_score, best_code
-        
-        else:
-            
-            clu_best_score, _ = cluster_bests[cluster_weighting]
-            
-            if best_score > clu_best_score:
-                cluster_bests[cluster_weighting] = best_score, best_code
-
+        self._data['activations'][cluster_idx][scr_type][cluster_unit] = activations       
 
     def _finish(self):
         
         # Dictionary redefinition with no lambdas
         # SEE: https://stackoverflow.com/questions/72339545/attributeerror-cant-pickle-local-object-locals-lambda
         
-        self._data['best_codes'] = {
-            weighted_score: {
-                cluster_unit: best
-                for cluster_unit, best in units.items()
+        self._data['activations'] = {
+            cluster_idx: {
+                topbot: {
+                    clu_unit: {
+                        scr_type: activ
+                        for scr_type, activ in activation.items()
+                    } for clu_unit, activation in clu_unit_activation.items()
+                }
+                for topbot, clu_unit_activation in topbot_activations.items()
             }
-            for weighted_score, units in self._data['best_codes'].items()
+            for cluster_idx, topbot_activations in self._data['activations'].items()
         }
         
         super()._finish()
         
-        stimuli_dir = path.join(self.target_dir, 'stimuli')
-        self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
-        os.makedirs(stimuli_dir)
+        plot_dir = path.join(self.target_dir, 'plot')
+        self._logger.info(mess=f'Saving plots to {plot_dir}')
+        os.makedirs(plot_dir)
         
-        conf = self._search_config[0]
         
-        generator = DeePSiMGenerator(
-            root    = str(conf[ExperimentArgParams.GenWeights.value]),
-            variant = str(conf[ExperimentArgParams.GenVariant.value])  # type: ignore - literal
-        ).to(device)
-        
-        self._logger.formatting = lambda x: f'> {x}'
-        
-        plot_cluster_target(
-            cluster_codes=self._data['best_codes'],
-            generator=generator,
-            logger=self._logger,
-            out_dir=stimuli_dir
-        )
-        self._logger.reset_formatting()
-        
-        self._logger.info(mess='')

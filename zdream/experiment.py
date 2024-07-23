@@ -1113,7 +1113,7 @@ class MultiExperiment:
 
         # Save multi-run experiment as a .PICKLE file
         if self._data:
-            out_fp = path.join(self.target_dir, 'data.pickle')
+            out_fp = path.join(self.target_dir, 'data.pkl')
             self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
             store_pickle(data=self._data, path=out_fp)
 

@@ -1,14 +1,16 @@
 from copy import copy
+from functools import partial
 import itertools
 
 from sklearn.cluster import SpectralClustering, DBSCAN
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.mixture import GaussianMixture
 
 import torch
 from zdream.clustering.cluster import Clusters
 from zdream.clustering.ds import DSCluster, DSClusters
-from zdream.clustering.model import AffinityMatrix
+from zdream.clustering.model import AffinityMatrix, DimensionalityReduction
 from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.misc import default, device
 
@@ -18,20 +20,9 @@ from numpy.typing import NDArray
 
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Union, cast
+from typing import Any, Callable, Dict, List, Tuple, Union, cast
 
-def pca(data: NDArray, n_components: int | None, logger: Logger = SilentLogger()):
-    
-    # Perform PCA
-    if n_components is None: return data
-        
-    logger.info(f'Performing PCA up to {n_components} components.')
-    
-    pca = PCA(n_components=n_components)
-    pca.fit(data)
-    data_new = pca.transform(data)
-    
-    return data_new
+# --- DIMENSIONALITY REDUCTION UTILS ---
 
 class ClusteringAlgorithm(ABC):
     '''
@@ -86,28 +77,27 @@ class GaussianMixtureModelsClusteringAlgorithm(ClusteringAlgorithm):
     
     def __init__(
         self,
-        data         : NDArray,
-        n_clusters   : int,
-        n_components : int | None = None,
-        logger       : Logger     = SilentLogger()
+        data          : NDArray,
+        n_clusters    : int,
+        dim_reduction : Dict[str, Any] = {},
+        logger        : Logger     = SilentLogger()
     ) -> None:
         
         super().__init__()
         
-        self._data         = data
-        self._n_clusters   = n_clusters
-        self._n_components = n_components
-        self._logger       = logger
+        self._data          = data
+        self._n_clusters    = n_clusters
+        self._logger        = logger
+        self._dim_reduction = DimensionalityReduction(dim_reduction=dim_reduction, logger=logger)
     
     def __str__(self) -> str:         
         
-        return  f'GaussianMixtureModels{super().__str__()[:-1]}n-clusters: {len(self._clusters)}; '\
-                f'n-components: {self._n_components if self._n_components else "All"}]'
+        return  f'GaussianMixtureModels{super().__str__()[:-1]}n-clusters: {len(self._clusters)}; dimensionality reduction: {self._dim_reduction}]'
 
     def _run(self) -> Clusters:
         
         # Perform PCA
-        data = pca(data=self._data, n_components=self._n_components, logger=self._logger)
+        data = self._dim_reduction(self._data)
         
         # Perform GMM clustering
         self._logger.info(f'Performing GMM clustering with {self._n_clusters} clusters')
@@ -163,29 +153,30 @@ class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
     
     def __init__(
         self,
-        data         : NDArray,
-        eps          : float,
-        min_samples  : int,
-        n_components : int | None = None,
-        logger       : Logger     = SilentLogger()
+        data          : NDArray,
+        eps           : float,
+        min_samples   : int,
+        dim_reduction : Dict[str, Any] = {},
+        logger        : Logger     = SilentLogger()
     ) -> None:
         
         super().__init__()
         
-        self._data         = data
-        self._eps          = eps
-        self._min_samples  = min_samples
-        self._n_components = n_components
-        self._logger       = logger
+        self._data          = data
+        self._eps           = eps
+        self._min_samples   = min_samples
+        self._logger        = logger
+        self._dim_reduction = DimensionalityReduction(dim_reduction=dim_reduction, logger=logger)
+
     
     def __str__(self) -> str: return    f'DBSCAN{super().__str__()[:-1]}eps: {self._eps}; '\
                                         f'min_samples: {self._min_samples}; '\
-                                        f'n-components: {self._n_components if self._n_components else "All"}]'
+                                        f'dimensionality reduction: {self._dim_reduction}]'
         
     def _run(self) -> Clusters:
         
-        # Perform PCA
-        data = pca(data=self._data, n_components=self._n_components, logger=self._logger)
+        # Perform dim reduction
+        data = self._dim_reduction(self._data)
         
         self._logger.info(f'Performing DBSCAN clustering with parameters: eps={self._eps}, min_samples={self._min_samples}')
         
@@ -206,12 +197,10 @@ class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
             data         : NDArray, 
             eps          : List[float], 
             min_samples  : List[int],
-            len_target   : int | None = None,
-            n_components : int | None = None,
+            dim_reduction: List[Dict[str, Any]] = [{}],
             logger       : Logger = SilentLogger()
-    ) -> Tuple['DBSCANClusteringAlgorithm', Union['DBSCANClusteringAlgorithm', None]]:
+    ) -> 'DBSCANClusteringAlgorithm':
         
-        data_pca = pca(data=data, n_components=n_components, logger=logger)
 
         tpl = list(itertools.product(eps, min_samples))
         
@@ -220,51 +209,47 @@ class DBSCANClusteringAlgorithm(ClusteringAlgorithm):
         logger.formatting = lambda x: f' > {x}'
         
         best_silhouette = -1
-        best_tpl = (-1., -1)
-        
-        if len_target is not None:
-            best_len = float('inf')
-            best_tpl2 = (-1., -1)
+        best_tpl = (-1., -1, {})
         
         logger.info('Performing DBSCAN grid search')
         
-        for eps_, min_samples_ in tpl:
+        for dim_red in dim_reduction:
             
-            algo = cls(data=data_pca, eps=eps_, min_samples=min_samples_, logger=logger)
-            algo.run()
+            data_red = DimensionalityReduction(dim_reduction=dim_red, logger=logger)(data)
             
-            sil = algo.clusters.silhouette_score(data=data_pca)
+            for eps_, min_samples_ in tpl:
                 
-            logger.info(f' > Silhouette coefficient={sil}')
-            
-            if sil > best_silhouette:
-                best_silhouette = sil
-                best_tpl = (eps_, min_samples_)
-            
-            if len_target is not None:
+                logger.info(f'Running DBSCAN with eps={eps_}, min_samples={min_samples_}, dim_reduction={dim_red}')
                 
-                clu_dist = abs(len(algo.clusters) - len_target)
+                algo = cls(data=data_red, eps=eps_, min_samples=min_samples_, logger=logger)
+                algo.run()
                 
-                logger.info(f' > Cluster found={len(algo.clusters)}')
+                sil = algo.clusters.silhouette_score(data=data_red)
+                    
+                logger.info(f' > Silhouette coefficient={sil}')
                 
-                if clu_dist < best_len:
-                    best_len = clu_dist
-                    best_tpl2 = (eps_, min_samples_)
-                
+                if sil > best_silhouette:
+                    best_silhouette = sil
+                    best_tpl = (eps_, min_samples_, dim_red)
+                    
 
         logger.reset_formatting()
         
-        best_esp,  best_min_samples  = best_tpl
+        best_esp,  best_min_samples, best_dim_red  = best_tpl
         
-        logger.info(f'Selected clustering algorithm with eps={best_esp}, min_samples={best_min_samples} with silhouette coeff {best_silhouette}.')
+        logger.info(
+            f'Selected clustering algorithm with eps={best_esp}, '\
+            f'min_samples={best_min_samples}, '\
+            f'dimensionality reduction={best_dim_red}, '\
+            f'with silhouette coeff {best_silhouette}.')
         
-        if len_target is not None:
-            best_esp2, best_min_samples2 = best_tpl2
-            logger.info(f'Selected clustering algorithm with eps={best_esp2}, min_samples={best_min_samples2} with cluster size {abs(best_len - len_target)}.')
-        
-        return DBSCANClusteringAlgorithm(data=data, eps=best_esp,  min_samples=best_min_samples,  n_components=n_components, logger=logger),\
-               DBSCANClusteringAlgorithm(data=data, eps=best_esp2, min_samples=best_min_samples2, n_components=n_components, logger=logger) if len_target is not None else None
-
+        return DBSCANClusteringAlgorithm(
+            data=data, 
+            eps=best_esp,
+            min_samples=best_min_samples, 
+            dim_reduction=best_dim_red, 
+            logger=logger
+        )
 
 class DominantSetClusteringAlgorithm(ClusteringAlgorithm):
     '''
