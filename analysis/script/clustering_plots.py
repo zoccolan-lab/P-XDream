@@ -14,7 +14,7 @@ from zdream.utils.logger import LoguruLogger
 
 # --- SETTINGS ---
 
-LAYER = 'conv5-maxpool'
+LAYER = 'fc6-relu'
 
 out_dir = os.path.join(OUT_DIR, "clustering_analysis", "plots", LAYER_SETTINGS[LAYER]['directory'])
 clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
@@ -38,7 +38,7 @@ def main():
 
     logger = LoguruLogger(on_file=False)
     
-    clusters               = load_clusters(dir=clu_dir, logger=logger)
+    clusters = load_clusters(dir=clu_dir, logger=logger)
     
     if PLOT['entropy']: 
         _, imagenet_superclass = load_imagenet(logger=logger)
@@ -51,8 +51,6 @@ def main():
     if PLOT['clu_optimization_norm']:
         logger.info(f'Loading fitted neuron scaling function from {NEURON_SCALING_FUN}')
         normalize_fun: Dict[str, CurveFitter] = load_pickle(NEURON_SCALING_FUN)[LAYER]
-    
-    
     
     plot_dir = make_dir(out_dir, logger=logger)
     
@@ -105,7 +103,7 @@ def main():
         if PLOT['clu_optimization_norm']:
     
             clu_opt_means_normalized = {
-                clu_name: [mean / normalize_fun(len(clu)) for clu, mean in zip(clusters[clu_name], means)]  # type: ignore
+                clu_name: [mean / normalize_fun(len(clu)) for clu, mean in zip(clusters[clu_name], means) if len(clu) > 20]  # type: ignore
                 for clu_name, means in clu_opt_means.items()
             }
             

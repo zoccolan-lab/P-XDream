@@ -1,8 +1,11 @@
 
 import os
+from os import path
+from typing import Dict
 
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 import seaborn as sns
 from sklearn.manifold import TSNE
@@ -11,7 +14,7 @@ import colorcet as cc
 from analysis.utils.misc import load_clusters, load_imagenet
 from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, OUT_DIR, WORDNET_DIR
 from experiment.utils.misc import make_dir
-from zdream.utils.io_ import read_json
+from zdream.utils.io_ import load_pickle, read_json, store_pickle
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
@@ -32,6 +35,8 @@ POINT_SIZE = 40
 TSNE_PERP  = [2, 5, 10, 15, 20, 30]
 TSNE_STEPS = 5000
 
+EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
+EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
 
 # --- FUNCTIONS ---
 
@@ -122,11 +127,16 @@ def main():
         
         logger.info(mess=f'Computing t-SNE embedding up to 2 dimensions with perplexity={perp}')
         tsne = TSNE(n_components=2, perplexity=perp, n_iter=TSNE_STEPS)
-        recordings_tsne = tsne.fit_transform(recordings)
+        
+        perp_s = str(perp)
+        if perp_s in EMBEDDINGS: 
+            recordings_tsne = EMBEDDINGS[perp_s]
+        else:             
+            recordings_tsne = tsne.fit_transform(recordings)
+            EMBEDDINGS[perp_s] = recordings_tsne
 
         
         # 3. CREATING DATAFRAME
-        
         df_dict = {
             'Dim1'       : recordings_tsne[:, 0], 
             'Dim2'       : recordings_tsne[:, 1],
@@ -170,8 +180,8 @@ def main():
                 file_name=cluster_name
             )
         
-
-        logger.info(mess='')
-        logger.close()
+    store_pickle(EMBEDDINGS, EMBEDDINGS_FP)
+    logger.info(mess='')
+    logger.close()
     
 if __name__ == '__main__': main()

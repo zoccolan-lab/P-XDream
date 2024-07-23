@@ -20,16 +20,20 @@ from zdream.utils.logger     import Logger, LoguruLogger, SilentLogger
 LAYER   = 'fc6-relu'
 
 CLU_DIR  = path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
-ds_n_clu = len(Clusters.from_file(path.join(CLU_DIR, 'DominantSetClusters.json')).clusters)
 
-N_CLU                   = ds_n_clu
-PCA_COMPONENTS_GMM      = 500               # GMM
-PCA_COMPONENTS_DBSCAN   = 3                 # DBSCAN
-MIN_ELEMENTS            = 2                 # DS
-MAX_ITER                = 50000             # DS
-FM_SIZE                 = 256               # FM
-EPS_GRID_SEARCH         = [float(f) for f in range(1, 501, 10)]      # DBSCAN
-MIN_SAMPLES_GRID_SEARCH = list(range(2, 11)) # DBSCAN
+N_CLU                   = 0                     # GMM, NC, ADJ, RAND
+MIN_ELEMENTS            = 2                     # DS
+MAX_ITER                = 50000                 # DS
+FM_SIZE                 = 256                   # FM
+EPS                     = 100                   # DBSCAN
+MIN_SAMPLES             = 2                     # DBSCAN
+
+GMM_DIM_REDUCTION    = {'type': 'pca', 'n_components': 500                                  } # GMM
+DBSCAN_DIM_REDUCTION = {'type': 'tsne','n_components':   2, 'perplexity': 30, 'n_iter': 5000} # DBSCAN
+
+# Use the number of clusters from the DominantSet Clustering
+if path.exists(path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])):
+    N_CLU = len(Clusters.from_file(path.join(CLU_DIR, 'DominantSetClusters.json')).clusters)
 
 # ALGOS FLAGS
 
@@ -63,7 +67,7 @@ def gmm(data: NDArray, logger: Logger = SilentLogger()):
     algo = GaussianMixtureModelsClusteringAlgorithm(
         data=data,
         n_clusters=N_CLU,
-        n_components=PCA_COMPONENTS_GMM,
+        dim_reduction=GMM_DIM_REDUCTION,
         logger=logger
     )
     
@@ -83,24 +87,16 @@ def nc(data: NDArray, logger: Logger = SilentLogger()):
 
 def dbscan(data: NDArray, logger: Logger = SilentLogger()):
     
-    algo1, algo2 = DBSCANClusteringAlgorithm.grid_search(
+    algo = DBSCANClusteringAlgorithm(
         data=data,
-        eps=EPS_GRID_SEARCH,
-        min_samples=MIN_SAMPLES_GRID_SEARCH,
-        len_target=N_CLU,
-        n_components=PCA_COMPONENTS_DBSCAN,
+        eps=EPS,
+        min_samples=MIN_SAMPLES,
+        dim_reduction=DBSCAN_DIM_REDUCTION,
         logger=logger
     )
     
-    clusters = algo1.run()
-    clusters.__setattr__('NAME', 'DBSCANSilhouetteClusters')
+    clusters = algo.run()
     clusters.dump(CLU_DIR, logger=logger)
-    
-    if algo2 is not None:
-        
-        clusters = algo2.run()
-        clusters.__setattr__('NAME', 'DBSCANDimTargetClusters')
-        clusters.dump(CLU_DIR, logger=logger)
     
 def adj(data: NDArray, logger: Logger = SilentLogger()):
     
