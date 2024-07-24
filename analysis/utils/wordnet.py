@@ -35,12 +35,16 @@ class Word:
         
         try:               depth       = self.depth 
         except ValueError: depth       = 'NC'
+        
         try:               descendants = len(self.descendants_codes)
         except ValueError: descendants = 'NC'
+        
         try:               ancestors   = len(self.ancestors_codes)
         except ValueError: ancestors   = 'NC'
+        
         try:               children    = len(self.children_codes)
         except ValueError: children    = 'NC'
+        
         try:               parents     = len(self.parents_codes)
         except ValueError: parents     = 'NC'
         

@@ -35,7 +35,7 @@ class ExperimentArgParams(Enum):
     
     # Clustering
     ClusterDir         = ArgParam(name="clu_dir",            type=str,   help="Path to clustering directory")
-    ClusterAlgo        = ArgParam(name="clu_algo",           type=str,   help="Name for clustering type {`gmm`, `nc`, `ds`}")
+    ClusterAlgo        = ArgParam(name="clu_algo",           type=str,   help="Name for clustering type {`gmm`, `nc`, `ds`, `adj`, `rand`, `fm`}")
     MaxIterations      = ArgParam(name="max_iter",           type=int,   help="Maximum number of iterations")
     MinElements        = ArgParam(name="min_elements",       type=int,   help="Minimum cluster cardinality")
     ClusterIdx         = ArgParam(name="cluster_idx",        type=int,   help="Cluster index to optimize for")
@@ -44,9 +44,15 @@ class ExperimentArgParams(Enum):
     ScoringType        = ArgParam(name="scr_type",           type=str,   help="Scoring units strategy {`cluster`; `random`; `random_adj`, `subset_top`, `subset_bot`, `subset_rand`}")
     OptimUnits         = ArgParam(name="opt_units",          type=str,   help="Number of units to optimize in the cluster for `subset` scoring type")
     UseGPU             = ArgParam(name="gpu",                type=bool,  help="If to use GPU for clustering")
-    NComponents        = ArgParam(name="n_components",       type=int,   help="Number of components to use for GMM clustering")
     NClusters          = ArgParam(name="n_clusters",         type=int,   help="Number of clusters to find for GMM and NC clustering")
+    Epsilon            = ArgParam(name="eps",                type=str,   help="Values of eps for DBSCAN clustering separated by a space")
+    MinSamples         = ArgParam(name="min_samples",        type=str,   help="Values of min samples for DBSCAN clustering separated by a space")
+    DimReductionType   = ArgParam(name="dim_reduction",      type=str,   help="Type of dimensionality reduction {`pca`, `tsne`}")
+    NComponents        = ArgParam(name="n_components",       type=int,   help="Number of components to use for GMM clustering")
+    TSNEPerplexity     = ArgParam(name="perplexity",         type=int,   help="Perplexity for t-SNE")
+    TSNEIterations     = ArgParam(name="iterations",         type=int,   help="Number of iterations for t-SNE")
     
+        
     # Recording
     ImageIds           = ArgParam(name="image_ids",          type=str,   help="Image indexes for recording separated by a comma")
     LogCheckpoint      = ArgParam(name="log_chk",            type=int,   help="Logger iteration checkpoint")

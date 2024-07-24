@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from functools import partial
 import math
 import os
-from typing import Tuple
+from typing import Any, Callable, Dict, Tuple
 import numpy as np
 from numpy.typing import NDArray, ArrayLike
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 
@@ -64,14 +67,15 @@ class AffinityMatrix:
             raise ValueError(err_msg)
 
         # Save matrix and labels
-        self._A: NDArray = A
+        self._A      : NDArray = A
         self._labels : Labels  = default(labels, np.array(list(range(len(self)))))
 
     # --- MAGIC METHODS ---
 
-    def __len__ (self) -> int: return self.shape[0]
-    def __str__ (self) -> str: return f'AffinityMatrix[objects: {len(self)}]'
-    def __repr__(self) -> str: return str(self)
+    def __len__ (self) -> int:  return self.shape[0]
+    def __str__ (self) -> str:  return f'AffinityMatrix[objects: {len(self)}]'
+    def __repr__(self) -> str:  return str(self)
+    def __bool__(self) -> bool: return np.sum(self.A) > 0
 
     def __copy__(self) -> 'AffinityMatrix':
         return AffinityMatrix(
@@ -82,17 +86,15 @@ class AffinityMatrix:
     # --- PROPERTIES ---
 
     @property
-    def A(self) -> NDArray: return self._A
+    def A(self)              -> NDArray         : return self._A
 
     @property
-    def labels(self) -> Labels: return self._labels
+    def labels(self)         -> Labels          : return self._labels
 
     @property
-    def shape(self) -> Tuple[int, ...]: return self.A.shape
-    
-    @property
-    def max_eigenvalue(self) -> float: return float(np.max(np.linalg.eigvals(self.A))
-)
+    def shape(self)          -> Tuple[int, ...] : return self.A.shape
+
+
     # --- UTILITIES ---
 
     def delete_objects(self, ids: NDArray[np.int32], inplace: bool = False) -> AffinityMatrix | None:
@@ -208,4 +210,79 @@ class PairwiseSimilarity:
         np.fill_diagonal(aff_mat, 0)        # zero diagonal
         
         return AffinityMatrix(A=aff_mat)
+
+class DimensionalityReduction:
     
+    def __init__(self, dim_reduction: Dict[str, Any], logger: Logger = SilentLogger()):
+    
+        
+        # Clustering type
+        dim_red_type = dim_reduction.get('type', None)
+        
+        self._str               : str 
+        self._dim_reduction_fun : Callable[[NDArray], NDArray]
+        
+        match dim_red_type:
+                    
+            case None: 
+                
+                self._dim_reduction_fun = lambda x: x
+                self._str = 'No dimensionality reduction'
+            
+            case 'pca':
+                
+                try            : n_components = dim_reduction['n_components']
+                except KeyError: raise KeyError('PCA dimension reduction requires `n_components` parameter')
+                
+                self._dim_reduction_fun = partial(self.pca, n_components=n_components, logger=logger)
+                self._str = f'PCA[n-components: {n_components}]'
+                
+            case 'tsne':
+                
+                try            : n_components = dim_reduction['n_components']
+                except KeyError: raise KeyError('t-SNE dimension reduction requires `n_components` parameter')
+                
+                try            : perp = dim_reduction['perplexity']
+                except KeyError: raise KeyError('t-SNE dimension reduction requires `perplexity` parameter')
+                
+                try            : n_iter = dim_reduction['n_iter']
+                except KeyError: raise KeyError('t-SNE dimension reduction requires `n_iter` parameter')
+                
+                self._dim_reduction_fun = partial(self.tsne, n_components=n_components, perp=perp, n_iter=n_iter, logger=logger)
+                self._str = f't-SNE[n-components: {n_components}; perplexity: {perp}; n-iter: {n_iter}]'
+                
+            case _:
+                
+                raise ValueError(f'Unknown dimension reduction type: {dim_red_type}. Supported types are: `pca`, `tsne`')
+    
+    def __str__ (self) -> str: return self._str
+    def __repr__(self) -> str: return str(self)
+    
+    def __call__(self, data: NDArray) -> NDArray: return self._dim_reduction_fun(data)
+    
+    
+    @staticmethod
+    def pca(data: NDArray, n_components: int | None, logger: Logger = SilentLogger()):
+        
+        # Perform PCA
+        if n_components is None: return data
+            
+        logger.info(f'Performing PCA up to {n_components} components.')
+        
+        pca = PCA(n_components=n_components)
+        pca.fit(data)
+        data_new = pca.transform(data)
+        
+        return data_new
+
+    @staticmethod
+    def tsne(data: NDArray, n_components: int | None, perp: int, n_iter: int, logger: Logger = SilentLogger()):
+        
+        if n_components is None: return data
+        
+        logger.info(f'Performing t-SNE up to {n_components} components.')
+        
+        tsne = TSNE(n_components=n_components, perplexity=perp, n_iter=n_iter)
+        data_new = tsne.fit_transform(data)
+        
+        return data_new

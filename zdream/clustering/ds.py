@@ -130,7 +130,6 @@ class DSCluster(Cluster):
         ''' Rank of the object inside the cluster. Normally in [0, 1] '''
         
         def __str__ (self) -> str: return f'{super().__str__()[:-1]}; rank: {self.rank}]'
-        def __repr__(self) -> str: return str(self)
         
         @property
         def info(self) -> Dict[str, Any]: 
@@ -170,30 +169,24 @@ class DSCluster(Cluster):
     
     # NOTE: We need to cast the return type of the following methods to subclass
     
-    def __iter__(self) -> Iterable[DSClusterObject]:   
-        return cast(Iterable[DSCluster.DSClusterObject], super().__iter__())
-    
-    def __getitem__(self, idx: int) -> DSClusterObject: 
-        return cast(DSCluster.DSClusterObject, super().__getitem__(idx=idx))
+    def __iter__   (self)           -> Iterable[DSClusterObject] : return cast(Iterable[DSCluster.DSClusterObject], super().__iter__())
+    def __getitem__(self, idx: int) -> DSClusterObject           : return cast(DSCluster.DSClusterObject,           super().__getitem__(idx=idx))
     
     # --- PROPERTIES ---
     
+    # NOTE: We need to cast the return type method to subclass
     @property
-    def objects(self) -> List[DSClusterObject]:
-        ''' List of objects in the cluster''' 
-        
-        # NOTE: We need to cast the return type method to subclass
-        
-        return cast(List[DSCluster.DSClusterObject], super().objects)
+    def objects(self) -> List[DSClusterObject]: return cast(List[DSCluster.DSClusterObject], super().objects)
+    ''' List of objects in the cluster''' 
     
     @property
     def W(self) -> float: return float(self._w)
     ''' Coherence of the cluster'''
 
     @property
-    def ranks(self) -> NDArray[np.float32]: 
-        ''' Ranks of the objects in the cluster'''
-        return np.array([obj.rank  for obj in self]) # type: ignore
+    def ranks(self) -> NDArray[np.float32]: return np.array([obj.rank  for obj in self]) # type: ignore
+    ''' Ranks of the objects in the cluster'''
+        
     
     @property
     def info(self) -> Dict[str, List[Dict[str, Any]] | Any]:
@@ -219,13 +212,8 @@ class DSCluster(Cluster):
         :rtype: UnitsMapping
         '''
         
-        # Weighted mean
-        if weighted:
-            weights = self.ranks
-        
-        # Arithmetic mean
-        else:
-            weights = np.ones(len(self)) / len(self)
+        if weighted : weights = self.ranks                     # Weighted mean
+        else        : weights = np.ones(len(self)) / len(self) # Arithmetic mean
 
         # Remap units
         arr[:, self.labels] *= weights # type: ignore
@@ -236,7 +224,7 @@ class DSCluster(Cluster):
     def extract_singletons(aff_mat: AffinityMatrix) -> List[DSCluster]:
         '''
         Extract trivial clusters with one element from an Affinity matrix.
-        Their score and coherence is 1. 
+        Their score is 1 and the coherence is 0. 
 
         :return: List of singleton clusters clusters 
         :rtype: List[DSCluster]
@@ -264,6 +252,8 @@ class DSClusters(Clusters):
     allow to dump them to file.
     '''
     
+    NAME = 'DSClusters'
+    
     def __init__(
         self, 
         clusters: List[DSCluster] = []
@@ -274,39 +264,25 @@ class DSClusters(Clusters):
     
     # --- MAGIC METHODS ---   
     
-    def __str__ (self) -> str:  return f'DS{super().__str__()}'
-    
-    def __iter__(self) -> Iterable[DSCluster]: 
-        return cast(Iterable[DSCluster], super().__iter__())
-    
-    def __getitem__(self, idx: int) -> DSCluster:
-        return cast(DSCluster, super().__getitem__(idx=idx))
-    
+    def __str__    (self)           -> str                 : return f'DS{super().__str__()}'
+    def __iter__   (self)           -> Iterable[DSCluster] : return cast(Iterable[DSCluster], super().__iter__()) 
+    def __getitem__(self, idx: int) -> DSCluster           : return cast(DSCluster,           super().__getitem__(idx=idx))
     
     # --- PROPERTIES ---
     
     @property
-    def clusters(self) -> List[DSCluster]:
-        return cast(List[DSCluster], self._clusters)
+    def clusters(self) -> List[DSCluster]: return cast(List[DSCluster], self._clusters)
     
     # --- UTILITIES ---
     
     def add(self, cluster: DSCluster): super().add(cluster=cluster)
-        
-    def dump(
-        self, 
-        out_fp: str, 
-        file_name: str = 'DSClusters',
-        logger: Logger = SilentLogger()
-    ):  
-        super().dump(out_fp=out_fp, file_name=file_name, logger=logger)
-    
+
     
     @classmethod
     def from_file(cls, fp: str, logger: Logger = SilentLogger()) -> DSClusters:
         '''
         Load a DSCluster state from JSON file
-
+        
         :param fp: File path to .JSON file where DSClusters information is stored.
         :type fp: str
         :param logger: Logger to log i/o information.

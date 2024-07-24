@@ -4,12 +4,11 @@ from typing import Any, Dict, List, Tuple, Type
 import numpy as np
 from numpy.typing import NDArray
 
-from analysis.utils.settings import FILE_NAMES
 from experiment.ClusteringAlgo.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.misc import make_dir
 from zdream.clustering.model import PairwiseSimilarity
-from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU, GMMClusteringAlgorithm, NCClusteringAlgorithm
+from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU, DBSCANClusteringAlgorithm, GaussianMixtureModelsClusteringAlgorithm, NormalizedCutClusteringAlgorithm
 from zdream.experiment import Experiment
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.utils.message import Message
@@ -60,7 +59,7 @@ class DSClusteringExperiment(Experiment):
         
         
         # --- MATRIX ---
-        recording_fp = path.join(PARAM_clu_dir, FILE_NAMES['recordings'])
+        recording_fp = path.join(PARAM_clu_dir, 'recordings.npy')
         matrix = np.load(recording_fp)
         
         # --- CLUSTERING ---
@@ -107,7 +106,6 @@ class DSClusteringExperiment(Experiment):
         )
         
         # Plots
-        
         plot_dir = make_dir(path=path.join(self.dir, 'plots'), logger=self._logger)
         
         self._logger.formatting = lambda x: f'> {x}'
@@ -142,10 +140,10 @@ class GMMClusteringExperiment(Experiment):
         
         super().__init__(name, logger, data)
         
-        self._gmm_algo = GMMClusteringAlgorithm(
+        self._gmm_algo = GaussianMixtureModelsClusteringAlgorithm(
             data=matrix,
             n_clusters=data['n_clu'],
-            n_components=data['n_comp'],
+            dim_reduction=data['dim_reduction'],
             logger=logger
         )
         
@@ -153,15 +151,18 @@ class GMMClusteringExperiment(Experiment):
     def _from_config(cls, conf: ParamConfig) -> 'GMMClusteringExperiment':
         
         # Clustering
-        PARAM_clu_dir      = str (conf[ExperimentArgParams.ClusterDir   .value])
-        PARAM_n_clusters   = int (conf[ExperimentArgParams.NClusters    .value])
-        PARAM_n_components = int (conf[ExperimentArgParams.NComponents  .value])
+        PARAM_clu_dir      = str(conf[ExperimentArgParams.ClusterDir      .value])
+        PARAM_n_clusters   = int(conf[ExperimentArgParams.NClusters       .value])
+        PARAM_n_components = str(conf[ExperimentArgParams.NComponents     .value])
+        PARAM_dim_red_type = str(conf[ExperimentArgParams.DimReductionType.value])
+        PARAM_tsne_perp    = str(conf[ExperimentArgParams.TSNEPerplexity  .value])
+        PARAM_tsne_iter    = str(conf[ExperimentArgParams.TSNEIterations  .value])
         
         # Logger
         PARAM_exp_name     = str(conf[ArgParams.ExperimentName   .value])
         
         # --- MATRIX ---
-        recording_fp = path.join(PARAM_clu_dir, FILE_NAMES['recordings'])
+        recording_fp = path.join(PARAM_clu_dir, 'recordings.npy')
         matrix = np.load(recording_fp)
         
         # --- LOGGER ---
@@ -169,9 +170,32 @@ class GMMClusteringExperiment(Experiment):
         logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # --- DATA ---
+        
+        drt   = [str(d) for d in PARAM_dim_red_type.split(' ')]
+        nco   = [int(n) for n in PARAM_n_components.split(' ')]
+        prp   = [int(p) for p in PARAM_tsne_perp.split(' ')]
+        niter = [int(i) for i in PARAM_tsne_iter.split(' ')]
+        
+        if len(drt) == 1: drt = drt[0] 
+        else: raise ValueError(f'Only one dimensionality reduction type is allowed for parameter `dim_reduction`, but got multiple: {drt}')
+        
+        if len(nco) == 1: nco = nco[0] 
+        else: raise ValueError(f'Only one number of components is allowed for parameter `n_components`, but got multiple: {nco}')
+        
+        if len(prp) == 1: prp = prp[0]
+        else: raise ValueError(f'Only one perplexity is allowed for parameter `tsne_perplexity`, but got multiple: {prp}')
+        
+        if len(niter) == 1: niter = niter[0]
+        else: raise ValueError(f'Only one number of iterations is allowed for parameter `tsne_iterations`, but got multiple: {niter}')
+            
         data = {
-            'n_clu' :   PARAM_n_clusters,
-            'n_comp':   PARAM_n_components
+            'n_clu': PARAM_n_clusters,
+            'dim_reduction': {
+                'type'        : drt,
+                'n_components': nco,
+                'perplexity'  : prp,
+                'n_iter'      : niter
+            }
         }
         
         return GMMClusteringExperiment(
@@ -200,8 +224,7 @@ class GMMClusteringExperiment(Experiment):
         # Save
         clusters.dump(
             out_fp=self.dir,
-            logger=self._logger,
-            file_name='GMMClusters'
+            logger=self._logger
         )
         
         return msg
@@ -229,7 +252,7 @@ class NCClusteringExperiment(Experiment):
         logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
         np.save(file=aff_mat_fp, arr=self._aff_mat.A)
         
-        self._nc_algo = NCClusteringAlgorithm(
+        self._nc_algo = NormalizedCutClusteringAlgorithm(
             aff_mat=self._aff_mat,
             n_clusters=data['n_clu'],
             logger=logger
@@ -246,7 +269,7 @@ class NCClusteringExperiment(Experiment):
         PARAM_exp_name     = str(conf[ArgParams.ExperimentName   .value])
         
         # --- MATRIX ---
-        recording_fp = path.join(PARAM_clu_dir, FILE_NAMES['recordings'])
+        recording_fp = path.join(PARAM_clu_dir, 'recordings.npy')
         matrix = np.load(recording_fp)
         
         # --- LOGGER ---
@@ -284,8 +307,139 @@ class NCClusteringExperiment(Experiment):
         # Save
         clusters.dump(
             out_fp=self.dir,
-            logger=self._logger,
-            file_name='NCClusters'
+            logger=self._logger
         )
+        
+        return msg
+
+
+class DBSCANClusteringExperiment(Experiment):
+    
+    EXPERIMENT_TITLE = 'DBSCANClustering'
+    
+    def __init__(
+        self,
+        matrix      : NDArray,
+        name    : str            = 'dbscan_clustering', 
+        logger  : Logger         = SilentLogger(),
+        data    : Dict[str, Any] = dict()
+    ) -> None:
+        
+        super().__init__(name, logger, data)
+        
+        # Extract data
+        eps           = data['eps']
+        min_samples   = data['min_samples']
+        dim_reduction = data['dim_reduction']
+        
+        # Check if to apply grid search
+        eps_type = type(eps)
+        msp_type = type(min_samples)
+        drd_type = type(dim_reduction)
+        
+        if any([eps_type is list, msp_type is list, drd_type is list]):
+            
+            if eps_type is not list: eps           = [eps]         # type: ignore
+            if msp_type is not list: min_samples   = [min_samples] # type: ignore
+            if drd_type is not list: dim_reduction = [dim_reduction]
+            
+            self._dbscan_algo = DBSCANClusteringAlgorithm.grid_search(
+                data=matrix,
+                eps=eps,                   # type: ignore
+                min_samples=min_samples,   # type: ignore
+                dim_reduction=dim_reduction,
+                logger=logger
+            )
+        
+        else:
+            
+            self._dbscan_algo = DBSCANClusteringAlgorithm(
+                data=matrix, 
+                eps=eps,                  # type: ignore
+                min_samples=min_samples,  # type: ignore
+                dim_reduction=dim_reduction, 
+                logger=logger
+            )
+        
+    @classmethod
+    def _from_config(cls, conf: ParamConfig) -> 'DBSCANClusteringExperiment':
+        
+        # Clustering
+        PARAM_clu_dir      = str(conf[ExperimentArgParams.ClusterDir      .value])
+        PARAM_eps          = str(conf[ExperimentArgParams.Epsilon         .value])
+        PARAM_msp          = str(conf[ExperimentArgParams.MinSamples      .value])
+        PARAM_dim_red_type = str(conf[ExperimentArgParams.DimReductionType.value])
+        PARAM_n_components = str(conf[ExperimentArgParams.NComponents     .value])
+        PARAM_tsne_perp    = str(conf[ExperimentArgParams.TSNEPerplexity  .value])
+        PARAM_tsne_iter    = str(conf[ExperimentArgParams.TSNEIterations  .value])
+        
+        # Logger
+        PARAM_exp_name     = str(conf[ArgParams.ExperimentName   .value])
+        
+        # --- MATRIX ---
+        
+        recording_fp = path.join(PARAM_clu_dir, 'recordings.npy')
+        matrix       = np.load(recording_fp)
+        
+        # --- LOGGER ---
+        
+        conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        
+        # --- DATA ---
+        
+        eps = [float(e) for e in PARAM_eps.split(' ')]
+        msp = [int  (m) for m in PARAM_msp.split(' ')]
+        drt = [str  (d) for d in PARAM_dim_red_type.split(' ')]
+        nco = [int  (n) for n in PARAM_n_components.split(' ')]
+        prp = [int  (p) for p in PARAM_tsne_perp.split(' ')]
+        itr = [int  (i) for i in PARAM_tsne_iter.split(' ')]
+        
+        dre = [
+            {
+                'type'      : drt_,
+                'n_components': nco_,
+                'perplexity'  : prp_,
+                'iterations'  : itr_
+            }
+            for drt_, nco_, prp_, itr_ in zip(drt, nco, prp, itr)
+        ]
+        
+        if len(eps) == 1: eps = eps[0]
+        if len(msp) == 1: msp = msp[0]
+        if len(dre) == 1: dre = dre[0]
+        
+        data = {
+            'eps'           : eps,
+            'min_samples'   : msp,
+            'dim_reduction' : dre,
+            'n_components'  : PARAM_n_components
+        }
+        
+        return DBSCANClusteringExperiment(
+            matrix=matrix,
+            logger=logger,
+            name=PARAM_exp_name,
+            data=data
+        )
+    
+    @property
+    def _components(self) -> List[Tuple[str, Any]]: return [('NCClustering', self._dbscan_algo)]
+
+    def _run(self, msg: Message) -> Message:
+        
+        self._dbscan_algo.run()
+        
+        return msg
+        
+    def _finish(self, msg: Message) -> Message:
+        
+        msg = super()._finish(msg)
+        
+        # Extract clusters
+        clusters = self._dbscan_algo.clusters
+        
+        # Save
+        clusters.dump(out_fp=self.dir, logger=self._logger)
         
         return msg

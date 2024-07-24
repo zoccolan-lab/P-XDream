@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from typing import Any, Counter, Dict, Iterable, List
+from typing import Any, Callable, Counter, Dict, Iterable, List
 
 import numpy as np
 from numpy.typing import NDArray
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, rand_score, silhouette_score
 
 from zdream.clustering.model import Label, Labels
 from zdream.utils.io_ import read_json, save_json
@@ -13,6 +14,8 @@ from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.types import ScoringUnit
 from typing import List
 import random
+from numpy.typing import ArrayLike
+
 
 class Cluster:
     ''' 
@@ -56,10 +59,10 @@ class Cluster:
     
     # --- MAGIC METHODS ---
     
-    def __str__ (self) -> str: return f'Cluster[objects: {len(self)}]'
-    def __repr__(self) -> str: return str(self)
-    def __len__ (self) -> int: return len(self.objects)
-    
+    def __str__    (self)           -> str                     : return f'Cluster[objects: {len(self)}]'
+    def __repr__   (self)           -> str                     : return str(self)
+    def __len__    (self)           -> int                     : return len(self.objects)
+    def __bool__   (self)           -> bool                    : return len(self) > 0
     def __iter__   (self)           -> Iterable[ClusterObject] : return iter(self.objects)
     def __getitem__(self, idx: int) -> ClusterObject           : return self.objects[idx]
     
@@ -85,6 +88,7 @@ class Cluster:
         
         # Check if labels are of type np.int32
         other_types = [type(label) for label in self.labels if not isinstance(label, np.int32)]  # type: ignore
+        
         if len(other_types) > 0:
             
             raise TypeError(
@@ -130,6 +134,8 @@ class Clusters:
     allow to dump them to file.
     '''
     
+    NAME = "Clusters"
+    
     # --- INSTANTIATION ---
     
     def __init__(self, clusters: List[Cluster] = []) -> None:
@@ -147,6 +153,14 @@ class Clusters:
         '''
         Generate a Clusters object from a labeling array.
         '''
+        
+        # Cope with outliers
+        indexes = np.where(labeling < 0)[0]
+        labeling[indexes] = np.arange(max(labeling) + 1, max(labeling) + 1 + len(indexes))
+        
+        # Map labels to continue integers
+        mapping  = {v: i for i, v in enumerate(sorted(set(labeling)))}
+        labeling = np.array([mapping[l] for l in labeling])
         
         clusters = [
             Cluster(
@@ -188,19 +202,17 @@ class Clusters:
         n_clu: int,
         elements_ids: List[int]
     ):
+    
         clu_size = len(elements_ids) // n_clu
         
         # Break element ids in slices of n_clu elements
         clu_labels = [elements_ids[i*clu_size:(i+1)*clu_size] for i in range(n_clu)]
         clu_labels[-1].extend(elements_ids[clu_size * n_clu:])
         
-        clusters = []
-        
-        for labels in clu_labels:
-            
-            labels_arr = np.array(labels, dtype=np.int32)
-            cluster = Cluster(labels=labels_arr)
-            clusters.append(cluster)
+        clusters = [
+            Cluster(labels=np.array(labels, dtype=np.int32))
+            for labels in clu_labels
+        ]
         
         return Clusters(clusters=clusters)
     
@@ -221,7 +233,12 @@ class Clusters:
         :rtype: Clusters
         '''
         
-        return cls._aux_adj_rand_clusters(n_clu, list(range(elements)))
+        elements_ids = list(range(elements))
+        
+        clusters = cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        setattr(clusters, 'NAME', 'AdjacentClusters')
+        
+        return clusters
     
     @classmethod
     def random_clusters(
@@ -242,7 +259,27 @@ class Clusters:
         
         elements_ids = list(range(elements))
         random.shuffle(elements_ids)
-        return cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        
+        clusters = cls._aux_adj_rand_clusters(n_clu, elements_ids)
+        setattr(clusters, 'NAME', 'RandomClusters')
+        
+        return clusters
+    
+    @classmethod
+    def singleton_clusters(cls, elements: int) -> Clusters: 
+        
+        clusters = cls.adjacent_clusters(n_clu=elements, elements=elements)
+        setattr(clusters, 'NAME', 'SingletonClusters')
+        
+        return clusters
+    
+    @classmethod
+    def degenerate_clusters(cls, elements: int) -> Clusters: 
+    
+        clusters =cls.adjacent_clusters(n_clu=1, elements=elements)
+        setattr(clusters, 'NAME', 'DegenerateClusters')
+        
+        return clusters
     
     # --- MAGIC METHODS ---   
 
@@ -250,8 +287,8 @@ class Clusters:
     def __repr__   (self)           -> str                 : return str(self)
     def __len__    (self)           -> int                 : return len (self.clusters)
     def __iter__   (self)           -> Iterable[Cluster]   : return iter(self.clusters)
-    def __getitem__(self, idx: int) -> Cluster             : return self.clusters[idx]
     def __bool__   (self)           -> bool                : return len(self) > 0
+    def __getitem__(self, idx: int) -> Cluster             : return self.clusters[idx]
     
     # --- PROPERTIES ---
     
@@ -317,24 +354,25 @@ class Clusters:
     
     # --- UTILITIES ---
     
-    def empty(self):
+    def silhouette_score(self, data: NDArray) -> float:
         '''
-        Empty the set of clusters
-        '''
-        
-        self._clusters: List[Cluster] = []
-        
-    def add(self, cluster: Cluster):
-        '''
-        Add a new cluster to the connection
+        Compute the silhouette score of the clustering.
         '''
         
-        self._clusters.append(cluster)
+        try:               return float(silhouette_score(data, self.labeling))
+        except ValueError: return -1
+    
+    def empty(self): self._clusters: List[Cluster] = []
+    ''' Empty the set of clusters '''
+    
+
+    def add(self, cluster: Cluster): self._clusters.append(cluster)
+    ''' Add a new cluster to the connection '''
         
+    
     def dump(
         self, 
-        out_fp: str, 
-        file_name: str = 'Clusters',
+        out_fp: str,
         logger: Logger = SilentLogger()
     ):
         '''
@@ -346,6 +384,30 @@ class Clusters:
         :type logger: Logger | None, optional
         '''
         
-        fp = os.path.join(out_fp, f'{file_name}.json')
+        fp = os.path.join(out_fp, f'{self.NAME}.json')
         logger.info(f'Saving clusters info to {fp}')
+        
         save_json(data=self.info, path=fp)
+    
+    @staticmethod
+    def _metric_comparison(cl1: Clusters, cl2: Clusters, metric: Callable[[ArrayLike, ArrayLike], float]) -> float:
+        '''
+        Compute the metric score between two clusterings.
+        '''
+        
+        return float(metric(cl1.labeling, cl2.labeling))
+        
+    
+    @staticmethod
+    def clusters_rand_score(cl1: Clusters, cl2: Clusters) -> float: 
+        return Clusters._metric_comparison(cl1, cl2, rand_score)  # type: ignore
+    
+    @staticmethod
+    def clusters_adjusted_rand_score(cl1: Clusters, cl2: Clusters) -> float: 
+        return Clusters._metric_comparison(cl1, cl2, adjusted_rand_score)  # type: ignore
+    
+    @staticmethod
+    def clusters_normalized_mutual_info_score(cl1: Clusters, cl2: Clusters) -> float: 
+        return Clusters._metric_comparison(cl1, cl2, normalized_mutual_info_score)  # type: ignore
+        
+

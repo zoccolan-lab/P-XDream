@@ -5,13 +5,19 @@ The superclass labeling is intended to be used as a ground truth labeling for th
 '''
 
 import os
-from analysis.utils.settings import FILE_NAMES, WORDNET_DIR
+
+import numpy as np
+from analysis.utils.misc import load_wordnet
+from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER_SETTINGS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 
+from zdream.clustering.cluster import Clusters
 from zdream.utils.io_ import save_json
 from zdream.utils.logger import LoguruLogger
 
 # ------------------------------------------- SETTINGS ---------------------------------------
+
+LAYER = 'fc8'
 
 SUPER_LABELS = [
     'mollusk, mollusc, shellfish',
@@ -78,34 +84,7 @@ if __name__ == '__main__':
     logger = LoguruLogger(on_file=False)
     
     # WordNet paths
-    words_fp             = os.path.join(WORDNET_DIR, FILE_NAMES['words'])
-    hierarchy_fp         = os.path.join(WORDNET_DIR, FILE_NAMES['hierarchy'])
-    words_precomputed_fp = os.path.join(WORDNET_DIR, FILE_NAMES['words_precomputed'])
-    
-    # A) Load WordNet with precomputed words if available
-    if os.path.exists(words_precomputed_fp):
-        
-        logger.info(mess='Loading precomputed WordNet')
-        
-        wordnet = WordNet.from_precomputed(
-            wordnet_fp=words_fp, 
-            hierarchy_fp=hierarchy_fp, 
-            words_precomputed=words_precomputed_fp,
-            logger=logger
-        )
-    
-    else:
-        
-        logger.info(mess=f'No precomputation found at {words_precomputed_fp}. Loading WordNet from scratch')
-        
-        wordnet = WordNet(
-            wordnet_fp=words_fp, 
-            hierarchy_fp=hierarchy_fp,
-            logger=logger
-        )
-
-        # Dump precomputed words for future use
-        wordnet.dump_words(fp=WORDNET_DIR)
+    wordnet = load_wordnet(logger)
 
     # Load ImageNet
     logger.info(mess='Loading ImageNet')
@@ -148,13 +127,23 @@ if __name__ == '__main__':
     
     # Log the total number of superclasses used
     logger.info(mess='')
-    logger.info(mess=f"TOTAL CLASSES: {len(set([a for _, a in out.values()]))}")
+    selected_classes = set([code for code, _ in out.values()])
+    logger.info(mess=f"TOTAL CLASSES: {len(selected_classes)}")
     
     # Save superclasses to file
     superclass_fp = os.path.join(WORDNET_DIR, FILE_NAMES['imagenet_super'])
     logger.info(mess=f'Saving superclasses to {superclass_fp}')
     save_json(out, superclass_fp)
     logger.info(mess='')
+    
+    # Save cluster
+    class_mapping = {code: i for i, code in enumerate(selected_classes)}
+    labeling = np.array([class_mapping[code] for code, _ in out.values()])
+    
+    clusters = Clusters.from_labeling(labeling)
+    setattr(clusters, "NAME", "TrueClusters")
+    out_fp = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])  # type: ignore
+    clusters.dump(out_fp=out_fp, logger=logger)
     
     logger.close()
 
