@@ -8,9 +8,10 @@ import os
 
 import numpy as np
 from analysis.utils.misc import load_wordnet
-from analysis.utils.settings import CLUSTER_DIR, FILE_NAMES, LAYER_SETTINGS, WORDNET_DIR
+from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 
+from experiment.utils.settings import FILE_NAMES
 from zdream.clustering.cluster import Clusters
 from zdream.utils.io_ import save_json
 from zdream.utils.logger import LoguruLogger
