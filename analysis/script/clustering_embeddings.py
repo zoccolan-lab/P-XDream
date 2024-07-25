@@ -19,11 +19,6 @@ from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 LAYER = 'fc6-relu'
 
-out_dir = os.path.join(OUT_DIR, "clustering_analysis")
-clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
-EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
-EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
-
 K           =        4 # Number of points to skip for the text
 MAX_REPEAT  =        3
 
@@ -101,11 +96,22 @@ def plot_embedding(
 def main():
     
     # 1. INITIALIZATION
+    
+    out_dir = os.path.join(OUT_DIR, "clustering_analysis")
+    clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
 
     logger = LoguruLogger(on_file=False)
     clusters = load_clusters(dir=clu_dir, logger=logger)
     embeddings_dir = make_dir(os.path.join(out_dir, 'embeddings', LAYER))
     logger.info("")
+    
+    embeddings_fp = path.join(embeddings_dir, 'embeddings.pkl')
+    if path.exists(embeddings_fp):
+        logger.info(f'Loading precomputed embeddings {embeddings_fp}')
+        embeddings = load_pickle(embeddings_fp)
+    else:
+        embeddings = {}
+
     
     imagenet_class, imagenet_superclass = load_imagenet(logger=logger)
     
@@ -126,11 +132,11 @@ def main():
         tsne = TSNE(n_components=2, perplexity=perp, n_iter=TSNE_STEPS)
         
         perp_s = str(perp)
-        if perp_s in EMBEDDINGS: 
-            recordings_tsne = EMBEDDINGS[perp_s]
+        if perp_s in embeddings: 
+            recordings_tsne = embeddings[perp_s]
         else:             
             recordings_tsne = tsne.fit_transform(recordings)
-            EMBEDDINGS[perp_s] = recordings_tsne
+            embeddings[perp_s] = recordings_tsne
 
         
         # 3. CREATING DATAFRAME
@@ -176,14 +182,17 @@ def main():
                 title=f'{cluster_name} - Perp: {perp}',
                 file_name=cluster_name
             )
-        
-    store_pickle(EMBEDDINGS, EMBEDDINGS_FP)
+    
+    logger.info(f'Storing precomputed embeddings to {embeddings_fp}')
+    store_pickle(embeddings, embeddings_fp)
+    
     logger.info(mess='')
     logger.close()
     
 if __name__ == '__main__': 
     
     for layer in LAYER_SETTINGS:
+        
         
         LAYER = layer
 
