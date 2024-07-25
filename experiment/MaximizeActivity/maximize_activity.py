@@ -160,7 +160,8 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = MaximizeActivityExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf=conf))
+        # logger = LoguruLogger(path=Logger.path_from_conf(conf=conf)) NOT IN ISCHIAGUALASTIA BABY :)
+        logger = LoguruLogger(on_file=False)
         
         # In the case render option is enabled we add display screens
         if bool(PARAM_render):
@@ -366,7 +367,11 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         Save best stimuli and make plots
         '''
 
-        super()._finish(msg)
+        msg = super()._finish(msg)
+        
+        return msg
+    
+        # DO YOU WANT TO SAVE ALL THE SHIT BELOW? NOT IN ISCHIAGUALASTIA, LET'S SAVE SOME SPACE
 
         # Close screens if set (or preserve for further experiments using the same screen)
         if self._close_screen: self._logger.close_all_screens()
@@ -622,7 +627,7 @@ class SamplesMaximizationMultiExperiment(BaseZdreamMultiExperiment):
         
         self._data['desc'   ] = 'Scores for multiple optimization for the same neuron' # TODO
         
-        self._data['samples'] = []
+        self._data['samples'] = defaultdict(list)
 
     def _progress(
         self, 
@@ -634,12 +639,15 @@ class SamplesMaximizationMultiExperiment(BaseZdreamMultiExperiment):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
         
-        score = msg.stats_gen['best_score']
-        code  = msg.best_code
+        rec_layer = conf[ExperimentArgParams.RecordingLayers.value]
+        score     = msg.stats_gen['best_score']
+        code      = msg.best_code
         
-        self._data['samples'].append((score, code))
+        self._data['samples'][rec_layer].append((score, code))
         
     def _finish(self):
+        
+        self._data['samples'] = {k: v for k, v in self._data['samples'].items()}
         
         super()._finish()
         

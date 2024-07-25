@@ -1,23 +1,22 @@
+import math
 from os import path
-from collections import defaultdict
 import re
 from typing import Any, Dict, Literal, List, Tuple, cast
 
+import PIL
 import numpy as np
 from numpy.typing import NDArray
 import seaborn as sns
 from pandas import DataFrame
 from matplotlib import cm, pyplot as plt
 from matplotlib.axes import Axes
+from torchvision.transforms.functional import to_pil_image
 
-from analysis.utils.misc import load_imagenet, load_wordnet
-from analysis.utils.settings import WORDNET_DIR
-from analysis.utils.wordnet import ImageNetWords, WordNet
+from analysis.utils.misc import load_imagenet
 from zdream.generator import DeePSiMGenerator, DeePSiMVariant, Generator, DeePSiMVariant
-from zdream.utils.misc import default
+from zdream.utils.misc import default, overwrite_dict
 from zdream.utils.logger import Logger, SilentLogger
-from zdream.optimizer import Optimizer
-from zdream.utils.dataset import ExperimentDataset, MiniImageNet
+from zdream.utils.dataset import ExperimentDataset
 from zdream.utils.misc import SEM, default
 from zdream.utils.types import Codes, Scores, Stimuli
 
@@ -625,56 +624,73 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
 
 
 def save_stimuli_samples(
-    stimuli_scores: List[Tuple[Scores, Codes]],
+    stimuli_scores: Dict[str, List[Tuple[Scores, Codes]]],
     generator: Generator,
     out_dir: str,
     logger: Logger = SilentLogger(),
-    n_col: int = 6
-):
-
-    # Convert codes to images
-    images_scores: List[Tuple[float, Stimuli]] = [
-        (score.tolist()[0], generator(code)[0])
-        for score, code in stimuli_scores
-    ]
+    fontdict = {}
+): 
     
-    # Sort by score
-    images_scores.sort(key=lambda x: x[0], reverse=True)
-
-    # Generate image
-    if(len(images_scores) <= n_col): n_col = len(images_scores)
-    n_row = len(images_scores) // n_col + 1
+    ROUND = 3
+    FIGSIZE = (10, 10)
     
-    fig, axs = plt.subplots(n_row, n_col, figsize=(12, 3*n_row))
-
-    # Flatten the axis array if there is only one row
-    if n_row == 1: axs = axs.flatten()
-
-    # Iterate over the images and scores
-    for i, (score, image) in enumerate(images_scores):
+    for name, stimuli_score in stimuli_scores.items():
+    
+        images_scores: List[Tuple[float, Stimuli]] = [
+            (score.tolist()[0], generator(code)[0])
+            for score, code in stimuli_score
+        ]
         
-        # Get the corresponding axis for the current image
-        if n_row == 1 : ax = axs[i]
-        else          : ax = axs[i%n_row][i//n_col]
+        images_scores.sort(key=lambda x: x[0], reverse=True)
+        
+        superstimuli = [
+            (to_pil_image(img_ten), f'Fitness: {round(fitness, ROUND)}')
+            for fitness, img_ten in images_scores
+        ]
+        
+        
+        NROW    = math.ceil(math.sqrt(len(superstimuli)))
+        NCOL    = len(superstimuli) // NROW
+        
+        if NROW * NCOL != len(superstimuli): NCOL += 1
+        
+        FONTDICT = overwrite_dict(
+            a = {
+                'fontsize'   : 10, 
+                'fontweight' : 'medium',    # 'light', 'normal', 'medium', 'bold', 'heavy'
+                'family'     : 'sans-serif' # 'serif', 'sans-serif', 'monospace', Times New Roman', 'Arial', 'Courier New'
+            },
+            b=fontdict
+        )
+        
+        MAIN_TITLE_FT = fontdict.get('main_title', 24)
+        
+        # Create a figure and a set of subplots
+        fig, axes = plt.subplots(NROW, NCOL, figsize=FIGSIZE)
+        
+        if len(superstimuli) > 1: axes = axes.flatten()
+        else                    : axes = [axes]
 
-        # Plot the image
-        img = image.detach().cpu().numpy().transpose(1, 2, 0)
-        ax.imshow(img)
+        for i, (img, title) in enumerate(superstimuli):
+            axes[i].imshow(img)      # Display the image
+            axes[i].set_title(title, fontdict=FONTDICT) # Add the title
+            axes[i].axis('off')      # Remove the axis
+        
+        i += 1
+        while i < NROW * NCOL:
+            axes[i].axis('off')  # Hide the axis
+            axes[i].imshow(PIL.Image.new('RGB', (1, 1), color='white'))  # Optionally add a white image
+            i += 1
+        
+        plt.tight_layout(pad=2)
+        plt.subplots_adjust(wspace=0.2, hspace=0.2)
+        
+        out_fp = path.join(out_dir, f'superstimuli_samples_{name}.png')
+        
+        logger.info(f'Saving superstimuli samples to {out_fp}')
+        
+        fig.savefig(out_fp)
 
-        # Set the title as the score
-        ax.set_title(f"Score: {round(score, 3)}", fontsize=11)
-
-        # Remove the axis ticks and labels
-        ax.axis('off')
-
-    # Adjust the spacing between subplots
-    plt.tight_layout()
-    
-    # Save 
-    out_fp = path.join(out_dir, 'stimuli_samples.png')
-    
-    logger.info(f'Saving stimuli samples plot to {out_fp}')
-    fig.savefig(out_fp, bbox_inches="tight")
 
 def save_best_stimulus_per_variant(
     neurons_variant_codes: Dict[str, Dict[DeePSiMVariant, Tuple[Codes, Scores]]],

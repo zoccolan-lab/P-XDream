@@ -17,7 +17,6 @@ from torch import Tensor
 from torch.optim import AdamW
 from einops import rearrange
 from einops.layers.torch import Rearrange
-from pytorch_pretrained_biggan import BigGAN
 
 from zdream.utils.logger import Logger, SilentLogger
 
