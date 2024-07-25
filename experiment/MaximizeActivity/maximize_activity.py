@@ -152,9 +152,14 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         # )
         
         optim = GeneticOptimizer(
-            codes_shape = generator.input_dim,
-            rnd_seed    = PARAM_rnd_seed,
-            pop_size    = PARAM_pop_size
+            codes_shape  = generator.input_dim,
+            rnd_seed     = PARAM_rnd_seed,
+            pop_size     = PARAM_pop_size,
+            rnd_scale    = 1,
+            mut_size     = 0.6,
+            mut_rate     = 0.25,
+            allow_clones = True,
+            n_parents    = 4
         )
 
         #  --- LOGGER --- 

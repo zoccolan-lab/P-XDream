@@ -34,6 +34,6 @@ ARGS: ParamConfig = {
     # Globals
     ArgParams          .NumIterations    .value : 150                ,
     ArgParams          .RandomSeed       .value : 50000              ,
-    ArgParams          .Render           .value : True               ,
+    ArgParams          .Render           .value : False              ,
 
 }
