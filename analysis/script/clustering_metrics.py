@@ -65,4 +65,16 @@ def main():
     logger.info(mess='')
     logger.close()
     
-if __name__ == '__main__': main()
+if __name__ == '__main__': 
+    
+    for layer in LAYER_SETTINGS.keys():
+        
+        LAYER = layer
+        LAYER = 'conv5-maxpool'
+
+        out_dir = os.path.join(OUT_DIR, "clustering_analysis", "metrics", LAYER_SETTINGS[LAYER]['directory'])
+        clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])    
+        
+        main()
+    
+    #main()

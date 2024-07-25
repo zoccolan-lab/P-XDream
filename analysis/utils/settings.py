@@ -61,10 +61,8 @@ CLU_ORDER = {
     'NormalizedCut'   : 1,
     'GaussianMixture' : 2,
     'DBSCAN'          : 3,
-    'DBSCANDimTarget' : 3.1,
-    'DBSCANSilhouette': 3.2,
-    'Adjacent'        : 4,
-    'FeatureMap'      : 5,
+    'FeatureMap'      : 4,
+    'Adjacent'        : 5,
     'Random'          : 6,
     'True'            : 7,
 }

@@ -1,20 +1,18 @@
 
 import os
 from os import path
-from typing import Dict
 
 from matplotlib import pyplot as plt
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
 import seaborn as sns
 from sklearn.manifold import TSNE
 import colorcet as cc
 
 from analysis.utils.misc import load_clusters, load_imagenet
-from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, OUT_DIR, WORDNET_DIR
+from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
-from zdream.utils.io_ import load_pickle, read_json, store_pickle
+from zdream.utils.io_ import load_pickle, store_pickle
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
@@ -23,20 +21,19 @@ LAYER = 'fc6-relu'
 
 out_dir = os.path.join(OUT_DIR, "clustering_analysis")
 clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
+EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
 
 K           =        4 # Number of points to skip for the text
 MAX_REPEAT  =        3
-
 
 FIGSIZE    = (10, 10)
 FONTSIZE   = 5
 POINT_SIZE = 40
 
-TSNE_PERP  = [2, 5, 10, 15, 20, 30]
+TSNE_PERP  = [2, 5, 10, 15, 20, 30, 50, 100]
 TSNE_STEPS = 5000
 
-EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
-EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
 
 # --- FUNCTIONS ---
 
@@ -184,4 +181,18 @@ def main():
     logger.info(mess='')
     logger.close()
     
-if __name__ == '__main__': main()
+if __name__ == '__main__': 
+    
+    for layer in LAYER_SETTINGS:
+        
+        LAYER = layer
+
+        out_dir = os.path.join(OUT_DIR, "clustering_analysis")
+        clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+        
+        EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
+        EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
+        
+        main()
+    
+    main()

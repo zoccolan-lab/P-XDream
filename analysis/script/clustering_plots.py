@@ -14,7 +14,7 @@ from zdream.utils.logger import LoguruLogger
 
 # --- SETTINGS ---
 
-LAYER = 'fc6-relu'
+LAYER = 'conv5-maxpool'
 
 out_dir = os.path.join(OUT_DIR, "clustering_analysis", "plots", LAYER_SETTINGS[LAYER]['directory'])
 clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
@@ -27,6 +27,7 @@ PLOT = {
 }
 
 if LAYER != 'fc8': PLOT['entropy'] = False
+if LAYER == 'conv5-maxpool': PLOT['clu_optimization'] = PLOT['clu_optimization_norm'] = False
 
 
 # --- RUN ---
@@ -161,4 +162,15 @@ def main():
     logger.close()
     
     
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    
+    main()
+    #for LAYER in LAYER_SETTINGS.keys():
+    #    
+    #    out_dir = os.path.join(OUT_DIR, "clustering_analysis", "plots", LAYER_SETTINGS[LAYER]['directory'])
+    #    clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+    #    
+    #    if LAYER != 'fc8': PLOT['entropy'] = False
+    #    if LAYER == 'conv5-maxpool': PLOT['clu_optimization'] = PLOT['clu_optimization_norm'] = False
+        
+
