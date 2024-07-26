@@ -24,7 +24,6 @@ from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 # --- SETTINGS ---
 
 LAYER       = 'conv5-maxpool'
-N_FM        = 256
 FM_SIZE     = 36
 SIDE        = int(math.sqrt(FM_SIZE))  # Side of the feature map
 FIGSIZE     = (5, 5)                   # Size of the plot
@@ -289,7 +288,7 @@ def main():
 
             for i, cluster in enumerate(clu): # type: ignore
                 
-                fm_involved = [(label // N_FM, label % FM_SIZE) for label in cluster.labels]
+                fm_involved = [(label // FM_SIZE, label % FM_SIZE) for label in cluster.labels]
                 
                 for fm_number, fm_idx in fm_involved:
                     involved_fm[i][fm_number].append(fm_idx)
