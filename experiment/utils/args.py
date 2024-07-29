@@ -11,11 +11,12 @@ LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 local_setting = read_json(LOCAL_SETTINGS)
 
-OUT_DIR   : str = local_setting['out_dir']
-WEIGHTS   : str = local_setting['weights']
-DATASET   : str = local_setting['dataset']
-IMAGE     : str = local_setting['image']
-CLUSTERING: str = local_setting['clu_dir']
+OUT_DIR      : str = local_setting.get('out_dir',      None)
+WEIGHTS      : str = local_setting.get('weights',      None)
+DATASET      : str = local_setting.get('dataset',      None)
+IMAGE        : str = local_setting.get('image',        None)
+CLUSTERING   : str = local_setting.get('clu_dir',      None)
+FEATURE_MAPS : str = local_setting.get('feature_maps', None)
 
 LAYERS_NEURONS_SPECIFICATION = '''
 TODO write here how to specify neurons
@@ -52,7 +53,12 @@ class ExperimentArgParams(Enum):
     TSNEPerplexity     = ArgParam(name="perplexity",         type=int,   help="Perplexity for t-SNE")
     TSNEIterations     = ArgParam(name="iterations",         type=int,   help="Number of iterations for t-SNE")
     
-        
+    # Feature Map
+    FeatureMapIdx      = ArgParam(name="fm_idx",             type=int,   help="Feature map index to optimize for")
+    FeatureMapDir      = ArgParam(name="fm_dir",             type=str,   help="Path to feature maps directory")    
+    FMSegmentationType = ArgParam(name="seg_type",           type=str,   help="Segmentation type for feature maps {`clu`, `fm`}")
+    FMKey              = ArgParam(name="fm_key",             type=str,   help="Key for feature map to optimize for")
+    
     # Recording
     ImageIds           = ArgParam(name="image_ids",          type=str,   help="Image indexes for recording separated by a comma")
     LogCheckpoint      = ArgParam(name="log_chk",            type=int,   help="Logger iteration checkpoint")

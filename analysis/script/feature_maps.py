@@ -19,6 +19,7 @@ from sklearn.metrics import mutual_info_score
 from analysis.utils.misc import box_violin_plot, load_clusters
 from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
+from zdream.utils.io_ import save_json
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
@@ -42,11 +43,22 @@ DPI         = 300                      # PDF resolution
 PLOTS = {
     'clu_on_fm'               : False,
     'clu_on_fm_visualization' : False,
-    'fm_on_clu'               : True,
+    'clu_on_fm_optim_file'    : True,
+    'fm_on_clu'               : False,
     'fm_on_clu_visualization' : False,
+    'fm_on_clu_optim_file'    : True
 }
 
 # --- ROUTINES ---
+
+def _u_to_tuple(idx: int) -> Tuple[int, int, int]:
+    
+    fm_idx = idx // FM_SIZE
+    square = idx % FM_SIZE
+    i = square // SIDE
+    j = square % SIDE
+    
+    return int(fm_idx), int(i), int(j)
 
 def _fm_visualization(matrix: NDArray, title: str = "", cmap=None, norm=None) -> Image:
     
@@ -78,7 +90,7 @@ def _fm_visualization(matrix: NDArray, title: str = "", cmap=None, norm=None) ->
     return img
 
 def feature_map_visualization(
-    values: List[Tuple[List[int], str]], 
+    values: List[Tuple[List[int], int]], 
     out_fp: str,
     logger: Logger = SilentLogger()
 ):
@@ -89,7 +101,7 @@ def feature_map_visualization(
     
     # 1. Generate images
     
-    for value, title in values:
+    for value, fm_number in values:
         
         # Create a colormap for the unique values
         unique_values = np.unique(value)    
@@ -103,7 +115,7 @@ def feature_map_visualization(
         matrix = np.vectorize(mapping.get)(matrix)
         
         # Generate image
-        img = _fm_visualization(matrix=matrix, title=title, cmap=cmap, norm=norm)
+        img = _fm_visualization(matrix=matrix, title=f'Feature map - {fm_number}', cmap=cmap, norm=norm)
         
         images.append(img)
         
@@ -213,7 +225,7 @@ def main():
     #clusters = {'DominantSet': clusters['DominantSet']}
         
     # Cluster on feature map
-    if any([PLOTS['clu_on_fm'], PLOTS['clu_on_fm_visualization']]):
+    if any([PLOTS['clu_on_fm'], PLOTS['clu_on_fm_visualization'], PLOTS['clu_on_fm_optim_file']]):
         
         logger.info("Analyzing clusters mapping into feature maps...")
         
@@ -221,17 +233,15 @@ def main():
         
         clu_on_fm_dir = make_dir(path=os.path.join(out_dir, 'clusters_on_feature_maps'), logger=logger)
         
-        if PLOTS['clu_on_fm']:
-            
-            fm_clu_count   = {}
-            fm_clu_entropy = {}
+        if PLOTS['clu_on_fm']            : fm_clu_count, fm_clu_entropy = {}, {}
+        if PLOTS['clu_on_fm_optim_file'] : fm_clu_optim = {}
         
         for cluster_name, cluster in clusters.items():
             
             labeling = cluster.labeling
             
             clusters_on_featmaps = [
-                (list(labeling[i:i+FM_SIZE]), f'Feature Map - {fm_idx}') 
+                (list(labeling[i:i+FM_SIZE]), fm_idx) 
                 for fm_idx, i in enumerate(range(0, len(labeling), FM_SIZE))
             ]
             
@@ -239,6 +249,24 @@ def main():
                 
                 fm_clu_count  [cluster_name] = [len(np.unique(value))           for value, _ in clusters_on_featmaps]
                 fm_clu_entropy[cluster_name] = [mutual_info_score(value, value) for value, _ in clusters_on_featmaps]
+            
+            if PLOTS['clu_on_fm_optim_file']:
+                
+                optimization  = {}
+
+                for clu_info, fm_number in clusters_on_featmaps:
+                    
+                    optim = {}
+                    
+                    for unique in set(clu_info):
+                        optim[int(unique)] = [_u_to_tuple(fm_number * 36 + i) for i, v in enumerate(clu_info) if v == unique]
+                        
+                    optim['all'] = [i for idx in optim.values() for i in idx]
+                    
+                    optimization[int(fm_number)] = optim
+                
+                fm_clu_optim[str(cluster_name)] = optimization
+                
                 
             if PLOTS['clu_on_fm_visualization']:
                 
@@ -269,9 +297,17 @@ def main():
                 file_name='cluster_entropy',
                 logger=logger
             )
+            
+        if PLOTS['clu_on_fm_optim_file']:
+            
+            optim_file = os.path.join(clu_on_fm_dir, 'fm_segmentation_optim.json')
+            
+            logger.info(mess=f'Saving optimization files to {optim_file}')
+            
+            save_json(fm_clu_optim, optim_file)
 
     # Feature map on cluster
-    if any([PLOTS['fm_on_clu'], PLOTS['fm_on_clu_visualization']]):
+    if any([PLOTS['fm_on_clu'], PLOTS['fm_on_clu_visualization'], PLOTS['fm_on_clu_optim_file']]):
         
         logger.info("Analyzing feature maps mapping into clusters...")
         
@@ -279,8 +315,8 @@ def main():
         
         fm_on_clu_dir = make_dir(path=os.path.join(out_dir, 'feature_maps_on_clusters'), logger=logger)
         
-        if PLOTS['fm_on_clu']: fm_clu_count, fm_clu_entropy = {}, {}
-        
+        if PLOTS['fm_on_clu']            : fm_clu_count, fm_clu_entropy = {}, {}
+        if PLOTS['fm_on_clu_optim_file'] : fm_clu_optim = {}
         
         for cluster_name, clu in clusters.items():
             
@@ -304,6 +340,23 @@ def main():
                         entropy_idx.extend([fm_number] * len(fm_idx))
                     entropy_values.append(entropy_idx)
                 fm_clu_entropy[cluster_name] = [mutual_info_score(value, value) for value in entropy_values]
+            
+            if PLOTS['fm_on_clu_optim_file']:
+                
+                optimization = {}
+
+                for clu_idx, fm_info in involved_fm.items():
+                    
+                    optim: Dict[int | str, List] = {
+                        int(fm_number): [_u_to_tuple(fm_number * FM_SIZE + idx) for idx in fm_idx]
+                        for fm_number, fm_idx in fm_info.items()
+                    }
+                    
+                    optim['all'] = [i for idx in optim.values() for i in idx]
+                    
+                    optimization[clu_idx] = optim
+                
+                fm_clu_optim[cluster_name] = optimization
             
             if PLOTS['fm_on_clu_visualization']:
                     
@@ -334,6 +387,14 @@ def main():
                 file_name='fm_entropy',
                 logger=logger
             )
+        
+        if PLOTS['fm_on_clu_optim_file']:
+            
+            optim_file = os.path.join(fm_on_clu_dir, 'clu_segmentation_optim.json')
+            
+            logger.info(mess=f'Saving optimization files to {optim_file}')
+            
+            save_json(fm_clu_optim, optim_file)
             
         logger.reset_formatting()
 

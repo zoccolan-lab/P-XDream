@@ -1,8 +1,9 @@
 {
-    "out_dir"    : "path/to/output/directory",
-    "weights"    : "path/to/your/root",
-    "dataset"    : "path/to/your/root",
-    "image"      : "path/to/your/image",
-    "recordings" : "path/to/your/neural/recordings",
-    "clu_dir"    : "path/to/your/clustering/directory"
+    "out_dir"      : "path/to/output/directory",
+    "weights"      : "path/to/your/root",
+    "dataset"      : "path/to/your/root",
+    "image"        : "path/to/your/image",
+    "recordings"   : "path/to/your/neural/recordings",
+    "clu_dir"      : "path/to/your/clustering/directory",
+    "feature_maps" : "path/to/your/feature_maps/directory"
 }
