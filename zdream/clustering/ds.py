@@ -165,7 +165,7 @@ class DSCluster(Cluster):
     
     # --- MAGIC METHODS ---
     
-    def __str__(self) -> str : return f'DS{super().__str__()}'
+    def __str__(self) -> str : return f'DS{super().__str__()[:-1]}; W: {self.W}]'
     
     # NOTE: We need to cast the return type of the following methods to subclass
     

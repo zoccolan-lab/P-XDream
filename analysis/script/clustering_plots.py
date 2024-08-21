@@ -7,14 +7,19 @@ from sklearn.metrics import mutual_info_score
 
 from analysis.utils.misc import CurveFitter
 from analysis.utils.misc import box_violin_plot, end, load_clusters, load_imagenet, start
-from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, NEURON_SCALING_FUN, OUT_DIR
+from analysis.utils.settings import CLU_ORDER, CLUSTER_DIR, LAYER_SETTINGS, NEURON_SCALING_FUN, OUT_DIR
+from experiment.ClusterOptimization.plot import plot_clusters_superstimuli
+from experiment.utils.args import WEIGHTS
 from experiment.utils.misc import make_dir
+from experiment.utils.settings import FILE_NAMES
+from zdream.generator import DeePSiMGenerator
 from zdream.utils.io_ import load_pickle
 from zdream.utils.logger import LoguruLogger
 
 # --- SETTINGS ---
 
-LAYER = 'conv5-maxpool'
+LAYER = 'fc6-relu'
+GEN_VARIANT = 'fc7'
 
 PLOT = {
     "cardinality"           : True,
@@ -32,8 +37,7 @@ def main():
     out_dir = os.path.join(OUT_DIR, "clustering_analysis", "plots", LAYER_SETTINGS[LAYER]['directory'])
     clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
     if LAYER != 'fc8': PLOT['entropy'] = False
-    if LAYER == 'conv5-maxpool': PLOT['clu_optimization'] = PLOT['clu_optimization_norm'] = False
-    
+
     # LOAD
 
     logger = LoguruLogger(on_file=False)
@@ -47,10 +51,16 @@ def main():
         clu_opt_file = os.path.join(clu_dir, 'cluster_optimization.pkl')
         logger.info(f'Loading clustering optimization from {clu_opt_file}')
         clusters_optimization = load_pickle(clu_opt_file)
+        clusters_optimization = {k: clusters_optimization[k] for k in sorted(clusters_optimization.keys(), key=lambda x: CLU_ORDER[x])}
+    
+    if PLOT['clu_optimization'] and PLOT['clu_optimization_norm']:
+        logger.info('Loading generator')
+        generator = DeePSiMGenerator(root=WEIGHTS, variant=GEN_VARIANT)
+    
     
     if PLOT['clu_optimization_norm']:
         logger.info(f'Loading fitted neuron scaling function from {NEURON_SCALING_FUN}')
-        normalize_fun: Dict[str, CurveFitter] = load_pickle(NEURON_SCALING_FUN)[LAYER]
+        normalize_fun: CurveFitter = load_pickle(NEURON_SCALING_FUN)[LAYER]
     
     plot_dir = make_dir(out_dir, logger=logger)
     
@@ -71,6 +81,19 @@ def main():
             logger    = logger
         )
         
+        if LAYER == 'fc6-relu':
+            
+            clu_size['DBSCAN'] = list(sorted(clu_size['DBSCAN']))[:-1]
+            
+            box_violin_plot(
+                data      = clu_size,
+                ylabel    = 'Cardinality',
+                title     = 'Clustering Cardinality',
+                file_name = f'cluster_cardinality_v2',
+                out_dir   = plot_dir,
+                logger    = logger
+            )
+        
         end(logger=logger)
         
     else: 
@@ -84,27 +107,27 @@ def main():
     
         start(logger, 'CLUSTERING OPTIMIZATION')
         
-        clu_opt_means = {
-            clu_name: [np.mean(opt) for opt in scores.values()]
-            for clu_name, scores in clusters_optimization.items()
+        clu_opt_fitness = {
+            clu_algo: [np.max(opt['fitness']) for opt in scores.values()]
+            for clu_algo, scores in clusters_optimization.items()
         }
         
         if PLOT['clu_optimization']:
         
             box_violin_plot(
-                data=clu_opt_means,
+                data=clu_opt_fitness,
                 ylabel='Fitness',
                 title='Clustering Optimization',
                 file_name='clu_optimization',
                 out_dir=plot_dir,
                 logger=logger
             )
-        
+            
         if PLOT['clu_optimization_norm']:
     
             clu_opt_means_normalized = {
-                clu_name: [mean / normalize_fun(len(clu)) for clu, mean in zip(clusters[clu_name], means) if len(clu) > 20]  # type: ignore
-                for clu_name, means in clu_opt_means.items()
+                clu_name: [mean / normalize_fun(len(clu)) for clu, mean in zip(clusters[clu_name], means)]  # type: ignore
+                for clu_name, means in clu_opt_fitness.items()
             }
             
             box_violin_plot(
@@ -115,6 +138,23 @@ def main():
                 out_dir=plot_dir,
                 logger=logger
             )
+            
+        if PLOT['clu_optimization'] and PLOT['clu_optimization_norm']:
+            
+            clu_opt_dir = make_dir(os.path.join(plot_dir, 'clu_optimization'), logger)
+        
+            for clu_algo, superstimuli in clusters_optimization.items():
+                
+                clu_algo_dir = make_dir(os.path.join(clu_opt_dir, clu_algo), logger)
+                
+                plot_clusters_superstimuli(
+                    superstimulus=superstimuli,
+                    normalize_fun=normalize_fun,
+                    clusters=clusters[clu_algo],
+                    generator=generator,
+                    out_dir=clu_algo_dir,
+                    logger=logger
+                )
     
         end(logger)
 

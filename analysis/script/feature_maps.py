@@ -28,7 +28,7 @@ LAYER       = 'conv5-maxpool'
 FM_SIZE     = 36
 SIDE        = int(math.sqrt(FM_SIZE))  # Side of the feature map
 FIGSIZE     = (5, 5)                   # Size of the plot
-TITLE_FONT  = 16                       # Font size of the title
+TITLE_FONT  = 18 #16                       # Font size of the title
 COLOR_MAP   = plt.cm.viridis           # type: ignore - Color map clu_on_fm
 COLORS      = np.array([
     [1.0, 1.0, 1.0, 1.0],  # White

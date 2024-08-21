@@ -72,7 +72,7 @@ def plot_ds_weigthed_score(
         fig.savefig(out_fp)
 
 def plot_clusters_superstimuli(
-    superstimulus: Dict[str, Dict[str, Any]],
+    superstimulus: Dict[int, Dict[str, Any]],
     normalize_fun: Callable[[int], float],
     clusters: Clusters,
     generator: Generator,
@@ -156,9 +156,9 @@ def plot_clusters_superstimuli(
     plot_dir = path.join(out_dir, 'plots')
     make_dir(plot_dir)
     for fig, name in [
-        (errorbars,      'errorbars'),
+        #(errorbars,      'errorbars'),
         (boxplots,       'boxplots'),
-        (errorbars_norm, 'errorbars_norm'),
+        #(errorbars_norm, 'errorbars_norm'),
         (boxplots_norm,  'boxplots_norm'),
     ]:
         out_fp = path.join(plot_dir, f'{name}.svg')
@@ -171,7 +171,7 @@ def plot_activations(
     logger: Logger = SilentLogger()
 ):
     
-    FIG_SIZE = (8, 8)
+    FIG_SIZE = (8, 7)
     
     COLORS   = {
         'Cluster optimized'      : '#0013D6', 
@@ -209,113 +209,146 @@ def plot_activations(
     logger.info(mess=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
 
+import os
+from typing import Dict, List
+from matplotlib import pyplot as plt
+import numpy as np
+import itertools
+from numpy.typing import NDArray
+from zdream.utils.logger import Logger, SilentLogger
+from zdream.utils.misc import SEM
+import seaborn as sns
+
 def plot_subset_activations(
     activations: Dict[int, Dict[str, Dict[int, Dict[str, List[float]]]]],
     out_dir: str,
+    file_name: str = 'subset_activations.svg',
     logger: Logger = SilentLogger()
 ):
-    
+    # Styling parameters for plots
+    PALETTE = 'Dark2'
+    FONT = 'serif'
+    TICK_SIZE = 10  # Font size for tick labels
+    IC_ALPHA = 0.3  # Transparency for confidence intervals
+    TITLE_ARGS = {'fontsize': 22, 'fontfamily': FONT}
+    SUBTITLE_ARGS = {'fontsize': 14, 'fontfamily': FONT}
+    LABEL_ARGS = {'fontsize': 16, 'fontfamily': FONT}
+    LEGEND_ARGS = {'fontsize': 14, 'frameon': True, 'framealpha': 0.8}
+    GRID_ARGS = {'color': '#333333', 'linestyle': '--', 'alpha': 0.3}
+    BOUND_OFFSET = (-0.5, 0.5)  # Offset for y-axis limits
+    FIG_SIZE_X, FIG_SIZE_Y = (5, 5)  # Figure size parameters
+
+    # Define color palette using Seaborn
+    palette = sns.color_palette(PALETTE)
+    COLORS = {
+        'Cluster optimized': palette[0],
+        'Cluster non optimized': palette[1],
+        'External non optimized': palette[2],
+    }
+
+    # Determine figure size based on the number of subplots
     first_activation = activations[list(activations.keys())[0]]
     first_scr_type = first_activation[list(first_activation.keys())[0]]
     first_k = first_scr_type[list(first_scr_type.keys())[0]]
-    
+
     NCOL = len(first_k)
     NROW = 2
-    
-    FIG_SIZE = (8 * NCOL, 8 * NROW)
-    
-    COLORS = {
-        'Cluster optimized'      : '#0013D6', 
-        'Cluster non optimized'  : '#36A900',
-        'External non optimized' : '#E65c00',
-    }
-    
-    BOUND_OFFSET = (-.5, .5)
-    
+    FIG_SIZE = (FIG_SIZE_X * NCOL, FIG_SIZE_Y * NROW)
+
     for clu_idx, topbot_activations in activations.items():
-        
-        BOUNDS = 0, 0
-        
+        # Create a new figure and axes for each cluster
         fig, axes = plt.subplots(nrows=NROW, ncols=NCOL, figsize=FIG_SIZE)
         handles = []
         labels = []
-        
+        BOUNDS = (0, 0)  # Initialize bounds for y-axis limits
+
         for scr_type, activs in topbot_activations.items():
-            
             row = 0 if scr_type == 'subset_top' else 1
             title_top_bot = 'Top' if row == 0 else 'Bot'
-            
+
             for col, (k, act_types) in enumerate(activs.items()):
-                
                 for act_name, a in act_types.items():
-                    
                     color = COLORS[act_name]
-                    
+
+                    # Calculate means and standard errors
                     means = np.mean(a, axis=1)
                     stds = SEM(a, axis=1)
-                    
-                    BOUNDS = min(BOUNDS[0], np.min(means-stds)), max(BOUNDS[1], np.max(means+stds))
-                    
+
+                    # Update bounds for y-axis limits
+                    BOUNDS = (
+                        min(BOUNDS[0], np.min(means - stds)),
+                        max(BOUNDS[1], np.max(means + stds))
+                    )
+
                     ax = axes[row, col]
-                    
-                    line, = ax.plot(range(len(means)), means, color=color, label=act_name)
-                    
+                    line, = ax.plot(range(len(means)), means, color=color, label=act_name, linewidth=2)
+
                     # Collect handles and labels for the common legend
                     if act_name not in labels:
                         handles.append(line)
                         labels.append(act_name)
-                    
-                    # IC
+
+                    # Plot confidence interval (IC) with transparency
                     ax.fill_between(
                         range(len(stds)),
                         means - stds,
-                        means + stds, 
-                        color=f'{color}80'  # add alpha channel
+                        means + stds,
+                        color=color,
+                        alpha=IC_ALPHA
                     )
-                    
-                    ax.set_xlabel('Generations')
-                    ax.set_ylabel('Fitness')
-                    ax.set_title(f'Cluster {clu_idx} - {title_top_bot}-{k} optimization')
-                    ax.grid(True)
-        
-        BOUNDS = BOUNDS[0] + BOUND_OFFSET[0], BOUNDS[1] + BOUND_OFFSET[1]
-        
+
+                    # Set titles based on column index
+                    title_k = {
+                        0: "1 Optimization",
+                        1: f"$\sqrt{{N}}$ Optimization ({k} units)",
+                        2: f"N/2 Optimization ({k} units)"
+                    }.get(col, f"Unknown Optimization ({k} units)")
+
+                    # Set subplot title
+                    ax.set_title(f'{title_top_bot}-{title_k}', **SUBTITLE_ARGS)
+
+                    # Customize tick parameters
+                    ax.tick_params(axis='x', labelsize=TICK_SIZE)
+                    ax.tick_params(axis='y', labelsize=TICK_SIZE)
+
+                    # Apply grid style
+                    ax.grid(True, **GRID_ARGS)
+
+                    # Hide ticks and labels based on row and column
+                    if row != NROW - 1:
+                        ax.set_xticklabels([])
+                        ax.tick_params(axis='x', length=0)
+                    if col != 0:
+                        ax.set_yticklabels([])
+                        ax.tick_params(axis='y', length=0)
+
+                    # Set x-axis and y-axis labels
+                    if row == NROW - 1:
+                        ax.set_xlabel('Generations', **LABEL_ARGS)
+                    if col == 0:
+                        ax.set_ylabel('Fitness', **LABEL_ARGS)
+
+                    # Customize spines based on position
+                    ax.spines['bottom'].set_visible(row == 1)
+                    ax.spines['top'].set_visible(row == 0)
+                    ax.spines['left'].set_visible(col == 0)
+                    ax.spines['right'].set_visible(col == NCOL - 1)
+
+        # Adjust y-axis limits across all subplots
+        BOUNDS = (BOUNDS[0] + BOUND_OFFSET[0], BOUNDS[1] + BOUND_OFFSET[1])
         for i, j in itertools.product(range(NROW), range(NCOL)):
             axes[i][j].set_ylim(BOUNDS)
-        
-        # Add common legend
-        fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.075), ncol=3, prop={'size': 18})
-        
-        out_fp = path.join(out_dir, f'clu_{clu_idx}_{title_top_bot.lower()}{k}.svg')
+
+        # Add a common legend to the figure
+        fig.legend(handles, labels, loc='lower center', ncol=3, **LEGEND_ARGS, prop={'family': FONT})
+
+        # Add a common title for the entire figure
+        fig.suptitle(f'Subset Activations - Cluster {clu_idx}', **TITLE_ARGS)
+
+        # Adjust layout to accommodate the title
+        fig.subplots_adjust(top=0.9)
+
+        # Save the figure to the specified output directory
+        out_fp = os.path.join(out_dir, f'clu{clu_idx}-{file_name}')
         logger.info(mess=f'Saving plot to {out_fp}')
-        fig.savefig(out_fp)
-
-def plot_cluster_units_beststimuli(
-    cluster_codes: Dict[int, Dict[int, Tuple[float, Codes]]],
-    generator: Generator,
-    out_dir: str,
-    logger: Logger = SilentLogger()
-):
-    
-    cluster_stimuli = {
-    cluster_idx: [
-            generator(
-                codes=np.expand_dims(code, 0), # add batch size
-            )[0] # first element of the tuple (the image)
-            for _, code in codes.values()
-        ]
-        for cluster_idx, codes in cluster_codes.items()
-    }
-
-    cluster_grid = {
-        cluster_idx: concatenate_images(
-            img_list=stimuli, nrow = math.ceil(math.sqrt(len(stimuli)))
-        )
-        for cluster_idx, stimuli in cluster_stimuli.items()
-    }
-    
-    for cluster_idx, grid in cluster_grid.items():
-        
-        out_fp = path.join(out_dir, f'cluster_{cluster_idx}-best_stimuli.png')
-        logger.info(mess=f'Saving best cluster stimuli to {out_fp}')
-        grid.save(out_fp)
+        fig.savefig(out_fp, dpi=300, bbox_inches='tight')

@@ -17,14 +17,12 @@ NAME = 'prova'
 ITER          = '3'
 TEMPLATE      = 'T'
 CLUSTER_ALGO  = 'ds'
-SEG_TYPE      = 'fm'
+SEG_TYPE      = 'clu'
 SAMPLE        = 2
 
 DATA = read_json(path.join(FEATURE_MAPS, f'{SEG_TYPE}_segmentation_optim.json'))[FILE_NAMES[CLUSTER_ALGO].replace('Clusters.json', '')]
 
-FM_IDX = [i for i in range(256) if 2<= len(DATA[str(i)]) <= 4]
-
-print(len(FM_IDX))
+FM_IDX = CLU_IDX = [i for i in range(50) if 3 <= len(DATA[str(i)]) <= 5][:2]
 
 def get_rnd_seed() -> int: return int(random.randint(1000, 100000))
 
@@ -39,7 +37,7 @@ def get_args_fm_segments() -> Tuple[str, str, str]:
     args = [
         (idx, k, get_rnd_seed())
         for idx in idxs
-        for k   in DATA[str(idx)]
+        for k   in DATA[str(idx)].keys()
         for _   in range(SAMPLE)
     ]
     

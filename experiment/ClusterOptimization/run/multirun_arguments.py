@@ -14,12 +14,12 @@ from zdream.utils.parameters import ArgParams
 def get_rnd_seed() -> str:
     return str(np.random.randint(1000, 100000))
 
-NAME = 'prova'
+NAME = 'prova2'
 
 ITER         = '3'
 TEMPLATE     = 'T'
-CLUSTER_ALGO = 'ds'
-LAYER        = 'fc8'
+CLUSTER_ALGO = 'dbscan'
+LAYER        = 'fc6-relu'
 SAMPLE       = 2
 
 LAYERS_SETTINGS = {    # Name           # Format               # Idx

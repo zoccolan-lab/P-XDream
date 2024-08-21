@@ -17,8 +17,7 @@ from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
 
-LAYER = 'fc6-relu'
-
+LAYER = 'conv5-maxpool'
 K           =        4 # Number of points to skip for the text
 MAX_REPEAT  =        3
 
@@ -191,17 +190,17 @@ def main():
     
 if __name__ == '__main__': 
     
-    for layer in LAYER_SETTINGS:
-        
-        
-        LAYER = layer
-
-        out_dir = os.path.join(OUT_DIR, "clustering_analysis")
-        clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
-        
-        EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
-        EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
-        
-        main()
+    #for layer in LAYER_SETTINGS:
+    #    
+    #    
+    #    LAYER = layer
+    #
+    #    out_dir = os.path.join(OUT_DIR, "clustering_analysis")
+    #    clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+    #    
+    #    EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
+    #    EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
+    #    
+    #    main()
     
     main()
