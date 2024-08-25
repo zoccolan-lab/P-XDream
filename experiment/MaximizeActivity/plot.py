@@ -1,5 +1,6 @@
 import math
 from os import path
+import os
 import re
 from typing import Any, Dict, Literal, List, Tuple, cast
 
@@ -520,19 +521,41 @@ def plot_scores_by_label(
 
 def plot_optimizing_units(
     data: Dict[str, Dict[str, List[float]]],
-    out_dir : str,
-    logger  : Logger = SilentLogger()
+    out_dir: str,
+    logger: Logger = SilentLogger(),
+    **kwargs
 ):
-    '''
-    '''
-    
+    # --- MACROS ---
+
+    FIG_SIZE    = kwargs.get('FIG_SIZE', (20, 10))
+    TITLE       = kwargs.get('TITLE', '')
+    X_LABEL     = kwargs.get('X_LABEL', 'Random optimized units')
+    Y_LABEL     = kwargs.get('Y_LABEL', 'Fitness')
+    SAVE_FORMATS = kwargs.get('SAVE_FORMATS', ['svg'])
+
+    PALETTE     = kwargs.get('PALETTE', 'husl')
+    PLOT_ARGS   = kwargs.get('PLOT_ARGS', {'linestyle': '-', 'linewidth': 3, 'alpha': 0.5})
+    ERRORBAR_ARGS = {'elinewidth': 2, 'capsize': 5, 'capthick': 2, 'alpha': 0.8}
+    GRID_ARGS   = kwargs.get('GRID_ARGS', {'linestyle': '--', 'alpha': 0.7})
+
+    # Font customization
+    FONT_ARGS    = kwargs.get('FONT_ARGS', {'family': 'serif'})
+    TICK_ARGS    = kwargs.get('TICK_ARGS', {'labelsize': 14, 'direction': 'out', 'length': 6, 'width': 2})
+    LABEL_ARGS   = kwargs.get('LABEL_ARGS', {'fontsize': 16, 'labelpad': 10})
+    TITLE_ARGS   = kwargs.get('TITLE_ARGS', {'fontsize': 20, 'fontweight': 'bold'})
+    LEGEND_ARGS  = kwargs.get('LEGEND_ARGS', {
+        'frameon': True, 'fancybox': True, 
+        'framealpha': 0.7, 'loc': 'best', 'prop': {'family': FONT_ARGS['family'], 'size': 14}
+    })
+
+
     # Define custom color palette with as many colors as layers
-    custom_palette = sns.color_palette("husl", len(data))
+    custom_palette = sns.color_palette(PALETTE, len(data))
 
     for log_scale in [True, False]:
 
-        fig, ax = plt.subplots(1, figsize=(20, 10))
-        
+        fig, ax = plt.subplots(figsize=FIG_SIZE)
+
         for idx, (layer_name, neuron_scores) in enumerate(data.items()):
 
             # Compute mean and standard deviation for each x-value for both lines
@@ -544,23 +567,32 @@ def plot_optimizing_units(
             color = custom_palette[idx]
 
             # Plot line
-            ax.plot(xs, y_means, label=layer_name, color=color, linestyle='--')
+            ax.plot(xs, y_means, label=layer_name, color=color, **PLOT_ARGS)
 
-            ax.errorbar(xs, y_means, yerr=y_sem, color=color)
+            # Error bars
+            ax.errorbar(xs, y_means, yerr=y_sem, color=color, **ERRORBAR_ARGS, fmt='none')
 
-        # Set labels, title and legend
-        ax.set_xlabel('Neurons')
-        ax.set_ylabel('Fitness score')
-        ax.set_title(f'Neuronal scaling')
-        ax.legend()
+        # Set labels, title, and legend
+        ax.set_xlabel(X_LABEL, **LABEL_ARGS, **FONT_ARGS)
+        ax.set_ylabel(Y_LABEL, **LABEL_ARGS, **FONT_ARGS)
+        ax.set_title(f'{TITLE}', **TITLE_ARGS, **FONT_ARGS)
+        ax.legend(**LEGEND_ARGS)
         
-        if log_scale: ax.set_xscale('log')
+        if log_scale:
+            ax.set_xscale('log')
         
+        # Add grid
+        ax.grid(True, **GRID_ARGS)
+        
+        # Customize ticks
+        ax.tick_params(**TICK_ARGS)
+
         # Save or display  
-        out_fp = path.join(out_dir, f'neurons_optimization_{"logscale" if log_scale else "natscale" }.svg')
-        logger.info(f'Saving score histogram plot to {out_fp}')
-        fig.savefig(out_fp)
-        
+        for fmt in SAVE_FORMATS:
+            out_fp = os.path.join(out_dir, f'neurons_optimization_{"logscale" if log_scale else "natscale"}.{fmt}')
+            logger.info(f'Saving score histogram plot to {out_fp}')
+            fig.savefig(out_fp, bbox_inches='tight')
+
         
 def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None, 
                       out_dir: str | None = None,

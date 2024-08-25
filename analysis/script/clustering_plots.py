@@ -3,11 +3,12 @@ import os
 from typing import Dict
 
 import numpy as np
+import seaborn as sns
 from sklearn.metrics import mutual_info_score
 
 from analysis.utils.misc import CurveFitter
-from analysis.utils.misc import box_violin_plot, end, load_clusters, load_imagenet, start
-from analysis.utils.settings import CLU_ORDER, CLUSTER_DIR, LAYER_SETTINGS, NEURON_SCALING_FUN, OUT_DIR
+from analysis.utils.misc import boxplots, end, load_clusters, load_imagenet, start
+from analysis.utils.settings import CLU_ORDER, ALEXNET_DIR, COLORS, LAYER_SETTINGS, NEURON_SCALING_FN, OUT_DIR
 from experiment.ClusterOptimization.plot import plot_clusters_superstimuli
 from experiment.utils.args import WEIGHTS
 from experiment.utils.misc import make_dir
@@ -18,16 +19,15 @@ from zdream.utils.logger import LoguruLogger
 
 # --- SETTINGS ---
 
-LAYER = 'fc6-relu'
+LAYER = 'conv5-maxpool'
 GEN_VARIANT = 'fc7'
 
 PLOT = {
     "cardinality"           : True,
     "clu_optimization"      : True,
     "clu_optimization_norm" : True,
-    "entropy"               : True
+    "entropy"               : False
 }
-
 
 # --- RUN ---
 
@@ -35,7 +35,8 @@ PLOT = {
 def main():
     
     out_dir = os.path.join(OUT_DIR, "clustering_analysis", "plots", LAYER_SETTINGS[LAYER]['directory'])
-    clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+    layer_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])
+    clu_dir = os.path.join(layer_dir, 'clusters')
     if LAYER != 'fc8': PLOT['entropy'] = False
 
     # LOAD
@@ -48,9 +49,11 @@ def main():
         _, imagenet_superclass = load_imagenet(logger=logger)
     
     if PLOT['clu_optimization'] or PLOT['clu_optimization_norm']:
-        clu_opt_file = os.path.join(clu_dir, 'cluster_optimization.pkl')
+        clu_opt_file = os.path.join(layer_dir, 'superstimuli', 'clusters_superstimuli.pkl')
         logger.info(f'Loading clustering optimization from {clu_opt_file}')
         clusters_optimization = load_pickle(clu_opt_file)
+        print(clusters_optimization.keys())
+
         clusters_optimization = {k: clusters_optimization[k] for k in sorted(clusters_optimization.keys(), key=lambda x: CLU_ORDER[x])}
     
     if PLOT['clu_optimization'] and PLOT['clu_optimization_norm']:
@@ -59,8 +62,8 @@ def main():
     
     
     if PLOT['clu_optimization_norm']:
-        logger.info(f'Loading fitted neuron scaling function from {NEURON_SCALING_FUN}')
-        normalize_fun: CurveFitter = load_pickle(NEURON_SCALING_FUN)[LAYER]
+        logger.info(f'Loading fitted neuron scaling function from {NEURON_SCALING_FN}')
+        normalize_fun: CurveFitter = load_pickle(NEURON_SCALING_FN)[GEN_VARIANT][LAYER]
     
     plot_dir = make_dir(out_dir, logger=logger)
     
@@ -72,10 +75,10 @@ def main():
         
         clu_size = {name: [len(c) for c in clu] for name, clu in clusters.items()}  # type: ignore
         
-        box_violin_plot(
+        boxplots(
             data      = clu_size,
             ylabel    = 'Cardinality',
-            title     = 'Clustering Cardinality',
+            title     = f"{LAYER_SETTINGS[LAYER]['title']} - Clustering Cardinality",
             file_name = f'cluster_cardinality',
             out_dir   = plot_dir,
             logger    = logger
@@ -85,7 +88,7 @@ def main():
             
             clu_size['DBSCAN'] = list(sorted(clu_size['DBSCAN']))[:-1]
             
-            box_violin_plot(
+            boxplots(
                 data      = clu_size,
                 ylabel    = 'Cardinality',
                 title     = 'Clustering Cardinality',
@@ -114,10 +117,10 @@ def main():
         
         if PLOT['clu_optimization']:
         
-            box_violin_plot(
+            boxplots(
                 data=clu_opt_fitness,
                 ylabel='Fitness',
-                title='Clustering Optimization',
+                title=f"{LAYER_SETTINGS[LAYER]['title']} - Clustering Superstimuli Optimization",
                 file_name='clu_optimization',
                 out_dir=plot_dir,
                 logger=logger
@@ -130,10 +133,10 @@ def main():
                 for clu_name, means in clu_opt_fitness.items()
             }
             
-            box_violin_plot(
+            boxplots(
                 data=clu_opt_means_normalized,
                 ylabel='Fitness',
-                title='Clustering Optimization Normalized by Random Activation',
+                title=f"{LAYER_SETTINGS[LAYER]['title']} - Clustering Superstimuli Optimization Normalized by Random Activation",
                 file_name='clu_optimization_normalized',
                 out_dir=plot_dir,
                 logger=logger
@@ -146,6 +149,12 @@ def main():
             for clu_algo, superstimuli in clusters_optimization.items():
                 
                 clu_algo_dir = make_dir(os.path.join(clu_opt_dir, clu_algo), logger)
+
+                color = COLORS[CLU_ORDER[clu_algo]]
+
+                palette =\
+                    list(sns.dark_palette (color, n_colors=len(superstimuli)              ))[len(superstimuli)//2:] +\
+                    list(sns.light_palette(color, n_colors=len(superstimuli), reverse=True))[:len(superstimuli)//2]
                 
                 plot_clusters_superstimuli(
                     superstimulus=superstimuli,
@@ -153,7 +162,8 @@ def main():
                     clusters=clusters[clu_algo],
                     generator=generator,
                     out_dir=clu_algo_dir,
-                    logger=logger
+                    logger=logger,
+                    PALETTE=palette
                 )
     
         end(logger)
@@ -182,7 +192,7 @@ def main():
                     
             entropies[cluster_type] = h
             
-        box_violin_plot(
+        boxplots(
             data      = entropies,
             ylabel    = 'Entropy',
             title     = 'Superclasses entropy',
@@ -203,10 +213,9 @@ def main():
     
 if __name__ == '__main__':
     
-    main()
-    #for layer in LAYER_SETTINGS.keys():
-    #
-    #    LAYER = layer
-    #    
-    #    main()
+    for layer in LAYER_SETTINGS.keys():
+    
+        LAYER = layer
+        
+        main()
 

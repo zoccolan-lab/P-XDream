@@ -1,4 +1,4 @@
-
+''
 import itertools
 import os
 
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from analysis.utils.misc import load_clusters
-from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, OUT_DIR
+from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
 from zdream.clustering.cluster import Clusters
 from zdream.utils.logger import LoguruLogger
@@ -16,7 +16,7 @@ from zdream.utils.logger import LoguruLogger
 LAYER = 'conv5-maxpool'
 
 out_dir = os.path.join(OUT_DIR, "clustering_analysis", "metrics", LAYER_SETTINGS[LAYER]['directory'])
-clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])
 
 METRICS = {
     'RandScore'    : Clusters.clusters_rand_score,
@@ -73,7 +73,7 @@ if __name__ == '__main__':
         LAYER = 'conv5-maxpool'
 
         out_dir = os.path.join(OUT_DIR, "clustering_analysis", "metrics", LAYER_SETTINGS[LAYER]['directory'])
-        clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])    
+        clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])    
         
         main()
     

@@ -11,9 +11,9 @@ settings      = read_json(SETTINGS_FILE)
 
 OUT_DIR             : str = settings['out_dir']
 WORDNET_DIR         : str = settings['wordnet_dir']
-CLUSTER_DIR         : str = settings['cluster_dir']
+ALEXNET_DIR         : str = settings['alexnet_dir']
 NEURON_SCALING_FILE : str = settings['neuron_scaling_file']
-NEURON_SCALING_FUN  : str = settings['neuron_scaling_functions']
+NEURON_SCALING_FN   : str = settings['neuron_scaling_functions']
 
 
 # --- LAYER SETTINGS ---
@@ -26,6 +26,7 @@ LAYER_SETTINGS = {
         'number_of_clusters' : 50,
         'feature_map'        : False,
         'neurons'            : 1000,
+        'title'              : 'Layer Fc8',
     },
     'fc7-relu': {
         'directory'          : 'fc7-relu',
@@ -34,6 +35,7 @@ LAYER_SETTINGS = {
         'number_of_clusters' : 127,
         'feature_map'        : False,
         'neurons'            : 4096,
+        'title'              : 'Layer Fc7-ReLu',
     },
     'fc6-relu': {
         'directory'          : 'fc6-relu',
@@ -42,6 +44,7 @@ LAYER_SETTINGS = {
         'number_of_clusters' : 94,
         'feature_map'        : False,
         'neurons'            : 4096,
+        'title'              : 'Layer Fc6-ReLu',
     },
     'conv5-maxpool': {
         'directory'          : 'conv5-maxpool',
@@ -49,20 +52,25 @@ LAYER_SETTINGS = {
         'has_labels'         : False,
         'number_of_clusters' : 576,
         'feature_map'        : True,
-        'neurons'            : 9216
+        'neurons'            : 9216,
+        'title'              : 'Layer Conv5-MaxPool',
     },
 }
 
 
 # --- CLUSTER ORDER ---
 
+COLORS   = ["#bc3bee", "#98d454", "#f74852", "#fae37d", "#673c9e", "#f78436", "#9ff7c7", "#9fd2f2"]
+# COLORS = ["#b60e10", "#233341", "#d1e2f0", "#6098b6", "#987143", "#d6828c", "#c9ad99", "#3e9896"]
+# COLORS = ["#900c3f", "#182b55", "#5f4e94", "#a291c7", "#82cbec", "#d94f21", "#febd2b", "#9aab4b"]
+
 CLU_ORDER = {
     'DominantSet'     : 0,
     'NormalizedCut'   : 1,
     'GaussianMixture' : 2,
     'DBSCAN'          : 3,
-    'FeatureMap'      : 4,
-    'Adjacent'        : 5,
-    'Random'          : 6,
+    'Adjacent'        : 4,
+    'Random'          : 5,
+    'FeatureMap'      : 6,
     'True'            : 7,
 }

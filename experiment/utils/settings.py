@@ -7,6 +7,6 @@ FILE_NAMES = {
     'true'        : 'TrueClusters.json',
     'dbscan'      : 'DBSCANClusters.json',
     'nc'          : 'NormalizedCutClusters.json',
-    'fm'          : 'FeatureMap.json',
+    'fm'          : 'FeatureMapClusters.json',
     'recordings'  : 'recordings.npy',
 }

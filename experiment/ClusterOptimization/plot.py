@@ -71,21 +71,32 @@ def plot_ds_weigthed_score(
         logger.info(mess=f'Saving plot to {out_fp}')
         fig.savefig(out_fp)
 
+
 def plot_clusters_superstimuli(
     superstimulus: Dict[int, Dict[str, Any]],
     normalize_fun: Callable[[int], float],
     clusters: Clusters,
     generator: Generator,
     out_dir: str,
-    logger: Logger = SilentLogger()
+    logger: Logger = SilentLogger(),
+    **kwargs
 ):
-    
-    FIGSIZE    = (16, 8)
-    COLOR_CLU  = '#DC7633'
-    COLOR_RND  = '#3498DB'
-    EDGE_COLOR = 'black'
+    # --- MACROS ---
 
-    # Save the superstimuli
+    FIGSIZE = kwargs.get('FIGSIZE', (21, 9))  # Slightly larger figure for better spacing
+    PALETTE = kwargs.get('PALETTE', sns.color_palette("crest_r", len(superstimulus)))  # Custom color palette
+
+    FONT = kwargs.get('FONT', 'serif')
+
+    TITLE_ARGS = kwargs.get('TITLE_ARGS', {'fontsize': 20, 'fontweight': 'bold', 'fontfamily': FONT})
+    LABEL_ARGS = kwargs.get('LABEL_ARGS', {'fontsize': 16, 'fontfamily': FONT, 'labelpad': 10})
+    TICK_ARGS  = kwargs.get('TICK_ARGS', {'labelsize': 14, 'direction': 'out', 'length': 6, 'width': 2})
+    GRID_ARGS  = kwargs.get('GRID_ARGS', {'linestyle': '--', 'linewidth': 0.5, 'alpha': 0.7})
+    LEGEND_ARGS = kwargs.get('LEGEND_ARGS', {'frameon': True, 'fancybox': True, 'framealpha': 0.7, 'loc': 'best', 'prop': {'family': FONT, 'size': 14}})
+    MARKER_STYLE = kwargs.get('MARKER_STYLE', {'fmt': '.', 'markersize': 9, 'capsize': 7, 'capthick': 2, 'elinewidth': 2, 'alpha': 0.9})
+    LINE_STYLE = kwargs.get('LINE_STYLE', {'linestyle': '--', 'linewidth': 2, 'alpha': 0.9})
+    DASHED_LINE_STYLE = kwargs.get('DASHED_LINE_STYLE', {'linestyle': '--', 'linewidth': 2, 'alpha': 0.5})  # Dashed line style
+
     for clu_idx, superstim in superstimulus.items():
         
         best_code = superstim['code']
@@ -100,70 +111,83 @@ def plot_clusters_superstimuli(
         out_fp = path.join(out_superstim_fp, f'clu{clu_idx}_superstimulus.png')
         best_stim_img.save(out_fp)
     
-    
-    errorbars,      ax1      = plt.subplots(figsize=FIGSIZE)
-    boxplots,       ax2      = plt.subplots(figsize=FIGSIZE)
-    errorbars_norm, ax1_norm = plt.subplots(figsize=FIGSIZE)
-    boxplots_norm,  ax2_norm = plt.subplots(figsize=FIGSIZE)
+    # Prepare figure and axes
+    fig_unorm, ax_unorm = plt.subplots(figsize=FIGSIZE)
+    fig_norm,  ax_norm  = plt.subplots(figsize=FIGSIZE)
     
     rand_fitness = []
-    
-    # Plot
+    avg_values_unorm = []
+    avg_values_norm = []
+
+    # Plot each cluster
     for clu_idx, superstim in superstimulus.items():
-        
-        cluster  = clusters[clu_idx]  # type: ignore
+
+        cluster  = clusters[clu_idx]
         clu_len  = len(cluster)
+
+        if clu_len == 1: continue
+
         rand_fit = normalize_fun(clu_len)
         rand_fitness.append(rand_fit)
         
-        x       = clu_idx
+        x = clu_idx + 1  # Start x-ticks from 1
         fitness = superstim['fitness']
         
-        for axes, norm_factor in zip([(ax1, ax2), (ax1_norm, ax2_norm)], (1., rand_fit)):
-        
-            ax_err, ax_box = axes
-        
+        for ax, norm_factor, avg_values in [(ax_unorm, 1, avg_values_unorm), (ax_norm, rand_fit, avg_values_norm)]:
+
             fitness_ = [f / norm_factor for f in fitness]
-            
+
+            if ax == ax_norm and clu_len == 1: 
+                fitness_ = [1 for f in fitness_]
+
             avg = np.mean(fitness_)
             std = SEM(fitness_)
+            avg_values.append(avg)  # Store the average value for line plotting
             
             # Error Bars
-            ax_err.errorbar(x, avg, yerr=std, color=COLOR_CLU, ecolor=COLOR_CLU, fmt='o', markersize=8, capsize=10)
-            # Boxplot
-            boxplot = ax_box.boxplot(fitness_, positions=[x], patch_artist=True, boxprops=dict(facecolor=COLOR_CLU, color=EDGE_COLOR))
+            ax.errorbar(
+                x, avg, yerr=std, color=PALETTE[clu_idx % len(PALETTE)], 
+                ecolor=PALETTE[clu_idx % len(PALETTE)], **MARKER_STYLE
+            )
     
-    # Adding labels outside the loop to avoid multiple legend entries
-    ax1.errorbar([], [], color=COLOR_CLU, ecolor=COLOR_CLU, fmt='o', markersize=8, capsize=10, label='Cluster fitness')
-    ax2.boxplot([[]], patch_artist=True, boxprops=dict(facecolor=COLOR_CLU, color=EDGE_COLOR)).get('boxes')[0].set_label('Cluster fitness')
+    # Add a dashed line connecting all error bars using the same palette
+    for i in range(1, len(avg_values_unorm)):
+        ax_unorm.plot([i, i+1], avg_values_unorm[i-1:i+1], color=PALETTE[i % len(PALETTE)], **DASHED_LINE_STYLE)
+        ax_norm.plot([i, i+1], avg_values_norm[i-1:i+1], color=PALETTE[i % len(PALETTE)], **DASHED_LINE_STYLE)
     
-    # Customize axes    
-    for ax in [ax1, ax2]:
-        ax.set_xlabel('Cluster Index')
-        ax.set_ylabel('Fitness')
-        ax.set_title('Cluster supertimulus fitness')
-        ax.set_xticks(list(superstimulus.keys()))
-        ax.plot(list(superstimulus.keys()), rand_fitness, color=COLOR_RND, label='Random reference', linestyle='--')
-        ax.legend()
+    # Customize unnormalized plot
+    ax_unorm.errorbar([], [], label='Cluster fitness', **MARKER_STYLE)
+    ax_unorm.plot(
+        range(1, len(rand_fitness) + 1), rand_fitness, color='grey', label='Random reference', **LINE_STYLE
+    )
+    ax_unorm.set_xlabel('Cluster Index', **LABEL_ARGS)
+    ax_unorm.set_ylabel('Fitness', **LABEL_ARGS)
+    ax_unorm.set_title('Cluster Superstimulus Fitness', **TITLE_ARGS)
+    ax_unorm.legend(**LEGEND_ARGS)
+    ax_unorm.grid(True, **GRID_ARGS)
+    ax_unorm.tick_params(**TICK_ARGS)
+    ax_unorm.set_xticks(range(1, len(superstimulus) + 1, len(superstimulus) // 10))  # Ensure x-ticks start from 1
     
-    for ax in [ax1_norm, ax2_norm]:    
-        ax.set_xlabel('Cluster Index')
-        ax.set_ylabel('Rand-Normalized Fitness')
-        ax.set_title('Cluster supertimulus fitness normalized on random fitness')
-        ax.set_xticks(list(superstimulus.keys()))
-        
-    # Save figures
+    # Customize normalized plot
+    ax_norm.set_xlabel('Cluster Index', **LABEL_ARGS)
+    ax_norm.set_ylabel('Rand-Normalized Fitness', **LABEL_ARGS)
+    ax_norm.set_title(f'Rand-Normalized Cluster Superstimulus Fitness', **TITLE_ARGS)
+    ax_norm.grid(True, **GRID_ARGS)
+    ax_norm.tick_params(**TICK_ARGS)
+    ax_norm.set_xticks(range(1, len(superstimulus) + 1, len(superstimulus) // 10))  # Ensure x-ticks start from 1
+
+    
     plot_dir = path.join(out_dir, 'plots')
     make_dir(plot_dir)
+    
     for fig, name in [
-        #(errorbars,      'errorbars'),
-        (boxplots,       'boxplots'),
-        #(errorbars_norm, 'errorbars_norm'),
-        (boxplots_norm,  'boxplots_norm'),
+        (fig_unorm, 'cluster_superstimuli_optimization'),
+        (fig_norm, 'cluster_superstimuli_optimization_normalized'),
     ]:
-        out_fp = path.join(plot_dir, f'{name}.svg')
-        logger.info(mess=f'Saving plot to {out_fp}')
-        fig.savefig(out_fp)
+        for ext in ['.svg']:
+            out_fp = path.join(plot_dir, f'{name}{ext}')
+            logger.info(mess=f'Saving plot to {out_fp}')
+            fig.savefig(out_fp, bbox_inches='tight', dpi=300)
 
 def plot_activations(
     activations: Dict[str, NDArray],
@@ -233,7 +257,7 @@ def plot_subset_activations(
     TITLE_ARGS = {'fontsize': 22, 'fontfamily': FONT}
     SUBTITLE_ARGS = {'fontsize': 14, 'fontfamily': FONT}
     LABEL_ARGS = {'fontsize': 16, 'fontfamily': FONT}
-    LEGEND_ARGS = {'fontsize': 14, 'frameon': True, 'framealpha': 0.8}
+    LEGEND_ARGS = {'frameon': True, 'framealpha': 0.8, 'prop': {'family': FONT, 'size': 14}}
     GRID_ARGS = {'color': '#333333', 'linestyle': '--', 'alpha': 0.3}
     BOUND_OFFSET = (-0.5, 0.5)  # Offset for y-axis limits
     FIG_SIZE_X, FIG_SIZE_Y = (5, 5)  # Figure size parameters

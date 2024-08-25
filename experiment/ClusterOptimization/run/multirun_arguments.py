@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from analysis.utils.settings import CLUSTER_DIR
+from analysis.utils.settings import ALEXNET_DIR
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.settings import FILE_NAMES
 from zdream.clustering.ds      import Clusters
@@ -32,7 +32,7 @@ LAYERS_SETTINGS = {    # Name           # Format               # Idx
 
 LAYER_DIR, LAYER_FORMAT, LAYER_IDX = LAYERS_SETTINGS[LAYER]
 
-CLU_DIR     = path.join(CLUSTER_DIR, LAYER_DIR)
+CLU_DIR     = path.join(ALEXNET_DIR, LAYER_DIR)
 CLU_FILE    = path.join(CLU_DIR, FILE_NAMES[CLUSTER_ALGO])
 CLUSTERS    = Clusters.from_file(CLU_FILE)
 CLUSTER_IDX = [0] # list(range(len(CLUSTERS)))

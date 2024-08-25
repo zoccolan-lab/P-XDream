@@ -8,7 +8,7 @@ import os
 
 import numpy as np
 from analysis.utils.misc import load_wordnet
-from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, WORDNET_DIR
+from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 
 from experiment.utils.settings import FILE_NAMES
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     
     clusters = Clusters.from_labeling(labeling)
     setattr(clusters, "NAME", "TrueClusters")
-    out_fp = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])  # type: ignore
+    out_fp = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])  # type: ignore
     clusters.dump(out_fp=out_fp, logger=logger)
     
     logger.close()

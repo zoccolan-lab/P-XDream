@@ -4,7 +4,7 @@ import numpy as np
 import seaborn as sns
 
 from typing import Callable, Dict, List, Tuple
-from analysis.utils.settings import CLU_ORDER, WORDNET_DIR
+from analysis.utils.settings import CLU_ORDER, COLORS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 from zdream.clustering.cluster import Clusters
 from zdream.utils.logger import Logger, SilentLogger
@@ -101,8 +101,8 @@ def load_imagenet(wordnet: WordNet | None = None, logger: Logger = SilentLogger(
 
 # --- PLOTTING ---
 
-def box_violin_plot(
-    data      : Dict[str, List[int]] | Dict[str, List[float]],
+def boxplots(
+    data      : Dict[str, List[float]],
     ylabel    : str,
     title     : str,
     file_name : str,
@@ -110,11 +110,11 @@ def box_violin_plot(
     logger    : Logger = SilentLogger()
 ):
     '''
-    Plot data in a boxplot and violinplot and save them in the output directory
+    Plot data in a boxplot and save it in the output directory.
 
     :param data: Data to plot indexed by cluster type.
-    :type data: Dict[str, List[int]] | Dict[str, List[float]]
-    :param ylabel: Label for the y axis.
+    :type data: Dict[str, List[float]]
+    :param ylabel: Label for the y-axis.
     :type ylabel: str
     :param title: Title of the plot.
     :type title: str
@@ -126,30 +126,44 @@ def box_violin_plot(
     :type logger: Logger, optional
     '''
     
-    SNS_PALETTE = 'husl'
-    FIGSIZE     = (10, 6)
+    # --- MACROS ---
+    FIGSIZE      = (12, 6)
+    PALETTE      = [COLORS[CLU_ORDER[clu_name]] for clu_name in data]
     
-    palette = sns.set_palette(SNS_PALETTE)
+    # Font customization
+    FONT = 'serif'
+    LABEL_ARGS   = {'fontsize': 16, 'labelpad': 10, 'fontfamily': FONT}
+    TITLE_ARGS   = {'fontsize': 20, 'fontfamily': FONT}
     
-    for plot_ty in ['boxplot']: #, 'violinplot']:
+    X_TICK_ARGS    = {'size': 12, 'rotation': 0, 'family': FONT}
+    GRID_ARGS    = {'linestyle': '--', 'alpha': 0.7}
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+
+    data_values = list(data.values())
     
-        fig, ax = plt.subplots(figsize=FIGSIZE)
-        
-        data_values = list(data.values())
-        
-        if plot_ty == 'boxplot': sns.boxplot   (data=data_values, ax=ax, palette=palette)
-        else:                    sns.violinplot(data=data_values, ax=ax, palette=palette)
-        
-        ax.set_title(title)
-        ax.set_ylabel(ylabel)
-        ax.set_xticks(np.arange(len(data_values)))
-        ax.set_xticklabels(data.keys())
-        ax.tick_params(axis='x', rotation=45) 
-        plt.tight_layout() 
-        
-        out_fp = os.path.join(out_dir, f'{file_name}_{plot_ty}.svg')
-        logger.info(mess=f'Saving plot to {out_fp}')
-        fig.savefig(out_fp)
+    # Boxplot
+    sns.boxplot(data=data_values, ax=ax, palette=PALETTE)
+
+    # Set labels, title, and customize ticks
+    ax.set_title(title, **TITLE_ARGS,)
+    ax.set_ylabel(ylabel, **LABEL_ARGS)
+    ax.set_xticks(np.arange(len(data_values)))
+    ax.set_xticklabels(data.keys(), **X_TICK_ARGS)
+    ax.set_xticklabels(data.keys(), **X_TICK_ARGS)
+
+    # Add grid with custom settings
+    ax.grid(True, **GRID_ARGS)
+
+    # Ensure a tight layout
+    fig.tight_layout()
+
+    # Save the plot
+    out_fp = os.path.join(out_dir, f'{file_name}.svg')
+    logger.info(f'Saving plot to {out_fp}')
+    fig.savefig(out_fp, bbox_inches='tight')
+
 
 
 # --- RUN ---

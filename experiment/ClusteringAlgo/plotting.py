@@ -13,16 +13,17 @@ def plot_cluster_extraction_trend(
     clusters: DSClusters,
     out_dir: str,
     exclude_singletons: bool = True,
+    title: str = "",
     file_name: str = 'DS_trend.svg',
     logger: Logger = SilentLogger()
 ):
     
     PALETTE     = 'deep'
-    FONT        = 'Arial'
+    FONT        = 'serif'
     FIG_SIZE    = (14, 8)
-    TITLE_SIZE  = 23
-    LEGEND_SIZE = 14
-    LABEL_ARGS  = {'fontsize': 16, 'fontfamily': FONT, 'labelpad': 15}  # fontsize: 18
+    TITLE_ARGS  = {'fontsize': 23, 'fontfamily': FONT}
+    LEGEND_ARGS = {'prop': {'family': FONT, 'size': 14}}
+    LABEL_ARGS  = {'fontsize': 18, 'fontfamily': FONT, 'labelpad': 15}  # fontsize: 18
     PLOT_ARGS   = {'markersize': 4, 'linewidth': 1.5} # {'markersize': 6, 'linewidth': 2.5}
     TICK_PARAMS = {'width': 1.5, 'length': 7, 'labelsize': 14}
 
@@ -49,7 +50,7 @@ def plot_cluster_extraction_trend(
     ax1.tick_params(colors='black', axis='y', color=color1, **TICK_PARAMS)
     ax2.tick_params(colors='black', axis='y', color=color2, **TICK_PARAMS)    
 
-    ax1.set_ylim(top=60)
+    ax1.set_ylim(top=70)
     
     # Apply grid only to the primary y-axis
     ax1.spines['top'].set_visible(False)
@@ -65,7 +66,7 @@ def plot_cluster_extraction_trend(
     line2, = ax2.plot(x,   Ws, marker='s', color=color2, linestyle='--', label='Coherence',   **PLOT_ARGS)
 
     # Set a common title for the figure
-    fig.suptitle('Iterative Extraction of Dominant Set Clusters - Layer conv5-maxpool', fontsize=TITLE_SIZE)
+    fig.suptitle(f'Iterative Extraction of Dominant Set Clusters - {title}', **TITLE_ARGS)
 
     # Create a single legend for both lines with a white background
     lines = [line1, line2]
@@ -74,14 +75,13 @@ def plot_cluster_extraction_trend(
         lines, 
         labels, 
         loc="upper right", 
-        fontsize=LEGEND_SIZE, 
         facecolor='white',   # Set the background color to white
         edgecolor='black',   # Optionally, add a black border to the legend
+        **LEGEND_ARGS
     )
 
     # Adjust layout for better spacing
-    fig.tight_layout(rect=(0, 0, 1, 0.95))
-
+    # fig.tight_layout(rect=(0, 0, 1, 0.95))
     # Save the figure
     out_fp = os.path.join(out_dir, file_name)
     logger.info(mess=f'Saving DS trend plot to {out_fp}')
@@ -89,10 +89,11 @@ def plot_cluster_extraction_trend(
 
     
     
-def plot_cluster_ranks(
+def plot_cluster_extraction_ranks(
     clusters: DSClusters,
     out_dir: str,
     exclude_singletons: bool = True,
+    title: str = "",
     file_name: str = 'DS_ranks.svg',
     logger: Logger = SilentLogger()
 ):
@@ -122,7 +123,7 @@ def plot_cluster_ranks(
     # Set labels and title with customized font properties
     ax.set_xlabel('Cluster-ID', fontsize=LABEL_SIZE, fontfamily=FONT, labelpad=LABEL_PAD)
     ax.set_ylabel('Rank', fontsize=LABEL_SIZE, fontfamily=FONT, labelpad=LABEL_PAD)
-    ax.set_title(F'Intracluster Ranks of Dominant Set Clusters - Layer ', fontsize=TITLE_SIZE, fontfamily=FONT, pad=TITLE_PAD)
+    ax.set_title(F'Intracluster Ranks of Dominant Set Clusters - {title}', fontsize=TITLE_SIZE, fontfamily=FONT, pad=TITLE_PAD)
     
     # Customize ticks
     ax.tick_params(axis='x', labelsize=TICK_SIZE)

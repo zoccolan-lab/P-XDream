@@ -16,8 +16,8 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics import mutual_info_score
 
-from analysis.utils.misc import box_violin_plot, load_clusters
-from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS, OUT_DIR
+from analysis.utils.misc import boxplots, load_clusters
+from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
 from zdream.utils.io_ import save_json
 from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
@@ -211,7 +211,7 @@ def cluster_visualization(
 def main():
 
     out_dir = os.path.join(OUT_DIR, "feature_maps", LAYER_SETTINGS[LAYER]['directory'])
-    clu_dir = os.path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+    clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])
     
     assert os.path.exists(os.path.join(clu_dir, 'FeatureMapClusters.json')), f'Feature map not found at : {clu_dir}'
 
@@ -280,7 +280,7 @@ def main():
         
         if PLOTS['clu_on_fm']:
             
-            box_violin_plot(
+            boxplots(
                 data=fm_clu_count,
                 ylabel='Cardinality',
                 title='Cluster Cardinality on Feature Maps',
@@ -289,7 +289,7 @@ def main():
                 logger=logger
             )
             
-            box_violin_plot(
+            boxplots(
                 data=fm_clu_entropy,
                 ylabel='Cluster Entropy',
                 title='Cluster Entropy on Feature Maps',
@@ -370,7 +370,7 @@ def main():
                 
         if PLOTS['fm_on_clu']:
                 
-            box_violin_plot(
+            boxplots(
                 data=fm_clu_count,
                 ylabel='Feature Map Cardinality',
                 title='Feature Map Cardinality on Clusters',
@@ -379,7 +379,7 @@ def main():
                 logger=logger
             )
             
-            box_violin_plot(
+            boxplots(
                 data=fm_clu_entropy,
                 ylabel='Feature Map Entropy',
                 title='Feature Map Entropy on Clusters',

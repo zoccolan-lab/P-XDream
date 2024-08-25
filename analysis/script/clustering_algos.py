@@ -4,7 +4,7 @@ from os import path
 import numpy as np
 from numpy.typing import NDArray
 
-from analysis.utils.settings import CLUSTER_DIR, LAYER_SETTINGS
+from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS
 from zdream.clustering.algo import (
     DominantSetClusteringAlgorithm,
     NormalizedCutClusteringAlgorithm,
@@ -19,7 +19,7 @@ from zdream.utils.logger     import Logger, LoguruLogger, SilentLogger
 
 LAYER   = 'fc6-relu'
 
-CLU_DIR  = path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])
+CLU_DIR  = path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'], 'clusters')
 
 N_CLU                   = 0                     # GMM, NC, ADJ, RAND
 MIN_ELEMENTS            = 2                     # DS
@@ -32,7 +32,7 @@ GMM_DIM_REDUCTION    = {'type': 'pca', 'n_components': 500                      
 DBSCAN_DIM_REDUCTION = {'type': 'tsne','n_components':   2, 'perplexity': 30, 'n_iter': 5000} # DBSCAN
 
 # Use the number of clusters from the DominantSet Clustering
-if path.exists(path.join(CLUSTER_DIR, LAYER_SETTINGS[LAYER]['directory'])):
+if path.exists(path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])):
     N_CLU = len(Clusters.from_file(path.join(CLU_DIR, 'DominantSetClusters.json')).clusters)
 
 # ALGOS FLAGS
