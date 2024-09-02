@@ -156,7 +156,7 @@ def plot_fit(
         if single_plot:
             ax_.legend(**LEGEND_ARGS)
 
-        fig.suptitle(f"{TITLE} - {'Log Scale' if log_scale else 'Original Scale'}", **TITLE_ARGS)
+        fig.suptitle(f"{TITLE} ({'Log Scale' if log_scale else 'Original Scale'})", **TITLE_ARGS)
         
         # Save the plots in multiple formats
         scale_str  = 'log'    if log_scale   else 'orig'
@@ -177,7 +177,7 @@ def main():
     variant_name = [part for part in neuron_scaling_file.split('_') if 'variant' in part][0].strip('variant')
     
     fit_dir = make_dir(
-        path=os.path.join(out_dir, variant_name),
+        path=os.path.join(out_dir, f'{variant_name}_variant'),
         logger=logger
     )
 
@@ -189,7 +189,7 @@ def main():
         data=neuron_scaling['score'],
         out_dir=fit_dir,
         logger=logger,
-        TITLE=F'{variant_name} Generator Variant - Neuron Optimization Scaling'
+        TITLE=F'{variant_name.capitalize()} Generator Variant - Neuron Optimization Scaling'
     )
 
     # Average samples
@@ -216,7 +216,7 @@ def main():
         )
     
     # Plot the fit
-    plot_fit(points=points, functions=out_functions, logger=logger, out_dir=fit_dir, TITLE=f"{variant_name} Generator Variant - Neuron Optimization Scaling Fit")
+    plot_fit(points=points, functions=out_functions, logger=logger, out_dir=fit_dir, TITLE=f"{variant_name.capitalize()} Generator Variant - Neuron Scaling Optimization Fitted Curve")
     
     # Save functions
 
@@ -231,6 +231,6 @@ def main():
     
     logger.info(f'Saving functions to {out_fp}')
     
-    store_pickle(out_functions, out_fp)
+    store_pickle(data, out_fp)
 
 if __name__ == '__main__': main()

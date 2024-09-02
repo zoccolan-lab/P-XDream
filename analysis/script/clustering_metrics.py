@@ -5,7 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from analysis.utils.misc import load_clusters
+from analysis.utils.misc import AlexNetLayerLoader
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
 from zdream.clustering.cluster import Clusters
@@ -15,8 +15,6 @@ from zdream.utils.logger import LoguruLogger
 
 LAYER = 'conv5-maxpool'
 
-out_dir = os.path.join(OUT_DIR, "clustering_analysis", "metrics", LAYER_SETTINGS[LAYER]['directory'])
-clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])
 
 METRICS = {
     'RandScore'    : Clusters.clusters_rand_score,
@@ -26,11 +24,15 @@ METRICS = {
 
 def main():
 
+    out_dir = os.path.join(OUT_DIR, "clustering_analysis", "metrics", LAYER_SETTINGS[LAYER]['directory'])
+    clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'], 'clusters')  
+
     # Initialize logger
     logger = LoguruLogger(on_file=False)
     
     # Load clusters
-    clusters = load_clusters(dir=clu_dir, logger=logger)
+    layer_loader = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)
+    clusters = layer_loader.load_clusters()
         
     # Create metric directory
     metric_dir = make_dir(out_dir)
@@ -70,10 +72,6 @@ if __name__ == '__main__':
     for layer in LAYER_SETTINGS.keys():
         
         LAYER = layer
-        LAYER = 'conv5-maxpool'
-
-        out_dir = os.path.join(OUT_DIR, "clustering_analysis", "metrics", LAYER_SETTINGS[LAYER]['directory'])
-        clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])    
         
         main()
     

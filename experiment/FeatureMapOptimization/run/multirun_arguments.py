@@ -20,7 +20,7 @@ CLUSTER_ALGO  = 'ds'
 SEG_TYPE      = 'clu'
 SAMPLE        = 2
 
-DATA = read_json(path.join(FEATURE_MAPS, f'{SEG_TYPE}_segmentation_optim.json'))[FILE_NAMES[CLUSTER_ALGO].replace('Clusters.json', '')]
+DATA = read_json(path.join(FEATURE_MAPS, f'{SEG_TYPE}_segmentation_optim.json'))[FILE_NAMES[CLUSTER_ALGO].replace('.json', '')]
 
 FM_IDX = CLU_IDX = [i for i in range(50) if 3 <= len(DATA[str(i)]) <= 5][:2]
 

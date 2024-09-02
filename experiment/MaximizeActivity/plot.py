@@ -143,7 +143,7 @@ def set_default_matplotlib_params(
         'boxplot.medianprops.color'     : 'red',
         'boxplot.capprops.linewidth'    : box_lw,
         'boxplot.capprops.color'        : box_c,
-        'axes.spines.top'               : False,
+        'axes.spines.tconv5op'               : False,
         'axes.spines.right'             : False,
         'axes.linewidth'                : axes_lw,
         'xtick.major.width'             : axes_lw,

@@ -13,7 +13,6 @@ OUT_DIR             : str = settings['out_dir']
 WORDNET_DIR         : str = settings['wordnet_dir']
 ALEXNET_DIR         : str = settings['alexnet_dir']
 NEURON_SCALING_FILE : str = settings['neuron_scaling_file']
-NEURON_SCALING_FN   : str = settings['neuron_scaling_functions']
 
 
 # --- LAYER SETTINGS ---
@@ -60,17 +59,25 @@ LAYER_SETTINGS = {
 
 # --- CLUSTER ORDER ---
 
-COLORS   = ["#bc3bee", "#98d454", "#f74852", "#fae37d", "#673c9e", "#f78436", "#9ff7c7", "#9fd2f2"]
-# COLORS = ["#b60e10", "#233341", "#d1e2f0", "#6098b6", "#987143", "#d6828c", "#c9ad99", "#3e9896"]
-# COLORS = ["#900c3f", "#182b55", "#5f4e94", "#a291c7", "#82cbec", "#d94f21", "#febd2b", "#9aab4b"]
+COLORS = [
+    "#bc3bee",
+    "#59bb29",
+    "#f74852",
+    "#ffd82a",
+    "#19c4b9",
+    "#f78436",
+    "#1f12d5",
+    "#797171",
+]
 
 CLU_ORDER = {
-    'DominantSet'     : 0,
-    'NormalizedCut'   : 1,
-    'GaussianMixture' : 2,
-    'DBSCAN'          : 3,
-    'Adjacent'        : 4,
-    'Random'          : 5,
-    'FeatureMap'      : 6,
-    'True'            : 7,
+    'DominantSet'         : 0,
+    'DominantSetWeighted' : 0.1,
+    'NormalizedCut'       : 1,
+    'GaussianMixture'     : 2,
+    'DBSCAN'              : 3,
+    'Adjacent'            : 4,
+    'Random'              : 5,
+    'FeatureMap'          : 6,
+    'True'                : 7,
 }

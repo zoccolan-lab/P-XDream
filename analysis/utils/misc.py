@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import os
+from os import path
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 import seaborn as sns
 
-from typing import Callable, Dict, List, Tuple
-from analysis.utils.settings import CLU_ORDER, COLORS, WORDNET_DIR
+from typing import Any, Callable, Dict, List, Literal, Tuple
+from analysis.utils.settings import CLU_ORDER, COLORS, LAYER_SETTINGS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 from zdream.clustering.cluster import Clusters
-from zdream.utils.logger import Logger, SilentLogger
+from zdream.clustering.ds import DSClusters
+from zdream.utils.io_ import load_pickle, read_json
+from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
 from zdream.utils.misc import default
 
 # --- LOGGING ---
@@ -25,28 +31,126 @@ def end(logger: Logger):
     
 # --- LOADING ---
 
-def load_clusters(dir: str, exclude: List[str] = [], logger: Logger = SilentLogger()) -> Dict[str, Clusters]:
-    
-    clusters = {}
-    
-    logger.info(mess=f'Loading clusters from {dir}')
-    
-    for root, _, files in os.walk(dir):
-        
-        for file in files:
-            
-            if file.endswith("Clusters.json") and file not in exclude:
-                
-                file_path = os.path.join(root, file)
-                logger.info(mess=f' > Loading {file}')
-                clusters[file.replace("Clusters.json", "")] = Clusters.from_file(fp=file_path)
-                
-            else:
-                logger.info(mess=f' > Skipping {file}')
-                
-    clusters = dict(sorted(clusters.items(), key=lambda x: CLU_ORDER[x[0]]))
+SuperStimuliInfoName = Literal['code', 'fitness']
+SuperStimuliInfo = Dict[SuperStimuliInfoName, Any]
 
-    return clusters
+class AlexNetLayerLoader:
+
+    def __init__(self, alexnet_dir: str, layer: str, logger: Logger = SilentLogger()):
+
+        self.alexnet_dir = alexnet_dir
+        self.layer = layer
+        self._logger = logger
+
+    def __str__(self):
+        return f"AlexNetInfoLoader(alexnet_dir={self.alexnet_dir}, layer={self.layer})"
+    
+    def __repr__(self):
+        return str(self)
+    
+    @property
+    def layer_dir(self):
+        return os.path.join(self.alexnet_dir, LAYER_SETTINGS[self.layer]['directory'])
+    
+    @property
+    def cluster_dir(self):
+        return os.path.join(self.layer_dir, 'clusters')
+    
+    @property
+    def superstimuli_dir(self):
+        return os.path.join(self.layer_dir, 'superstimuli')
+    
+    @property
+    def recordings_dir(self):
+        return os.path.join(self.layer_dir, 'recordings')
+    
+    @property
+    def fm_clu_segmentation_dir(self):
+        return os.path.join(self.layer_dir, 'fm_clu_segmentation')
+    
+    def load_clusters(self, exclude: List[str] = []) -> Dict[str, Clusters]:
+    
+        clusters = {}
+        
+        self._logger.info(mess=f'Loading clusters from {dir}')
+        
+        for root, _, files in os.walk(self.cluster_dir):
+            
+            for file in files:
+                
+                if file.endswith(".json") and file not in exclude:
+                    
+                    file_path = os.path.join(root, file)
+                    self._logger.info(mess=f' > Loading {file}')
+                    clu_algo = file.replace(".json", "")
+
+                    C = DSClusters if clu_algo == 'DominantSet'else Clusters
+                    clusters[clu_algo] = C.from_file(fp=file_path)
+                    
+                else:
+                    self._logger.info(mess=f' > Skipping {file}')
+                    
+        clusters = dict(sorted(clusters.items(), key=lambda x: CLU_ORDER[x[0]]))
+
+        return clusters
+    
+    def load_recordings(self, inet=False) -> NDArray:
+        
+        f_name = 'recordings_inet' if inet else 'recordings'
+
+        fp = os.path.join(self.recordings_dir, f'{f_name}.npy')
+        self._logger.info(mess=f'Loading recordings from {fp}')
+        return np.load(fp)
+    
+    def load_superstimuli(self) -> Tuple[Dict[str, Dict[int, SuperStimuliInfo]], Dict[int, SuperStimuliInfo]]:
+
+        clu_fp = path.join(self.superstimuli_dir, 'cluster_superstimuli.pkl')
+        units_fp = path.join(self.superstimuli_dir, 'units_superstimuli.pkl')
+
+        self._logger.info(mess=f'Loading cluster superstimuli from {clu_fp}')
+        clu_supertimuli = load_pickle(clu_fp)
+
+        self._logger.info(mess=f'Loading units superstimuli from {units_fp}')
+        units_supertimuli = load_pickle(units_fp)
+
+        return clu_supertimuli, units_supertimuli
+
+    def load_norm_fun(self, gen_variant: str) -> CurveFitter:
+
+        fp = path.join(self.alexnet_dir, 'neuron_scaling', 'neuron_scaling_functions.pkl')
+
+        self._logger.info(mess=f'Loading neuron scaling functions from {fp}')
+        fun = load_pickle(fp)
+
+        return fun[gen_variant][self.layer]
+    
+    def load_segmentation_info(self) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+
+        fm_file  = path.join(self.fm_clu_segmentation_dir, 'fm_segmentation.json')
+        clu_file = path.join(self.fm_clu_segmentation_dir, 'clu_segmentation.json')
+
+        self._logger.info(mess=f'Loading feature map segmentation from {fm_file}')
+        fm_segmentation = read_json(fm_file)
+
+        self._logger.info(mess=f'Loading cluster segmentation from {clu_file}')
+        clu_segmentation = read_json(clu_file)
+
+        return fm_segmentation, clu_segmentation
+    
+    def load_segmentation_superstimuli(self) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+
+        fm_file  = path.join(self.fm_clu_segmentation_dir, 'fm_segmentation_superstimuli.pkl')
+        clu_file = path.join(self.fm_clu_segmentation_dir, 'clu_segmentation_superstimuli.pkl')
+
+        self._logger.info(mess=f'Loading feature map segmentation from {fm_file}')
+        fm_segmentation = load_pickle(fm_file)
+
+        self._logger.info(mess=f'Loading cluster segmentation from {clu_file}')
+        clu_segmentation = load_pickle(clu_file)
+
+        return fm_segmentation, clu_segmentation
+
+
 
 def load_wordnet(logger: Logger = SilentLogger()) -> WordNet:
     
@@ -133,7 +237,7 @@ def boxplots(
     # Font customization
     FONT = 'serif'
     LABEL_ARGS   = {'fontsize': 16, 'labelpad': 10, 'fontfamily': FONT}
-    TITLE_ARGS   = {'fontsize': 20, 'fontfamily': FONT}
+    TITLE_ARGS   = {'fontsize': 17, 'fontfamily': FONT}
     
     X_TICK_ARGS    = {'size': 12, 'rotation': 0, 'family': FONT}
     GRID_ARGS    = {'linestyle': '--', 'alpha': 0.7}

@@ -19,9 +19,7 @@ from zdream.utils.logger     import Logger, LoguruLogger, SilentLogger
 
 LAYER   = 'fc6-relu'
 
-CLU_DIR  = path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'], 'clusters')
-
-N_CLU                   = 0                     # GMM, NC, ADJ, RAND
+n_clu                   = 0                     # GMM, NC, ADJ, RAND
 MIN_ELEMENTS            = 2                     # DS
 MAX_ITER                = 50000                 # DS
 FM_SIZE                 = 256                   # FM
@@ -31,9 +29,6 @@ MIN_SAMPLES             = 2                     # DBSCAN
 GMM_DIM_REDUCTION    = {'type': 'pca', 'n_components': 500                                  } # GMM
 DBSCAN_DIM_REDUCTION = {'type': 'tsne','n_components':   2, 'perplexity': 30, 'n_iter': 5000} # DBSCAN
 
-# Use the number of clusters from the DominantSet Clustering
-if path.exists(path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])):
-    N_CLU = len(Clusters.from_file(path.join(CLU_DIR, 'DominantSetClusters.json')).clusters)
 
 # ALGOS FLAGS
 
@@ -50,7 +45,7 @@ CLU_ALGOS = {
 
 # --- RUN ---
 
-def ds(data: NDArray, logger: Logger = SilentLogger()):
+def ds(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
     
     algo = DominantSetClusteringAlgorithm(
         aff_mat=PairwiseSimilarity.cosine_similarity(data),
@@ -60,32 +55,32 @@ def ds(data: NDArray, logger: Logger = SilentLogger()):
     )
     
     clusters = algo.run()
-    clusters.dump(CLU_DIR, logger=logger)
+    clusters.dump(clu_dir, logger=logger)
 
-def gmm(data: NDArray, logger: Logger = SilentLogger()):
+def gmm(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
     
     algo = GaussianMixtureModelsClusteringAlgorithm(
         data=data,
-        n_clusters=N_CLU,
+        n_clusters=n_clu,
         dim_reduction=GMM_DIM_REDUCTION,
         logger=logger
     )
     
     clusters = algo.run()
-    clusters.dump(CLU_DIR, logger=logger)
+    clusters.dump(clu_dir, logger=logger)
     
-def nc(data: NDArray, logger: Logger = SilentLogger()):
+def nc(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
     
     algo = NormalizedCutClusteringAlgorithm(
         aff_mat=PairwiseSimilarity.cosine_similarity(data),
-        n_clusters=N_CLU,
+        n_clusters=n_clu,
         logger=logger
     )
     
     clusters = algo.run()
-    clusters.dump(CLU_DIR, logger=logger)
+    clusters.dump(clu_dir, logger=logger)
 
-def dbscan(data: NDArray, logger: Logger = SilentLogger()):
+def dbscan(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
     
     algo = DBSCANClusteringAlgorithm(
         data=data,
@@ -96,29 +91,29 @@ def dbscan(data: NDArray, logger: Logger = SilentLogger()):
     )
     
     clusters = algo.run()
-    clusters.dump(CLU_DIR, logger=logger)
+    clusters.dump(clu_dir, logger=logger)
     
-def adj(data: NDArray, logger: Logger = SilentLogger()):
-    
-    elements, *_ = data.shape
-    
-    logger.info(mess=f'Creating adjacent clusters with {N_CLU} clusters')
-    
-    clusters = Clusters.adjacent_clusters(n_clu=N_CLU, elements=elements)
-    
-    clusters.dump(CLU_DIR, logger=logger)
-
-def rand(data: NDArray, logger: Logger = SilentLogger()):
+def adj(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
     
     elements, *_ = data.shape
     
-    logger.info(mess=f'Creating random clusters with {N_CLU} clusters')
+    logger.info(mess=f'Creating adjacent clusters with {n_clu} clusters')
     
-    clusters = Clusters.random_clusters(n_clu=N_CLU, elements=elements)
+    clusters = Clusters.adjacent_clusters(n_clu=n_clu, elements=elements)
     
-    clusters.dump(CLU_DIR, logger=logger)
+    clusters.dump(clu_dir, logger=logger)
 
-def fm(data: NDArray, logger: Logger = SilentLogger()):
+def rand(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
+    
+    elements, *_ = data.shape
+    
+    logger.info(mess=f'Creating random clusters with {n_clu} clusters')
+    
+    clusters = Clusters.random_clusters(n_clu=n_clu, elements=elements)
+    
+    clusters.dump(clu_dir, logger=logger)
+
+def fm(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),):
     
     elements, *_ = data.shape
     
@@ -127,14 +122,19 @@ def fm(data: NDArray, logger: Logger = SilentLogger()):
     clusters = Clusters.adjacent_clusters(n_clu=FM_SIZE, elements=elements)
     setattr(clusters, 'NAME', "FeatureMapClusters")
     
-    clusters.dump(CLU_DIR, logger=logger)
+    clusters.dump(clu_dir, logger=logger)
 
 
 def main():
     
     logger = LoguruLogger(on_file=False)
+
+    # Use the number of clusters from the DominantSet Clustering
+    clu_dir  = path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'], 'clusters')
+    if path.exists(path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])):
+        n_clu = len(Clusters.from_file(path.join(clu_dir, 'DominantSet.json')).clusters)
     
-    data_fp = path.join(CLU_DIR, 'recordings.npy')
+    data_fp = path.join(clu_dir, 'recordings.npy')
     logger.info(mess=f'Loading data from {data_fp}')
     data = np.load(data_fp)
     
@@ -145,53 +145,59 @@ def main():
     # --- DS ---
     if CLU_ALGOS['ds']:
         logger.info(mess='Running Dominant Set Clustering')
-        ds(data, logger)
+        ds(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping Dominant Set Clustering')
     logger.info(mess='')
     
     # --- GMM ---
     if CLU_ALGOS['gmm']:
         logger.info(mess='Running Gaussian Mixture Models Clustering')
-        gmm(data, logger)
+        gmm(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping Gaussian Mixture Models Clustering')
     logger.info(mess='')
     
     # --- NC ---
     if CLU_ALGOS['nc']:
         logger.info(mess='Running Normalized Cut Clustering')
-        nc(data, logger)
+        nc(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping Normalized Cut Clustering')
     logger.info(mess='')
     
     # --- DBSCAN ---
     if CLU_ALGOS['dbscan']:
         logger.info(mess='Running DBSCAN Clustering')
-        dbscan(data, logger)
+        dbscan(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping DBSCAN Clustering')
     logger.info(mess='')
     
     # --- ADJ ---
     if CLU_ALGOS['adj']:
         logger.info(mess='Running Adjacent Clustering')
-        adj(data, logger)
+        adj(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping Adjacent Clustering')
     logger.info(mess='')
     
     # --- RAND ---
     if CLU_ALGOS['rand']:
         logger.info(mess='Running Random Clustering')
-        rand(data, logger)
+        rand(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping Random Clustering')
     logger.info(mess='')
     
     # --- FM ---
     if CLU_ALGOS['fm'] and LAYER_SETTINGS[LAYER]['feature_map']:
         logger.info(mess='Running Feature Map Clustering')
-        fm(data, logger)
+        fm(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
     else: logger.info(mess='Skipping Feature Map Clustering')
     
     logger.info(mess='')
     
     logger.info(mess='Clustering algorithms finished')
     
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    
+    for layer in LAYER_SETTINGS:
+
+        LAYER = layer
+        
+        main()

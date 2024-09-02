@@ -142,7 +142,7 @@ if __name__ == '__main__':
     labeling = np.array([class_mapping[code] for code, _ in out.values()])
     
     clusters = Clusters.from_labeling(labeling)
-    setattr(clusters, "NAME", "TrueClusters")
+    setattr(clusters, "NAME", "True")
     out_fp = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])  # type: ignore
     clusters.dump(out_fp=out_fp, logger=logger)
     

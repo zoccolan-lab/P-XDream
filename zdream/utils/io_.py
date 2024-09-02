@@ -84,7 +84,7 @@ def store_pickle(data: Dict[str, Any], path: str):
         pickle.dump(data, f)
 
 
-def load_pickle(path: str) -> Dict[str, Any]:
+def load_pickle(path: str) -> Dict:
     """
     Load a dictionary from a pickle file.
 

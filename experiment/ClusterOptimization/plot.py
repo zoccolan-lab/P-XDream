@@ -1,7 +1,9 @@
 import itertools
 import math
 from os import path
+import os
 from typing import Any, Callable, Dict, List, Tuple
+import seaborn as sns
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -9,14 +11,13 @@ from numpy.typing import NDArray
 from torchvision.transforms.functional import to_pil_image
 
 from experiment.utils.misc import make_dir
-from zdream.clustering.cluster import Clusters
+from zdream.clustering.cluster import Cluster, Clusters
 from zdream.generator import Generator
 from zdream.utils.logger import Logger, SilentLogger
 from zdream.utils.misc import SEM, concatenate_images
 from zdream.utils.types import Codes
 
-from os import path
-from typing import Dict, List
+from zdream.utils.misc import SEM
 
 
 def plot_ds_weigthed_score(
@@ -71,16 +72,68 @@ def plot_ds_weigthed_score(
         logger.info(mess=f'Saving plot to {out_fp}')
         fig.savefig(out_fp)
 
+def generate_clusters_superstimuli(
+    superstimulus: Dict[int, Dict[str, Any]],
+    generator: Generator,
+    out_dir: str,
+    logger: Logger = SilentLogger(),
+):
+    
+    out_superstim_fp = make_dir(path.join(out_dir, 'cluster_superstimuli'))
+
+    for clu_idx, superstim in superstimulus.items():
+
+        best_code = superstim['code']
+        best_code_ = np.expand_dims(best_code, axis=0)
+        
+        best_stim = generator(best_code_)[0]
+        best_stim_img = to_pil_image(best_stim)
+        
+        
+        out_fp = path.join(out_superstim_fp, f'clu{clu_idx}_superstimulus.png')
+        logger.info(mess=f'Saving superstimulus to {out_fp}')
+        best_stim_img.save(out_fp)
+
+def generate_cluster_units_superstimuli(
+    superstimulus: Dict[int, Dict[str, Any]],
+    clusters: Clusters,
+    generator: Generator,
+    out_dir: str,
+    logger: Logger = SilentLogger(),
+):
+    
+    assert(clusters.obj_tot_count == len(superstimulus))
+
+    out_superstim_fp = make_dir(path.join(out_dir, 'cluster_units_superstimuli'))
+
+    for clu_idx, cluster in enumerate(clusters): # type: ignore
+
+        labels = cluster.labels
+
+        side = int(math.sqrt(len(labels)))
+        if side * side < len(labels): side += 1
+
+        codes =  np.stack([superstimulus[i]['code'] for i in labels])
+
+        superstimuli = generator(codes)
+
+        superstimuli_combined = concatenate_images(img_list=list(superstimuli), nrow=side)
+
+        out_fp = path.join(out_superstim_fp, f'clu{clu_idx}_units_superstimuli.png')
+        logger.info(mess=f'Saving superstimulus to {out_fp}')
+        superstimuli_combined.save(out_fp)
 
 def plot_clusters_superstimuli(
     superstimulus: Dict[int, Dict[str, Any]],
     normalize_fun: Callable[[int], float],
     clusters: Clusters,
-    generator: Generator,
     out_dir: str,
     logger: Logger = SilentLogger(),
     **kwargs
 ):
+    
+    global HANDLES
+    
     # --- MACROS ---
 
     FIGSIZE = kwargs.get('FIGSIZE', (21, 9))  # Slightly larger figure for better spacing
@@ -88,7 +141,8 @@ def plot_clusters_superstimuli(
 
     FONT = kwargs.get('FONT', 'serif')
 
-    TITLE_ARGS = kwargs.get('TITLE_ARGS', {'fontsize': 20, 'fontweight': 'bold', 'fontfamily': FONT})
+    TITLE      = kwargs.get('TITLE', 'Cluster')
+    TITLE_ARGS = kwargs.get('TITLE_ARGS', {'fontsize': 20, 'fontfamily': FONT})
     LABEL_ARGS = kwargs.get('LABEL_ARGS', {'fontsize': 16, 'fontfamily': FONT, 'labelpad': 10})
     TICK_ARGS  = kwargs.get('TICK_ARGS', {'labelsize': 14, 'direction': 'out', 'length': 6, 'width': 2})
     GRID_ARGS  = kwargs.get('GRID_ARGS', {'linestyle': '--', 'linewidth': 0.5, 'alpha': 0.7})
@@ -96,20 +150,6 @@ def plot_clusters_superstimuli(
     MARKER_STYLE = kwargs.get('MARKER_STYLE', {'fmt': '.', 'markersize': 9, 'capsize': 7, 'capthick': 2, 'elinewidth': 2, 'alpha': 0.9})
     LINE_STYLE = kwargs.get('LINE_STYLE', {'linestyle': '--', 'linewidth': 2, 'alpha': 0.9})
     DASHED_LINE_STYLE = kwargs.get('DASHED_LINE_STYLE', {'linestyle': '--', 'linewidth': 2, 'alpha': 0.5})  # Dashed line style
-
-    for clu_idx, superstim in superstimulus.items():
-        
-        best_code = superstim['code']
-        best_code_ = np.expand_dims(best_code, axis=0)
-        
-        best_stim = generator(best_code_)[0]
-        best_stim_img = to_pil_image(best_stim)
-        
-        out_superstim_fp = path.join(out_dir, 'superstimuli')
-        make_dir(out_superstim_fp)
-        
-        out_fp = path.join(out_superstim_fp, f'clu{clu_idx}_superstimulus.png')
-        best_stim_img.save(out_fp)
     
     # Prepare figure and axes
     fig_unorm, ax_unorm = plt.subplots(figsize=FIGSIZE)
@@ -141,13 +181,14 @@ def plot_clusters_superstimuli(
                 fitness_ = [1 for f in fitness_]
 
             avg = np.mean(fitness_)
-            std = SEM(fitness_)
+            std = SEM(fitness_) # type: ignore
             avg_values.append(avg)  # Store the average value for line plotting
             
             # Error Bars
             ax.errorbar(
                 x, avg, yerr=std, color=PALETTE[clu_idx % len(PALETTE)], 
-                ecolor=PALETTE[clu_idx % len(PALETTE)], **MARKER_STYLE
+                ecolor=PALETTE[clu_idx % len(PALETTE)], **MARKER_STYLE,
+                label=f"Cluster fitness"
             )
     
     # Add a dashed line connecting all error bars using the same palette
@@ -156,14 +197,18 @@ def plot_clusters_superstimuli(
         ax_norm.plot([i, i+1], avg_values_norm[i-1:i+1], color=PALETTE[i % len(PALETTE)], **DASHED_LINE_STYLE)
     
     # Customize unnormalized plot
-    ax_unorm.errorbar([], [], label='Cluster fitness', **MARKER_STYLE)
     ax_unorm.plot(
         range(1, len(rand_fitness) + 1), rand_fitness, color='grey', label='Random reference', **LINE_STYLE
     )
     ax_unorm.set_xlabel('Cluster Index', **LABEL_ARGS)
     ax_unorm.set_ylabel('Fitness', **LABEL_ARGS)
-    ax_unorm.set_title('Cluster Superstimulus Fitness', **TITLE_ARGS)
-    ax_unorm.legend(**LEGEND_ARGS)
+    ax_unorm.set_title(f'{TITLE} - Cluster Superstimulus Fitness', **TITLE_ARGS)
+
+    handles, _ = ax_unorm.get_legend_handles_labels()
+    handles = [handles[len(handles) // 2], handles[0]]
+
+    ax_unorm.legend(handles, ['Cluster fitness', 'Random reference'], **LEGEND_ARGS)
+    
     ax_unorm.grid(True, **GRID_ARGS)
     ax_unorm.tick_params(**TICK_ARGS)
     ax_unorm.set_xticks(range(1, len(superstimulus) + 1, len(superstimulus) // 10))  # Ensure x-ticks start from 1
@@ -171,7 +216,7 @@ def plot_clusters_superstimuli(
     # Customize normalized plot
     ax_norm.set_xlabel('Cluster Index', **LABEL_ARGS)
     ax_norm.set_ylabel('Rand-Normalized Fitness', **LABEL_ARGS)
-    ax_norm.set_title(f'Rand-Normalized Cluster Superstimulus Fitness', **TITLE_ARGS)
+    ax_norm.set_title(f'{TITLE} - Rand-Normalized Cluster Superstimulus Fitness', **TITLE_ARGS)
     ax_norm.grid(True, **GRID_ARGS)
     ax_norm.tick_params(**TICK_ARGS)
     ax_norm.set_xticks(range(1, len(superstimulus) + 1, len(superstimulus) // 10))  # Ensure x-ticks start from 1
@@ -233,15 +278,6 @@ def plot_activations(
     logger.info(mess=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
 
-import os
-from typing import Dict, List
-from matplotlib import pyplot as plt
-import numpy as np
-import itertools
-from numpy.typing import NDArray
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.misc import SEM
-import seaborn as sns
 
 def plot_subset_activations(
     activations: Dict[int, Dict[str, Dict[int, Dict[str, List[float]]]]],
@@ -376,3 +412,75 @@ def plot_subset_activations(
         out_fp = os.path.join(out_dir, f'clu{clu_idx}-{file_name}')
         logger.info(mess=f'Saving plot to {out_fp}')
         fig.savefig(out_fp, dpi=300, bbox_inches='tight')
+
+
+def plot_dsweighting_clusters_superstimuli(
+    superstimuli: Tuple[Dict[int, Dict[str, Any]], Dict[int, Dict[str, Any]]],
+    out_dir: str,
+    logger: Logger = SilentLogger(),
+    **kwargs
+):
+    
+    super1, super2 = superstimuli
+    assert(len(super1) == len(super2))
+
+    # --- MACROS ---
+    FIGSIZE = kwargs.get('FIGSIZE', (21, 9))
+    FONT = kwargs.get('FONT', 'serif')
+
+    TITLE             = kwargs.get('TITLE', '')
+    TITLE_ARGS        = kwargs.get('TITLE_ARGS',        {'fontsize': 20, 'fontfamily': FONT})
+    LABEL_ARGS        = kwargs.get('LABEL_ARGS',        {'fontsize': 16, 'fontfamily': FONT, 'labelpad': 10})
+    TICK_ARGS         = kwargs.get('TICK_ARGS',         {'labelsize': 14, 'direction': 'out', 'length': 6, 'width': 2})
+    GRID_ARGS         = kwargs.get('GRID_ARGS',         {'linestyle': '--', 'linewidth': 0.5, 'alpha': 0.7})
+    LEGEND_ARGS       = kwargs.get('LEGEND_ARGS',       {'frameon': True, 'fancybox': True, 'framealpha': 0.7, 'loc': 'best', 'prop': {'family': FONT, 'size': 14}})
+    MARKER_STYLE      = kwargs.get('MARKER_STYLE',      {'fmt': '.', 'markersize': 9, 'capsize': 7, 'capthick': 2, 'elinewidth': 2, 'alpha': 0.9})
+    DASHED_LINE_STYLE = kwargs.get('DASHED_LINE_STYLE', {'linestyle': '--', 'linewidth': 2, 'alpha': 0.5})
+
+    LABELS   = kwargs.get('LABELS', ['Arithmetic', 'Weighted'])
+    PALETTES = kwargs.get('PALETTES', [sns.color_palette("crest_r", len(super1)), sns.color_palette("flare_r", len(super1))])
+    
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    
+    for idx, (superstimulus, palette, label) in enumerate(zip(superstimuli, PALETTES, LABELS)):
+        avg_values = []
+
+        for clu_idx, superstim in superstimulus.items():
+            x = clu_idx + 1  # Start x-ticks from 1
+
+            fitness = superstim['fitness']
+            avg = np.mean(fitness)
+            std = SEM(fitness)
+            avg_values.append(avg)
+
+            ax.errorbar(
+                x, avg, yerr=std, color=palette[clu_idx % len(palette)], 
+                ecolor=palette[clu_idx % len(palette)], label=f"{label} - Cluster {clu_idx + 1}", **MARKER_STYLE
+            )
+        
+        # Connect points with dashed line
+        for i in range(1, len(avg_values)):
+            ax.plot([i, i+1], avg_values[i-1:i+1], color=palette[i % len(palette)], **DASHED_LINE_STYLE)
+    
+    # Customize plot
+    ax.set_xlabel('Cluster Index', **LABEL_ARGS)
+    ax.set_ylabel('Fitness', **LABEL_ARGS)
+    ax.set_title(f'{TITLE} - Dominant Set Clustering, Fitness Weighting Comparison', **TITLE_ARGS)
+    
+    ax.grid(True, **GRID_ARGS)
+    ax.tick_params(**TICK_ARGS)
+    ax.set_xticks(range(1, len(superstimuli[0]) + 1, len(superstimuli[0]) // 10))  # Ensure x-ticks start from 1
+    
+    # Add legends only once, combining them
+    handles, _ = ax.get_legend_handles_labels()
+    quarter = len(handles) // 4
+    handles = [handles[quarter], handles[quarter*3]]
+
+    ax.legend(handles, LABELS, **LEGEND_ARGS)
+    
+    plot_dir = make_dir(path.join(out_dir, 'plots'))
+    
+    for ext in ['.svg']:
+        out_fp = path.join(plot_dir, f'comparative_ds_weighting{ext}')
+        logger.info(mess=f'Saving comparative plot to {out_fp}')
+        fig.savefig(out_fp, bbox_inches='tight', dpi=300)

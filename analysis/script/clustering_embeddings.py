@@ -9,7 +9,7 @@ import seaborn as sns
 from sklearn.manifold import TSNE
 import colorcet as cc
 
-from analysis.utils.misc import load_clusters, load_imagenet
+from analysis.utils.misc import AlexNetLayerLoader, load_imagenet
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
 from zdream.utils.io_ import load_pickle, store_pickle
@@ -153,11 +153,14 @@ def main():
     
     # 1. INITIALIZATION
     
-    out_dir   = os.path.join(OUT_DIR, "clustering_analysis")
+    out_dir = os.path.join(OUT_DIR, "clustering_analysis")
     layer_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])
+    out_dir = os.path.join(OUT_DIR, "clustering_analysis")
+    layer_ = LAYER_SETTINGS[LAYER]['title']
 
     logger = LoguruLogger(on_file=False)
-    clusters = load_clusters(dir=layer_dir, logger=logger)
+    layer_loader = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)
+    clusters = layer_loader.load_clusters()
     embeddings_dir = make_dir(os.path.join(out_dir, 'embeddings', LAYER))
     logger.info("")
     
@@ -219,7 +222,7 @@ def main():
             logger=logger,
             column="Points",
             out_fp=embeddings_dir_perp,
-            title=f'{LAYER_} - Perplexity: {perp}',
+            title=f'{layer_} - Perplexity: {perp}',
             file_name='points'
         )
             
@@ -235,7 +238,7 @@ def main():
                 repeat_label=repeat_label,
                 labels_col=label_txt,
                 out_fp=embeddings_dir_perp,
-                title=f'{LAYER_} - {cluster_name} - Perplexity: {perp}',
+                title=f'{layer_} - {cluster_name} - Perplexity: {perp}',
                 file_name=cluster_name
             )
     
@@ -250,13 +253,6 @@ if __name__ == '__main__':
     for layer in LAYER_SETTINGS:
         
         LAYER = layer
-    
-        out_dir = os.path.join(OUT_DIR, "clustering_analysis")
-        clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'])
-        
-        LAYER_ = LAYER_SETTINGS[LAYER]['title']
-        EMBEDDINGS_FP = path.join(out_dir, 'embeddings.pkl')
-        EMBEDDINGS    = load_pickle(EMBEDDINGS_FP) if path.exists(EMBEDDINGS_FP) else {}
         
         main()
     
