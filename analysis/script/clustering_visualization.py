@@ -164,6 +164,8 @@ def main():
 
     for clu_algo in clusters:
 
+        logger.info(f'Processing {clu_algo} clusters')
+
         clu_images = []
 
         for clu_idx, cluster in enumerate(clusters[clu_algo]):  # type: ignore
@@ -234,11 +236,13 @@ def main():
                     fontsize=7, title_fontsize=20
                 )
             ))
-            
-            break
         
         out_fp = os.path.join(out_dir, f'{clu_algo}.pdf')
         logger.info(f"Saving cluster visualization to {out_fp}")
         images_to_pdf(clu_images, out_fp)
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    
+    for layer in LAYER_SETTINGS:
+        LAYER = layer
+        main()

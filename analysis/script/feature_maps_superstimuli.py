@@ -13,7 +13,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from torchvision.transforms.functional import to_pil_image
 
 from analysis.utils.misc import AlexNetLayerLoader
-from analysis.utils.settings import ALEXNET_DIR, OUT_DIR
+from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
 from zdream.generator import DeePSiMGenerator, Generator
 from zdream.utils.dataset import MiniImageNet
@@ -75,7 +75,7 @@ def tuple_to_idx(tpl: Tuple[int, int, int]) -> int:
     idx = fm_idx * FM_SIZE + i * FM_SIDE + j
     return idx
 
-def best_natural(seg_info, recordings: NDArray, inet: MiniImageNet, fm_idx: int, clu_idx: str, title: str = "") -> ImgType:
+def best_natural(seg_info, recordings: NDArray, inet: MiniImageNet, fm_idx: str, clu_idx: str, title: str = "") -> ImgType:
     
     idx = seg_info[str(fm_idx)][clu_idx]
     idx_ = [tuple_to_idx(key) for key in idx]
@@ -86,7 +86,7 @@ def best_natural(seg_info, recordings: NDArray, inet: MiniImageNet, fm_idx: int,
     
     return natural_image(idx=best_idx, inet=inet, title=f'{title} - Fitness: {best_fit:.3f}')
 
-def get_squares(seg_info, name, fm_idx: int, clu_idx: str) -> ImgType:
+def get_squares(seg_info, name, fm_idx: str, clu_idx: str) -> ImgType:
     
     idx = seg_info[str(fm_idx)][clu_idx]
     idx_ = [tuple_to_idx(key) % FM_SIZE for key in idx]
@@ -116,7 +116,7 @@ def get_squares(seg_info, name, fm_idx: int, clu_idx: str) -> ImgType:
     
     return _squares_visualization(matrix=matrix, title=title, cmap=cmap, norm=norm)
 
-def create_pdf(image_dict: Dict[int, List[Tuple[ImgType, ImgType, ImgType]]], output_path: str = 'output.pdf') -> None:
+def create_pdf(image_dict: Dict[str, List[Tuple[ImgType, ImgType, ImgType]]], output_path: str = 'output.pdf') -> None:
     
     FIGSIZE = (11.7, 8.3)  # A4 landscape in inches
     DPI = 300  # Resolution
@@ -167,7 +167,7 @@ def main():
             seg_ = seg[clu_algo]
             superstim_ = superstim[clu_algo]
 
-            fm_pages: Dict[int, List[Tuple[ImgType, ImgType, ImgType]]] = {}
+            fm_pages: Dict[str, List[Tuple[ImgType, ImgType, ImgType]]] = {}
 
             for idx, cluster_info in superstim_.items():
 

@@ -261,10 +261,8 @@ def main():
     
 if __name__ == '__main__':
     
-    # for layer in LAYER_SETTINGS.keys():
-    # 
-    #     LAYER = layer
-    #     
-    #     main()
-
-    main()
+    for layer in LAYER_SETTINGS.keys():
+    
+        LAYER = layer
+        
+        main()
