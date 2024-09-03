@@ -1,12 +1,11 @@
 
 FILE_NAMES = {
-    'rand'        : 'RandClusters.json',
-    'adj'         : 'AdjacentClusters.json',
-    'ds'          : 'DominantSetClusters.json',
-    'gmm'         : 'GMMClusters.json',
-    'true'        : 'TrueClusters.json',
-    'dbscan'      : 'DBSCANClusters.json',
-    'nc'          : 'NCClusters.json',
+    'rand'        : 'Random.json',
+    'adj'         : 'Adjacent.json',
+    'ds'          : 'DominantSet.json',
+    'gmm'         : 'GaussianMixture.json',
+    'true'        : 'True.json',
+    'dbscan'      : 'DBSCAN.json',
+    'nc'          : 'NormalizedCut.json',
     'fm'          : 'FeatureMap.json',
-    'recordings'  : 'recordings.npy',
 }

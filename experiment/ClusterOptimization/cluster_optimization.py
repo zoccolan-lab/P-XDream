@@ -141,6 +141,11 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         ).to(device)
 
         sbj_net.eval()
+        
+        # --- LOGGER ---
+        
+        conf[ArgParams.ExperimentTitle.value] = ClusteringOptimizationExperiment.EXPERIMENT_TITLE
+        logger = LoguruLogger(path=Logger.path_from_conf(conf))
 
         # --- CLUSTERING ---
 
@@ -203,11 +208,16 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 # Take at random other units outside the cluster with the same cardinality
                 cluster_idx     = cluster.scoring_units
                 non_cluster_idx = list(set(layer_idx).difference(cluster_idx))
-                external_idx    = list(np.random.choice(non_cluster_idx, len(cluster_idx), replace=False))
+                
+                if len(non_cluster_idx) >= len(cluster_idx):
+                    external_idx    = list(np.random.choice(non_cluster_idx, len(cluster_idx), replace=False))
+                else:
+                    logger.warn('Cluster contains more than half of the units. Using all remaining ones as reference.')
+                    external_idx = non_cluster_idx
                 
                 activations_idx = {
-                    #'cluster' : cluster_idx,
-                    #'external': external_idx
+                    'cluster' : cluster_idx,
+                    'external': external_idx
                 }
 
             # 2) Random - use scattered random units with the same dimensionality of the cluster
@@ -299,9 +309,6 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         )
 
         #  --- LOGGER --- 
-
-        conf[ArgParams.ExperimentTitle.value] = ClusteringOptimizationExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
         
         # In the case render option is enabled we add display screens
         if PARAM_render:

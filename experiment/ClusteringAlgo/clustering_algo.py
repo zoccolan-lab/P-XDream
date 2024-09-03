@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Tuple, Type
 import numpy as np
 from numpy.typing import NDArray
 
-from experiment.ClusteringAlgo.plotting import plot_cluster_extraction_trend, plot_cluster_ranks
+from experiment.ClusteringAlgo.plotting import plot_cluster_extraction_trend, plot_cluster_extraction_ranks
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.misc import make_dir
 from zdream.clustering.model import PairwiseSimilarity
@@ -116,7 +116,7 @@ class DSClusteringExperiment(Experiment):
             logger=self._logger
         )
         
-        plot_cluster_ranks(
+        plot_cluster_extraction_ranks(
             clusters=clusters,
             out_dir=plot_dir,
             logger=self._logger

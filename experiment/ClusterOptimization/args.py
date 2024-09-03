@@ -1,4 +1,4 @@
-from analysis.utils.settings import CLUSTER_DIR
+from analysis.utils.settings import ALEXNET_DIR
 from experiment.utils.args import CLUSTERING, DATASET, OUT_DIR, WEIGHTS, ExperimentArgParams
 from zdream.utils.parameters import ArgParams, ParamConfig
 
@@ -7,7 +7,7 @@ ARGS: ParamConfig = {
     
     # Clustering 
     ExperimentArgParams.ClusterAlgo   .value : 'ds',
-    ExperimentArgParams.ClusterDir    .value : CLUSTER_DIR,
+    ExperimentArgParams.ClusterDir    .value : ALEXNET_DIR,
     ExperimentArgParams.ClusterIdx    .value : 0,
     ExperimentArgParams.WeightedScore .value : False,
     ExperimentArgParams.ScoringType   .value : 'subset',
