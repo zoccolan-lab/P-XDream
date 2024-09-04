@@ -236,7 +236,7 @@ class Clusters:
         elements_ids = list(range(elements))
         
         clusters = cls._aux_adj_rand_clusters(n_clu, elements_ids)
-        setattr(clusters, 'NAME', 'AdjacentClusters')
+        setattr(clusters, 'NAME', 'Adjacent')
         
         return clusters
     
@@ -261,7 +261,7 @@ class Clusters:
         random.shuffle(elements_ids)
         
         clusters = cls._aux_adj_rand_clusters(n_clu, elements_ids)
-        setattr(clusters, 'NAME', 'RandomClusters')
+        setattr(clusters, 'NAME', 'Random')
         
         return clusters
     
@@ -269,7 +269,7 @@ class Clusters:
     def singleton_clusters(cls, elements: int) -> Clusters: 
         
         clusters = cls.adjacent_clusters(n_clu=elements, elements=elements)
-        setattr(clusters, 'NAME', 'SingletonClusters')
+        setattr(clusters, 'NAME', 'Singleton')
         
         return clusters
     
@@ -277,7 +277,7 @@ class Clusters:
     def degenerate_clusters(cls, elements: int) -> Clusters: 
     
         clusters =cls.adjacent_clusters(n_clu=1, elements=elements)
-        setattr(clusters, 'NAME', 'DegenerateClusters')
+        setattr(clusters, 'NAME', 'Degenerate')
         
         return clusters
     
