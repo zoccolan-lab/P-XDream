@@ -4,7 +4,7 @@ FILE_NAMES = {
     'adj'         : 'Adjacent.json',
     'ds'          : 'DominantSet.json',
     'gmm'         : 'GaussianMixture.json',
-    'true'        : 'True.json',
+    'semantic'    : 'Semantic.json',
     'dbscan'      : 'DBSCAN.json',
     'nc'          : 'NormalizedCut.json',
     'fm'          : 'FeatureMap.json',

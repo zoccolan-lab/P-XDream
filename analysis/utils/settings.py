@@ -79,5 +79,5 @@ CLU_ORDER = {
     'Adjacent'            : 4,
     'Random'              : 5,
     'FeatureMap'          : 6,
-    'True'                : 7,
+    'Semantic'            : 7,
 }

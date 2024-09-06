@@ -400,7 +400,7 @@ def plot_subset_activations(
             axes[i][j].set_ylim(BOUNDS)
 
         # Add a common legend to the figure
-        fig.legend(handles, labels, loc='lower center', ncol=3, **LEGEND_ARGS, prop={'family': FONT})
+        fig.legend(handles, labels, loc='lower center', ncol=3, **LEGEND_ARGS)
 
         # Add a common title for the entire figure
         fig.suptitle(f'Subset Activations - Cluster {clu_idx}', **TITLE_ARGS)

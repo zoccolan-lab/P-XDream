@@ -15,7 +15,7 @@ OUT_DIR      : str = local_setting.get('out_dir',      None)
 WEIGHTS      : str = local_setting.get('weights',      None)
 DATASET      : str = local_setting.get('dataset',      None)
 IMAGE        : str = local_setting.get('image',        None)
-CLUSTERING   : str = local_setting.get('clu_dir',      None)
+ALEXNET_DIR  : str = local_setting.get('alexnet_dir',  None)
 FEATURE_MAPS : str = local_setting.get('feature_maps', None)
 
 LAYERS_NEURONS_SPECIFICATION = '''

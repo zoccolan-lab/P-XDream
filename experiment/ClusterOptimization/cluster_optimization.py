@@ -11,7 +11,7 @@ import torch
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 
-from experiment.ClusterOptimization.plot import plot_activations, plot_cluster_units_beststimuli, plot_ds_weigthed_score
+from experiment.ClusterOptimization.plot import plot_activations, plot_ds_weigthed_score, plot_subset_activations
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string
 from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
@@ -722,12 +722,12 @@ class ClusterUnitsSuperStimulusMultiExperiment(BaseZdreamMultiExperiment):
         )
         
         self._logger.formatting = lambda x: f'> {x}'
-        plot_cluster_units_beststimuli(
-            cluster_codes=self._data['best_codes'],
-            generator=generator,
-            logger=self._logger,
-            out_dir=stimuli_dir
-        )
+        # plot_cluster_units_beststimuli(
+        #     cluster_codes=self._data['best_codes'],
+        #     generator=generator,
+        #     logger=self._logger,
+        #     out_dir=stimuli_dir
+        # )
         self._logger.reset_formatting()
         
         self._logger.info(mess='')
@@ -790,4 +790,9 @@ class ClusterSubsettingOptimizationMultiExperiment(BaseZdreamMultiExperiment):
         self._logger.info(mess=f'Saving plots to {plot_dir}')
         os.makedirs(plot_dir)
         
-        
+        plot_subset_acwtivations(
+            activations=self._data['activations'],
+            out_dir=plot_dir,
+            file_name='cluster_subsetting_optimization',
+            logger=self._logger
+        )

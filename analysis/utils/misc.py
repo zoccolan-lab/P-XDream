@@ -150,8 +150,6 @@ class AlexNetLayerLoader:
 
         return fm_segmentation, clu_segmentation
 
-
-
 def load_wordnet(logger: Logger = SilentLogger()) -> WordNet:
     
     words_fp             = os.path.join(WORDNET_DIR, 'words.txt')
