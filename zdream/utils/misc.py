@@ -360,3 +360,7 @@ def copy_exec(
     copy_on_clipboard(cmd)
 
     return cmd
+
+def minmax_norm(vector):
+    min_val = np.min(vector)
+    return (vector - min_val) / (np.max(vector) - min_val)

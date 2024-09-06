@@ -11,16 +11,18 @@ The file implements three main classes:
 from _collections_abc import dict_keys
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Callable, Dict, List, Tuple, cast, Literal
+from typing import Any, Callable, Dict, List, Tuple, cast, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 from einops import rearrange, reduce
 from einops.einops import Reduction
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, squareform
+from deap import base, creator, tools
+
 
 from .utils.types import LayerReduction, ScoringUnit, Scores, States, UnitsReduction, UnitsMapping
-from .utils.misc import default
+from .utils.misc import default, minmax_norm
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
 #       which we need to redefine for issues with importing private variables from modules.
@@ -75,7 +77,7 @@ class Scorer(ABC):
         self._units_reduce : UnitsReduction = units_reduce
 
 
-    def __call__(self, states : States) -> Scores:
+    def __call__(self, states : States, current_iter = None) -> Scores | None:
         '''
         Compute the subject scores given a subject state by 
         using the proper mapping and reducing functions.
@@ -85,6 +87,8 @@ class Scorer(ABC):
         :return: Tuple containing the scores associated to input stimuli.
         :rtype: Scores
         '''
+        if current_iter is not None:
+            self.current_iter = current_iter
 
         # 1. Mapping activations
         state_mapped: States  = {
@@ -94,10 +98,11 @@ class Scorer(ABC):
         
         # 2. Performing units reduction
         layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
+        self.layer_scores = layer_scores
         
         # 3. Performing layer reduction
         scores = self._layer_reduce(layer_scores)
-        
+
         return scores
     
     # --- STRING REPRESENTATION ---
@@ -396,7 +401,10 @@ class WeightedPairSimilarityScorer(Scorer):
         trg_neurons   : Dict[str, ScoringUnit], 
         metric        : _MetricKind = 'euclidean',
         dist_reduce   : Callable[[NDArray], NDArray] | None = None,
-        layer_reduce  : Callable[[NDArray], NDArray] | None = None
+        layer_reduce  : Callable[[NDArray], NDArray] | None = None,
+        reference     : dict[str, Any] | None = None,
+        bounds        : Dict[str, Callable[[float], bool]] | None = None
+        
     ) -> None: 
         '''
 
@@ -438,6 +446,7 @@ class WeightedPairSimilarityScorer(Scorer):
         # Save input parameters
         self._signature   = layer_weights
         self._trg_neurons = trg_neurons
+        self._bounds      = bounds
         
         # If grouping function is not given use even-odd split as default
         dist_reduce  = default(dist_reduce,  np.mean)
@@ -457,7 +466,8 @@ class WeightedPairSimilarityScorer(Scorer):
         # Define reducing function across layers using the given distance 
         # function and the layer weights
         layer_reduce_: LayerReduction = partial(
-            self._dotprod,
+            #self._dotprod, 
+            self._best_pareto,
             weights=layer_weights,
             reduce=layer_reduce    
         )
@@ -528,15 +538,57 @@ class WeightedPairSimilarityScorer(Scorer):
         :return: The result of the dot product after reducing.
         :rtype: Score
         '''
-        
         return cast(
             Scores,
             reduce(
                 # Multiply each layer score by the corresponding weight
+                #np.stack([v * minmax_norm(state[k]) for k, v in weights.items()])
                 np.stack([v * state[k] for k, v in weights.items()])
             )
         )
         
+    def _best_pareto(
+        self,
+        state     : Dict[str, Scores],
+        weights   : Dict[str, float],
+        reduce    : Callable[[NDArray], NDArray], 
+    )-> Scores:
+        
+        creator.create("FitnessMulti", base.Fitness, weights=tuple([v for _,v in weights.items()]))  # Max a, Min b
+        creator.create("Individual", list, fitness=creator.FitnessMulti); s_keys = list(state.keys())
+        #state = {k: minmax_norm(state[k]) for k in s_keys}
+        state_dup = {}
+        for key in s_keys:
+            state_dup[key] = [x if self._bounds[key](x) else -float('inf') for x in state[key]]
+            valid_values_count = sum(1 for value in state_dup[key] if value != float('-inf'))
+            if valid_values_count < 10 and self.current_iter > 5:
+                return None
+
+        pop = [creator.Individual([state_dup[k][i] for k in s_keys]) for i in range(len(state_dup[s_keys[0]]))]
+        #pop = [creator.Individual([state[k][i] for k in s_keys]) for i in range(len(state[s_keys[0]]))] #old manual way that works good
+
+        for i,ind in enumerate(pop):
+            ind.fitness.values = tuple(ind)
+            #ind.fitness.values = tuple(ind) if np.abs(ind[1]) < 3 else tuple([ind[0],-float('inf')])
+            #ind.fitness.values = tuple(ind) if np.abs(ind[0]) < 180 else tuple([-float('inf'),ind[1]])
+            ind.id = i
+        fronts = tools.sortNondominated(pop, len(pop))
+        scores = np.zeros([2, len(pop)])
+        for f_id, f in enumerate(fronts):
+            #dist_f = np.mean(squareform(pdist(np.array(f), metric='euclidean')), axis = 0)
+            for i,ind in enumerate(f):
+                scores[0, ind.id] = np.abs(f_id - len(fronts))
+                #scores[1, ind.id] = 1/(dist_f[i]+0.0001)
+        scores[1, :] = np.random.rand(scores.shape[1])
+                
+        scores = (scores[0,:]+1)*(max(scores[1,:])+1)+scores[1,:]
+        
+        return cast(Scores, scores)                
+        
+    
+        
+
+
     # --- PROPERTIES ---
         
     @property

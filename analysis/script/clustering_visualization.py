@@ -65,7 +65,7 @@ def best_natural_unit(label: int, recordings: NDArray) -> Tuple[int, float]:
     unit    = recordings[label, :]
     max_arg = np.argmax(unit)
     
-    return int(max_arg), unit[max_arg]
+    return int(max_arg), float(unit[max_arg])
 
 # RENDERING
 
@@ -220,7 +220,7 @@ def main():
                 natural_img = natural_image(idx=nat_idx, inet=inet)
                 
                 images_syn.append((synthetic_img, f"Unit {label} - Fitness: {round(syn_fitness, ROUND)}"))
-                images_nat.append((  natural_img, f"Unit {label} - Fitness: {round(syn_fitness, ROUND)}"))
+                images_nat.append((  natural_img, f"Unit {label} - Fitness: {round(nat_fitness, ROUND)}"))
                 
             clu_images.append((
                 superstimulus_grid(
@@ -244,5 +244,8 @@ def main():
 if __name__ == "__main__":
     
     for layer in LAYER_SETTINGS:
+
+        if layer == 'fc8': continue
+        
         LAYER = layer
         main()

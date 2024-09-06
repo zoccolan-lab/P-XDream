@@ -6,7 +6,11 @@
 *egg*
 
 # Pycache
+*.png
+*.csv
 *.pyc
+*.npy
+*.npz
 *__*
 
 # Local directories

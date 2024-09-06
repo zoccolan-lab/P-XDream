@@ -18,6 +18,8 @@ from .utils.logger import Logger, SilentLogger
 from .utils.probe import SetterProbe, SilicoProbe,RecordingProbe
 from .utils.misc import InputLayer, default, device, unpack, replace_inplace
 from .utils.types import RecordingUnit, Stimuli, States
+from robustness.datasets import ImageNet
+from robustness.model_utils import make_and_restore_model
 
 
 class Subject(ABC):
@@ -93,6 +95,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         pretrained: bool = True,
         inp_shape: Tuple[int, ...] = (1, 3, 224, 224),
         device: str | torch.device = device,
+        robust_net_path: None | str = '' #messa qua ma forse si può trovare dove metterla meglio
     ) -> None:
         '''
         Initialize a subject represented by an artificial neural
@@ -128,17 +131,26 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         # Initialize the network with the provided name and input shape
         self._name = network_name
         self._inp_shape = inp_shape
+        self._robust = '_r' if robust_net_path else ''
 
         # 1) LOAD NETWORK ARCHITECTURE
+        if not(robust_net_path == ''):
+            ds = ImageNet('/home/lorenzo/Desktop/Datafolders/tiny-imagenet')
+            model, _ = make_and_restore_model(arch=network_name, dataset=ds, resume_path=robust_net_path)
+            self._weights = None
+            self._network = nn.Sequential(
+                InputLayer(),
+                model.model
+            ).to(device)
+        else:
+            # Load the torch model via its name from the torchvision hub if pretrained
+            # otherwise initialize it with random weights (weights=None).
+            self._weights = get_model_weights(self._name).DEFAULT if pretrained else None  # type: ignore
 
-        # Load the torch model via its name from the torchvision hub if pretrained
-        # otherwise initialize it with random weights (weights=None).
-        self._weights = get_model_weights(self._name).DEFAULT if pretrained else None  # type: ignore
-
-        self._network = nn.Sequential(
-            InputLayer(),
-            get_model(self._name, weights=self._weights)
-        ).to(device)
+            self._network = nn.Sequential(
+                InputLayer(),
+                get_model(self._name, weights=self._weights)
+            ).to(device)
 
         # NOTE: Here we make sure no inplace operations are used in the network
         #       to avoid weird behaviors (e.g. if a backward hook is attached

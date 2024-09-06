@@ -87,6 +87,7 @@ class Optimizer(ABC):
         self._codes_shape = codes_shape
         
         # Randomic components
+        self._rnd_seed   = rnd_seed
         self._rng        = np.random.default_rng(rnd_seed)
         self._rnd_scale  = rnd_scale
         self._rnd_sample = self._get_rnd_sample(distr  = rnd_distr)

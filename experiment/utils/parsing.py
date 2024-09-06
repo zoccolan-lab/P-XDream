@@ -68,6 +68,51 @@ def parse_signature(
     
     return signature
 
+def parse_bounds(
+    input_str: str,
+    net_info: Dict[str, Tuple[int, ...]],
+    reference
+) -> Dict[str, Callable[[float], bool]]:
+    
+    # Extract layer names from the net information
+    layer_names = list(net_info.keys())
+    # Initialize the dictionary to hold bounding functions
+    bounds_funcs = {}
+    # Split the input string by comma to get each layer-bound pair
+    layer_bounds = input_str.split(',')
+    
+    for layer_bound in layer_bounds:
+        # Split the layer_bound string into layer ID and bound
+        layer, bound_str = layer_bound.split('=')
+        # Map layer ID to layer name using net_info
+        layer_name = layer_names[int(layer.strip())]
+        
+        # Determine the bound type and tolerance
+        if bound_str.startswith('<'):
+            if not (bound_str[-1]=='%'):
+                tolerance = float(bound_str[1:])
+                # Create an upper bound function
+                bounds_funcs[layer_name] = lambda x, t=tolerance: np.abs(x) < t
+            else:
+                tolerance = float(bound_str[1:-1])
+                # Create an upper bound function
+                bounds_funcs[layer_name] = lambda x, t=tolerance: (np.abs(x)*100)/reference[layer_name] < t
+                
+        elif bound_str.startswith('>'):
+            if not (bound_str[-1]=='%'):
+                tolerance = float(bound_str[1:])
+                # Create a lower bound function
+                bounds_funcs[layer_name] = lambda x, t=tolerance: np.abs(x) > t
+            else:
+                tolerance = float(bound_str[1:-1])
+                bounds_funcs[layer_name] = lambda x, t=tolerance: (np.abs(x)*100)/reference[layer_name] < t          
+        else:
+            # If the bound is not properly formatted, use identity (no bounds)
+            bounds_funcs[layer_name] = lambda x: True
+    
+    return bounds_funcs
+
+
 def parse_recording(
         input_str: str,
         net_info: Dict[str, Tuple[int, ...]],

@@ -1,33 +1,60 @@
 import os
-from typing import Dict, List, Type, cast
+from typing import Any, Dict, List, Type, cast
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string
 from zdream.experiment import Experiment, MultiExperiment, ZdreamExperiment
 from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
 from zdream.utils.misc import overwrite_dict
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger, SilentLogger
+from IPython import get_ipython
 
+def in_notebook():
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Eseguito in un Jupyter Notebook
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Eseguito in un terminale IPython
+        else:
+            return False  # Altro ambiente
+    except NameError:
+        return False      # Non eseguito in IPython
 # --- SINGLE RUN --- 
 
 def param_from_str(name: str) -> ArgParam:
     try:               return           ArgParams.from_str(name)
     except ValueError: return ExperimentArgParams.from_str(name)
 
+def convert_argparams_to_dict(argparams_dict):
+    return {
+        param.name: value
+        for param, value in argparams_dict.items()
+    }
+def update_argparams(argparams_dict: Dict[ArgParam, Any], updates: Dict[str, Any]) -> Dict[ArgParam, Any]:
+    for param in argparams_dict.keys():
+        if param.name in updates:
+            argparams_dict[param] = updates[param.name]
+    return argparams_dict
+
 def run_single(
     args_conf : ParamConfig,
-    exp_type  : Type[Experiment]
+    exp_type  : Type[Experiment],
+    changes   : Dict[str, Any] = {}
 ):
-    
-    # Parse cmd arguments
-    parser   = ArgParams.get_parser(args=list(args_conf.keys()))
-    cmd_conf = vars(parser.parse_args())
-    cmd_conf = {
-        param_from_str(arg_name) : value 
-        for arg_name, value in cmd_conf.items() if value
-    }
+    if in_notebook():
+        cmd_conf = convert_argparams_to_dict(args_conf)
+    else:
+        # Parse cmd arguments
+        parser   = ArgParams.get_parser(args=list(args_conf.keys()))
+        cmd_conf = vars(parser.parse_args())
+        cmd_conf = {
+            param_from_str(arg_name) : value 
+            for arg_name, value in cmd_conf.items() if value
+        }
 
     # Merge configurations
-    full_conf = overwrite_dict(args_conf, cmd_conf) 
+    full_conf = overwrite_dict(args_conf, cmd_conf)
+    full_conf = update_argparams(full_conf, changes)
     
     # Rendering
     if full_conf.get(ArgParams.Render, False):
@@ -37,7 +64,7 @@ def run_single(
 
         # Add close screen flag on as the experiment only involves one run
         full_conf[ArgParams.CloseScreen.value] = True
-    
+        
     experiment = exp_type.from_config(full_conf)
     experiment.run()
     

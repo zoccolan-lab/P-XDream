@@ -844,9 +844,11 @@ class ZdreamExperiment(Experiment):
         codes, msg = self._run_init(msg)
         
         for i in range(self._iteration):
+            self._current_iteration = i
             stimuli, msg = self._codes_to_stimuli (data=(codes,   msg))
             states,  msg = self._stimuli_to_states(data=(stimuli, msg))
             scores,  msg = self._states_to_scores (data=(states,  msg))
+            if scores is None: return msg
             codes,   msg = self._scores_to_codes  (data=(scores,  msg))
 
             self._progress(i=i, msg=msg)
