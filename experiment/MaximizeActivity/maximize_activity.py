@@ -1,5 +1,6 @@
 from collections import defaultdict
 from os import path
+import os
 from typing import Any, Dict, Iterable, List, Tuple, cast
 
 import numpy  as np
@@ -69,6 +70,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_net_name   = str  (conf[ExperimentArgParams.NetworkName    .value])
         PARAM_rec_layers = str  (conf[ExperimentArgParams.RecordingLayers.value])
         PARAM_scr_layers = str  (conf[ExperimentArgParams.ScoringLayers  .value])
+        PARAM_robust_path = str (conf[ExperimentArgParams.Robust_path  .value])
         PARAM_unit_red   = str  (conf[ExperimentArgParams.UnitsReduction .value])
         PARAM_layer_red  = str  (conf[ExperimentArgParams.LayerReduction .value])
         PARAM_pop_size   = int  (conf[ExperimentArgParams.PopulationSize .value])
@@ -77,11 +79,11 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_iter       = int  (conf[          ArgParams.NumIterations  .value])
         PARAM_rnd_seed   = int  (conf[          ArgParams.RandomSeed     .value])
         PARAM_render     = bool (conf[          ArgParams.Render         .value])
-        
+        PARAM_ref_code   = str  (conf[ExperimentArgParams.Reference_code .value])
+
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
-        
         # Set numpy random seed
-        
+        PARAM_ref_code = os.path.join(PARAM_ref_code, f'reference_code_{PARAM_net_name}{"robust" if PARAM_robust_path else ""}.npy')
         np.random.seed(PARAM_rnd_seed)
 
         # --- NATURAL IMAGE LOADER ---
@@ -122,6 +124,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
+            robust_net_path = PARAM_robust_path
         )
         
         # Set the network in evaluation mode
@@ -212,7 +215,8 @@ class MaximizeActivityExperiment(ZdreamExperiment):
             nat_img_loader = nat_img_loader,
             iteration      = PARAM_iter,
             data           = data, 
-            name           = PARAM_exp_name
+            name           = PARAM_exp_name,
+            saveref        = PARAM_ref_code
         )
 
         return experiment
@@ -229,7 +233,8 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         logger         : Logger,
         nat_img_loader : NaturalStimuliLoader,
         data           : Dict[str, Any] = dict(),
-        name           : str            = 'maximize_activity'
+        name           : str            = 'maximize_activity',
+        saveref        : str            = ''
     ) -> None:
         ''' 
         Uses the same signature as the parent class ZdreamExperiment.
@@ -252,7 +257,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         self._render        = cast(bool, data[str(ArgParams.Render)])
         self._close_screen  = cast(bool, data['close_screen'])
         self._use_natural   = cast(bool, data['use_nat'])
-        
+        self._refpath       = saveref
         # Save dataset if used
         if self._use_natural: self._dataset = cast(ExperimentDataset, data['dataset'])
             
@@ -374,7 +379,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
 
         msg = super()._finish(msg)
         
-        return msg
+        #return msg
     
         # DO YOU WANT TO SAVE ALL THE SHIT BELOW? NOT IN ISCHIAGUALASTIA, LET'S SAVE SOME SPACE
 
@@ -391,7 +396,8 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         best_gen = self.generator(codes=msg.best_code)[0]  # remove batch size
         
         to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best synthetic')]
-        
+        if not(self._refpath==''):
+            np.save(self._refpath, msg.best_code)
         # If used we retrieve the best natural image
         if self._use_natural:
             best_nat = self._best_nat_img

@@ -224,7 +224,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         self._display_plots = cast(bool, data['display_plots'])
         self._render        = cast(bool, data['render'])
         self._close_screen  = cast(bool, data['close_screen'])
-        self._n_group       = cast(int,  data['n_group'])
+        
         
         if self._use_natural:
             self._dataset   = cast(MiniImageNet, data['dataset'])

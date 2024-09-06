@@ -143,6 +143,10 @@ class ZdreamMessage(Message):
     def mask(self) -> Mask:
         try: return self.masks_history[-1]
         except IndexError: raise ValueError('No masks in history')
+    
+    @mask.setter
+    def mask(self, value):
+        self._mask = value
         
     @property
     def labels(self) -> List[int]:
