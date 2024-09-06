@@ -134,7 +134,7 @@ class FeatureMapOptimizationExperiment(ZdreamExperiment):
         
         optim_dict = read_json(path.join(PARAM_fm_dir, optim_file_name))
         
-        clu_algo_name = FILE_NAMES[PARAM_clu_algo].replace('Clusters.json', '')
+        clu_algo_name = FILE_NAMES[PARAM_clu_algo].replace('.json', '')
         
         rec_units = (optim_dict[clu_algo_name][str(key)][PARAM_fm_key])
         

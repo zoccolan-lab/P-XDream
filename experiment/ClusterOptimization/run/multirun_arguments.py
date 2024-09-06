@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from analysis.utils.settings import CLUSTER_DIR
+from analysis.utils.settings import ALEXNET_DIR
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.settings import FILE_NAMES
 from zdream.clustering.ds      import Clusters
@@ -14,13 +14,16 @@ from zdream.utils.parameters import ArgParams
 def get_rnd_seed() -> str:
     return str(np.random.randint(1000, 100000))
 
-NAME = 'prova'
 
-ITER         = '3'
+ITER         = '150'
 TEMPLATE     = 'T'
 CLUSTER_ALGO = 'ds'
-LAYER        = 'fc8'
-SAMPLE       = 2
+LAYER        = 'conv5-maxpool'
+GEN_VARIANT  = 'fc8'
+SAMPLE       = 5
+A, B         = (500, 575)
+
+NAME = f'cluster_single_units_{CLUSTER_ALGO}_from{A}_to_{B}_layer{LAYER}_{SAMPLE}samples_{ITER}iter'
 
 LAYERS_SETTINGS = {    # Name           # Format               # Idx
     'fc8'           : ('fc8',           'alexnetfc8',          '21'),
@@ -32,10 +35,10 @@ LAYERS_SETTINGS = {    # Name           # Format               # Idx
 
 LAYER_DIR, LAYER_FORMAT, LAYER_IDX = LAYERS_SETTINGS[LAYER]
 
-CLU_DIR     = path.join(CLUSTER_DIR, LAYER_DIR)
+CLU_DIR     = path.join(ALEXNET_DIR, LAYER_DIR)
 CLU_FILE    = path.join(CLU_DIR, FILE_NAMES[CLUSTER_ALGO])
 CLUSTERS    = Clusters.from_file(CLU_FILE)
-CLUSTER_IDX = [0] # list(range(len(CLUSTERS)))
+CLUSTER_IDX = list(range(A, B+1))
 
 def get_args_ds_weighting_scr() -> Tuple[str, str, str]:
     
@@ -70,7 +73,7 @@ def get_args_cluster_units_superstimulus() -> Tuple[str, str, str]:
         args = [ 
                 (opt_unit+1, clu_idx, get_rnd_seed())
                 for clu_idx in CLUSTER_IDX 
-                for opt_unit in range(5) #range(len(CLUSTERS[clu_idx]))
+                for opt_unit in range(len(CLUSTERS[clu_idx]))
                 for _ in range(SAMPLE)
         ]
         
@@ -175,6 +178,7 @@ if __name__ == '__main__':
     args[str(          ArgParams.ExperimentName)] = NAME
     args[str(          ArgParams.NumIterations )] = ITER
     args[str(ExperimentArgParams.Template      )] = TEMPLATE
+    args[str(ExperimentArgParams.GenVariant    )] = GEN_VARIANT
     args[str(ExperimentArgParams.ClusterLayer  )] = LAYER_IDX
     args[str(ExperimentArgParams.ClusterDir    )] = CLU_DIR
     args[str(ExperimentArgParams.ClusterAlgo   )] = CLUSTER_ALGO

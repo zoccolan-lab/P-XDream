@@ -20,14 +20,10 @@ from zdream.utils.misc       import default
 
 # --- SETTINGS ---
 
-out_dir = os.path.join(OUT_DIR, "neuron_scaling_fit_function")
+out_dir = os.path.join(OUT_DIR, "neuron_scaling")
 
-FIT_FROM   = 1
-FIG_SUB    = ( 2,  2)
-FIG_SIZE   = (20, 10)
-POINT_SIZE = 50
-LINE_WIDTH = 2
-PALETTE    = 'husl'
+FIT_FROM = 1
+
 
 def fit_curve(
     points    : List[Tuple[float, float]],
@@ -35,7 +31,7 @@ def fit_curve(
     init_coef : List[float]         | None = None,
     domain    : Tuple[float, float] | None = None,
     fit_from  : int                        = 0,
-    logger    : Logger | SilentLogger      = SilentLogger()
+    logger    : Logger | SilentLogger      = SilentLogger(),
 ) -> CurveFitter:
     '''
     Fit a curve to the given data points using the given function.
@@ -80,9 +76,37 @@ def plot_fit(
     functions: Dict[str, Callable[[float], float]],
     logger: Logger | SilentLogger = SilentLogger(),
     out_dir: str = '.',
+    **kwargs
 ):
+    # --- MACROS ---
+
+    FIG_SUB    = kwargs.get('FIG_SUB', (2, 2))  # Grid layout (rows, columns)
+    FIG_SIZE   = kwargs.get('FIG_SIZE', (20, 9))
+    TITLE      = kwargs.get('TITLE', 'Fit Plot')
+    X_LABEL    = kwargs.get('X_LABEL', 'Random optimized units')
+    Y_LABEL    = kwargs.get('Y_LABEL', 'Fitness')
+    SAVE_FORMATS = kwargs.get('SAVE_FORMATS', ['svg'])
+
+    PALETTE    = kwargs.get('PALETTE', 'husl')
+    PLOT_ARGS  = kwargs.get('PLOT_ARGS', {'linestyle': '--', 'linewidth': 3, 'alpha': 0.6})
+    GRID_ARGS  = kwargs.get('GRID_ARGS', {'linestyle': '--', 'alpha': 0.7})
+
+    # Font customization
+    FONT               = kwargs.get('FONT', 'serif')
+    TICK_ARGS          = kwargs.get('TICK_ARGS', {'labelsize': 14, 'direction': 'out', 'length': 6, 'width': 2, 'labelfontfamily': FONT})
+    LABEL_ARGS         = kwargs.get('LABEL_ARGS', {'fontsize': 16, 'labelpad': 10, 'fontfamily': FONT})
+    TITLE_ARGS         = kwargs.get('TITLE_ARGS', {'fontsize': 20, 'fontweight': 'bold', 'fontfamily': FONT})
+    SUBPLOT_TITLE_ARGS = kwargs.get('SUBPLOT_TITLE_ARGS', {'fontsize': 16, 'fontfamily': FONT})  # New arguments for subplot titles
+    SCATTER_ARGS       = kwargs.get('SCATTER_ARGS', {'marker': '.', 's': 90})
+    LEGEND_ARGS        = kwargs.get('LEGEND_ARGS', {
+        'frameon': True, 'fancybox': True, 
+        'framealpha': 0.7, 'loc': 'best', 'prop': {'family': FONT, 'size': 14}
+    })
+
     FIG_X, FIG_Y = FIG_SUB
-    
+
+    FIG_X, FIG_Y = FIG_SUB
+
     custom_palette = sns.color_palette(PALETTE, len(functions))
     
     for single_plot, log_scale in itertools.product([False, True], [False, True]):
@@ -90,43 +114,70 @@ def plot_fit(
         fig, ax = plt.subplots(figsize=FIG_SIZE) if single_plot else plt.subplots(FIG_X, FIG_Y, figsize=FIG_SIZE)
 
         for i, (layer, fun) in enumerate(functions.items()):
+
+            if layer not in points:
+                logger.warn(f"Layer '{layer}' is missing in points. Skipping.")
+                continue
                         
-            x = [x_ for x_,  _ in points[layer] ]
-            y = [y_ for  _, y_ in points[layer] ]
+            x = [x_ for x_,  _ in points[layer]]
+            y = [y_ for  _, y_ in points[layer]]
             
             col = custom_palette[i]
-            ax_ = ax if single_plot else ax[i // 2][i % 2] 
+            ax_ = ax if single_plot else ax[i // FIG_Y][i % FIG_Y]
             
-            ax_.scatter(x, y, color=col, marker='.', s=POINT_SIZE)
-            if not single_plot: ax_.set_title(layer)
+            ax_.scatter(x, y, color=col, **SCATTER_ARGS)
+            if not single_plot: 
+                ax_.set_title(LAYER_SETTINGS[layer]['title'], **SUBPLOT_TITLE_ARGS)  # Use subplot-specific title args
             
             start, end = 1, LAYER_SETTINGS[layer]['neurons']
             
-            x_pred = range(start, end+1)
+            x_pred = range(start, end + 1)
             y_pred = [fun(x_) for x_ in x_pred]
             
-            ax_.plot(x_pred, y_pred, color=col, linestyle='--', label=layer, linewidth=LINE_WIDTH)
+            ax_.plot(x_pred, y_pred, color=col, label=LAYER_SETTINGS[layer]['title'], **PLOT_ARGS)
             
             # Plot with original x scale
-            if log_scale: ax_.set_xscale('log')
+            if log_scale: 
+                ax_.set_xscale('log')
                 
-        if single_plot: ax_.legend()
+            # Set x-labels only on the last row
+            if i // FIG_Y == FIG_X - 1:
+                ax_.set_xlabel(X_LABEL, **LABEL_ARGS)
+
+            # Set y-labels only on the first column
+            if i % FIG_Y == 0:
+                ax_.set_ylabel(Y_LABEL, **LABEL_ARGS)
+                
+            # Add grid
+            ax_.grid(True, **GRID_ARGS)
+            # Customize ticks
+            ax_.tick_params(**TICK_ARGS)
+
+        if single_plot:
+            ax_.legend(**LEGEND_ARGS)
+
+        fig.suptitle(f"{TITLE} ({'Log Scale' if log_scale else 'Original Scale'})", **TITLE_ARGS)
         
+        # Save the plots in multiple formats
         scale_str  = 'log'    if log_scale   else 'orig'
         single_str = 'single' if single_plot else 'multi'        
-        out_fp = os.path.join(out_dir, f'fit_{single_str}_{scale_str}scale.svg')
-        
-        logger.info(f'Saving plot to {out_fp}')
-        fig.savefig(out_fp)
-        
+
+        for fmt in SAVE_FORMATS:
+            out_fp = os.path.join(out_dir, f'fit_{single_str}_{scale_str}scale.{fmt}')
+            logger.info(f'Saving plot to {out_fp}')
+            fig.savefig(out_fp, bbox_inches='tight')
 
 def main():
     
     # Logger and directories
     logger = LoguruLogger(on_file=False)
+
+    neuron_scaling_dir = os.path.dirname(NEURON_SCALING_FILE)
+    neuron_scaling_file, ext = os.path.basename(NEURON_SCALING_FILE).split('.')
+    variant_name = [part for part in neuron_scaling_file.split('_') if 'variant' in part][0].strip('variant')
     
     fit_dir = make_dir(
-        path=os.path.join(out_dir, os.path.basename(NEURON_SCALING_FILE).split('.')[0]),
+        path=os.path.join(out_dir, f'{variant_name}_variant'),
         logger=logger
     )
 
@@ -137,7 +188,8 @@ def main():
     plot_optimizing_units(
         data=neuron_scaling['score'],
         out_dir=fit_dir,
-        logger=logger
+        logger=logger,
+        TITLE=F'{variant_name.capitalize()} Generator Variant - Neuron Optimization Scaling'
     )
 
     # Average samples
@@ -164,12 +216,21 @@ def main():
         )
     
     # Plot the fit
-    plot_fit(points=points, functions=out_functions, logger=logger, out_dir=fit_dir)
+    plot_fit(points=points, functions=out_functions, logger=logger, out_dir=fit_dir, TITLE=f"{variant_name.capitalize()} Generator Variant - Neuron Scaling Optimization Fitted Curve")
     
     # Save functions
-    out_fp = os.path.join(fit_dir, 'functions.pkl')
+
+    out_fp = os.path.join(neuron_scaling_dir, 'neuron_scaling_functions.pkl')
+
+    if os.path.exists(out_fp):
+        logger.info(f'Previous functions were computed. Adding just computed to existing file.')
+        data = load_pickle(out_fp)
+        data[variant_name] = out_functions
+    else:
+        data = {variant_name: out_functions}
+    
     logger.info(f'Saving functions to {out_fp}')
     
-    store_pickle(out_functions, out_fp)
+    store_pickle(data, out_fp)
 
 if __name__ == '__main__': main()
