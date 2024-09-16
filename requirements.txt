@@ -1,18 +1,30 @@
-numpy~=1.26.3
+# Math
+numpy~=2.1.1
+pandas~=2.2.2
 scipy~=1.11.4
-setuptools~=68.2.2
-torch==2.2.0
-diffusers==0.26.3
-torchvision==0.17.0
-einops==0.7.0
-pillow==10.2.0
-scikit-learn==1.3.0
-loguru==0.5.3
-tqdm=4.66.2
-matplotlib=3.8.0
-multimethod==1.9.1
-pandas==2.1.4
-seaborn==0.12.2
-rich==13.7.1
-cma==3.3.0
-colorcet==3.1.0
+scikit_learn~=1.2.2
+Pillow~=10.4.0
+
+# Utils
+einops~=0.8.0
+setuptools~=72.1.0
+ipython~=8.26.0
+
+# Neural Networks
+torch~=2.3.0
+torchvision~=0.17.0
+robustness~=1.2.1.post2
+
+# Plot and Style
+matplotlib~=3.8.4
+seaborn~=0.13.2
+colorcet~=3.1.0
+
+# Logging
+loguru~=0.7.2
+rich~=13.8.1
+tqdm~=4.66.4
+
+# Optimization
+cma~=4.0.0  
+deap~=1.4.1
