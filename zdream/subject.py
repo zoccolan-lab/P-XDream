@@ -18,8 +18,8 @@ from .utils.logger import Logger, SilentLogger
 from .utils.probe import SetterProbe, SilicoProbe,RecordingProbe
 from .utils.misc import InputLayer, default, device, unpack, replace_inplace
 from .utils.types import RecordingUnit, Stimuli, States
-from robustness.datasets import ImageNet
-from robustness.model_utils import make_and_restore_model
+# from robustness.datasets import ImageNet
+# from robustness.model_utils import make_and_restore_model
 
 
 class Subject(ABC):
@@ -134,7 +134,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         self._robust = '_r' if robust_net_path else ''
 
         # 1) LOAD NETWORK ARCHITECTURE
-        if not(robust_net_path == ''):
+        if robust_net_path != '':
             ds = ImageNet('/home/lorenzo/Desktop/Datafolders/tiny-imagenet')
             model, _ = make_and_restore_model(arch=network_name, dataset=ds, resume_path=robust_net_path)
             self._weights = None

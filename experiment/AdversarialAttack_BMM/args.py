@@ -15,14 +15,19 @@ ARGS: ParamConfig = {
     ExperimentArgParams.BatchSize        .value : 16                 , 
 
     # Subject
-    ExperimentArgParams.NetworkName      .value : "resnet50"                                            , # resnet50
-    ExperimentArgParams.RecordingLayers  .value : "0=[], 126=[0]"                                       , # 126 resnet50
-    ExperimentArgParams.RobustPath      .value : '/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt', #'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
+    # ExperimentArgParams.NetworkName      .value : "resnet50"                                            , # resnet50
+    ExperimentArgParams.NetworkName      .value : "alexnet"                                             , # resnet50
+    #ExperimentArgParams.RecordingLayers  .value : "0=[], 126=[0]"                                       , # 126 resnet50
+    ExperimentArgParams.RecordingLayers  .value : "0=[], 21=[0]"                                       , # 126 resnet50
+    ExperimentArgParams.RobustPath       .value : '/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt', #'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
 
     # Scorer
-    ExperimentArgParams.ScoringLayers    .value : "0=[],126=[0]"           ,
-    ExperimentArgParams.ScoringSignature .value : "0=-1, 126=1"       ,
-    ExperimentArgParams.Bounds           .value : "0=N<10, 126=<10%"       ,
+    # ExperimentArgParams.ScoringLayers    .value : "0=[],126=[0]"           ,
+    # ExperimentArgParams.ScoringSignature .value : "0=-1, 126=1"       ,
+    # ExperimentArgParams.Bounds           .value : "0=N<10, 126=<10%"       ,
+    ExperimentArgParams.ScoringLayers    .value : "0=[],21=[]"           ,
+    ExperimentArgParams.ScoringSignature .value : "0=-1, 21=1"       ,
+    ExperimentArgParams.Bounds           .value : "0=N<10, 21=<10%"       ,
     ExperimentArgParams.Distance         .value : "euclidean"        ,
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,
     ExperimentArgParams.LayerReduction   .value : "mean"             ,

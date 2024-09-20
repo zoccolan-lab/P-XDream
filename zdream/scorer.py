@@ -77,7 +77,7 @@ class Scorer(ABC):
         self._units_reduce : UnitsReduction = units_reduce
 
 
-    def __call__(self, states : States) -> Scores:
+    def __call__(self, states : States) -> Tuple[States, Dict[str, NDArray] ,Scores]:
         '''
         Compute the subject scores given a subject state by 
         using the proper mapping and reducing functions.
@@ -88,40 +88,19 @@ class Scorer(ABC):
         :rtype: Scores
         '''
         
-        # if current_iter is not None:
-        #     self.current_iter = current_iter
-
         # 1. Mapping activations
-        # state_mapped: States  = {
-        #     layer: self._units_map(act.copy())
-        #     for layer, act in states.items()
-        # }
-        # 
-        # # 2. Performing units reduction
-        # layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
-        # self.layer_scores = layer_scores
-        # 
-        # # 3. Performing layer reduction
-        # scores = self._layer_reduce(layer_scores)
-        
-        scores = self.layer_reduce(states=states)
-
-        return scores
-    
-    def states_mapping(self, states: States) -> States:
-        
-        return {
+        state_mapped: States  = {
             layer: self._units_map(act.copy())
             for layer, act in states.items()
         }
         
-    def unit_reduction(self, states: States) -> Dict[str, Scores]:
+        # 2. Performing units reduction
+        layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
         
-        return self._units_reduce(self.states_mapping(states))
-    
-    def layer_reduce(self, states: States) -> Scores:
-        
-        return self._layer_reduce(self.unit_reduction(states))
+        # 3. Performing layer reduction
+        scores = self._layer_reduce(layer_scores)
+
+        return state_mapped, layer_scores, scores
     
     # --- STRING REPRESENTATION ---
         
@@ -675,7 +654,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         """ 
         STUB to the parent class using preprocessed states
         """
-        
+
         states_preprocess = self._preprocess_states(states)
         
         return super().__call__(states=states_preprocess)
@@ -772,6 +751,8 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         self.coordinates_p1 = coordinates_p1
         rand_scores = np.random.rand(pf_scores.shape[0])
         scores = (pf_scores+1)*(max(rand_scores)+1)+rand_scores
+
+        scores = scores.astype(np.float32)
         
         return scores
     
@@ -795,7 +776,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         
         state_dup = {
             layer: np.array([
-                individual_state if self._bounds[layer](individual_state) else -float('inf') 
+                individual_state if self._bounds[layer](individual_state) else -1000 #-float('inf') 
                 for individual_state in layer_state
             ])
             for layer, layer_state in state.items()
@@ -809,6 +790,9 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         It is supposed to be used externally to the typical `__call__` pipeline
         """
         return self._bound_constraints(state=self._preprocess_states(state))
+    
+    @property
+    def reference(self) -> Dict[str, NDArray]: return self.reference
 
 
 

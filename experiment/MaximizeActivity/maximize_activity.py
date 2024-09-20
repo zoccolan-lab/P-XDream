@@ -16,7 +16,7 @@ from zdream.generator                 import Generator, DeePSiMGenerator
 from zdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer                    import ActivityScorer, Scorer
 from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
+from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
 from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
 from zdream.utils.message             import ZdreamMessage
 from zdream.utils.misc                import concatenate_images, device
@@ -93,7 +93,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         use_nat  = template.count(False) > 0
         
         # Create dataset and loader
-        dataset  = MiniImageNet(root=PARAM_dataset)
+        dataset  = RandomImageDataset(n_img=100, img_size=(224, 224,))# MiniImageNet(root=PARAM_dataset)
         
         nat_img_loader   = NaturalStimuliLoader(
             dataset=dataset,
@@ -282,6 +282,9 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data
+
+        print(sub_score.shape)
+        print(sub_score.dtype)
 
         # We inspect if the new set of stimuli for natural images,
         # checking if they achieved an higher score than previous ones.

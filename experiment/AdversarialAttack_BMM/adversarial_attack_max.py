@@ -19,7 +19,7 @@ from zdream.generator                 import Generator, DeePSiMGenerator
 from zdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer                    import Scorer, ParetoReferencePairDistanceScorer, _MetricKind
 from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
+from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
 from zdream.utils.io_ import load_pickle
 from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
 from zdream.utils.message             import ParetoMessage, ZdreamMessage
@@ -100,7 +100,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         # Create dataset and loader
         dataset  = MiniImageNet(root=PARAM_dataset)
-        
+
         nat_img_loader   = NaturalStimuliLoader(
             dataset=dataset,
             template=template,
@@ -134,7 +134,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
-            robust_net_path = PARAM_robust_path
+            robust_net_path = ""# PARAM_robust_path
         )
         
         # Set the network in evaluation mode
@@ -157,10 +157,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         ref_code_b = np.expand_dims(ref_code, axis=0)
         ref_stimulus : Stimuli = generator(codes=ref_code_b)
         ref_states_b : States  = sbj_net(stimuli=ref_stimulus)
-        ref_states = {
-            l: state[0] for l, state in ref_states_b.items()
-            if l in record_target
-        }
         
         # Parse target neurons
         scoring_units = parse_scoring(
@@ -177,7 +173,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         bounds = parse_bounds(
             input_str=str(PARAM_bounds),
             net_info=layer_info,
-            reference = reference                
+            reference=ref_states_b                
         )
         
         sel_metric = str(PARAM_distance)
@@ -187,29 +183,19 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         scorer = ParetoReferencePairDistanceScorer(
             layer_weights=signature,
             scoring_units=scoring_units,
-            reference=ref_states,
+            reference=ref_states_b,
             metric=sel_metric,
             bounds = bounds
         )
 
         # --- OPTIMIZER ---
-        # CMAES not working :(
-        # optim = CMAESOptimizer(
-        #     codes_shape = generator.input_dim,
-        #     rnd_seed    = PARAM_rnd_seed,
-        #     pop_size    = PARAM_pop_size,
-        #     sigma0      = PARAM_sigma0
-        # )
-        
-        optim = GeneticOptimizer(
-            codes_shape  = generator.input_dim,
-            rnd_seed     = PARAM_rnd_seed,
-            pop_size     = PARAM_pop_size,
-            rnd_scale    = 1,
-            mut_size     = 0.15,
-            mut_rate     = 0.3,
-            allow_clones = True,
-            n_parents    = 4
+
+        optim = CMAESOptimizer(
+            codes_shape = generator.input_dim,
+            rnd_seed    = PARAM_rnd_seed,
+            pop_size    = PARAM_pop_size,
+            sigma0      = PARAM_sigma0,
+            x0          = ref_code
         )
 
         #  --- LOGGER --- 
@@ -248,7 +234,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             "dataset"      : dataset if use_nat else None,
             'render'       : PARAM_render,
             'close_screen' : PARAM_close_screen,
-            'use_nat'      : use_nat
+            'use_nat'      : use_nat,
+            'ref_code'     : ref_code
         }
 
         # --- EXPERIMENT INSTANCE ---
@@ -260,7 +247,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             subject        = sbj_net,
             logger         = logger,
             nat_img_loader = nat_img_loader,
-            reference      = reference,
             iteration      = PARAM_iter,
             data           = data, 
             name           = PARAM_exp_name,
@@ -280,7 +266,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         iteration      : int,
         logger         : Logger,
         nat_img_loader : NaturalStimuliLoader,
-        reference      : Dict[str, Any],
         data           : Dict[str, Any] = dict(),
         name           : str            = 'maximize_activity'
     ) -> None:
@@ -288,8 +273,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         Uses the same signature as the parent class ZdreamExperiment.
         It save additional information from the `data` attribute to be used during the experiment.
         '''
+
         self._readout_score = defaultdict(list)
-        self._reference     = reference
 
         super().__init__(
             generator      = generator,
@@ -304,10 +289,10 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         )
 
         # Save attributes from data
-        self._render        = cast(bool, data[str(ArgParams.Render)])
-        self._close_screen  = cast(bool, data['close_screen'])
-        self._use_natural   = cast(bool, data['use_nat'])
-        
+        self._reference_code = cast(NDArray, data['ref_code'])
+        self._render         = cast(bool,    data[str(ArgParams.Render)])
+        self._close_screen   = cast(bool,    data['close_screen'])
+        self._use_natural    = cast(bool,    data['use_nat'])
         
         # Save dataset if used
         if self._use_natural: self._dataset = cast(ExperimentDataset, data['dataset'])
@@ -345,9 +330,15 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         # and is then easier to just disregard later the natural images scores
         # msg.mask[::-1].sort()
         
-        scores, msg = super()._states_to_scores((states, msg))
+        states, msg = data
         
-        self.layer_scores = self.scorer.unit_reduction(states=states)
+        # Scorer step
+        _, self.layer_scores, scores = self.scorer(states=states)
+        
+        if scores is not None:
+            # Update message scores history (synthetic and natural)
+            msg.scores_gen_history.append(scores[ msg.mask])
+            msg.scores_nat_history.append(scores[~msg.mask])
         
         # TODO @DonTau, this will break the code
         # `key` comes from previous for loop now moved in the class
@@ -379,7 +370,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data
-        sub_score = sub_score.astype(np.float32)
 
         # We inspect if the new set of stimuli for natural images,
         # checking if they achieved an higher score than previous ones.
@@ -399,7 +389,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         codes, msg = data
         
         # Aggiungi il codice a quello della reference per generare
-        codes_ = codes + self._reference['code']
+        codes_ = codes + self._reference_code
     
         data_ = (codes_, msg)
         
@@ -513,14 +503,14 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         # Create image folder
         img_dir_gen = make_dir(path=path.join(self.dir, 'images'), logger=self._logger)
         df_row = self.save_exp_data(img_dir_gen); self.img_dir = df_row['image_path']
-        self.best_syn = self.generator(codes=(self._reference['code']))[0]
-        self.best_gen = self.generator(codes=msg.best_code+self._reference['code'])[0]
+        self.best_syn = self.generator(codes=(self._reference_code['code']))[0]
+        self.best_gen = self.generator(codes=msg.best_code+self._reference_code['code'])[0]
         self._save_images(img_dir=self.img_dir, best_gen=self.best_gen, ref=self.best_syn)
         
         last_layer = list(state.layer_scores_gen_history.keys())[-1] #type: ignore
         
         # Save variables to log in a multi-experiment csv
-        self.hidden_reference = int(self._reference[last_layer])
+        self.hidden_reference = int(self.scorer.reference[last_layer])
         self.distance         = get_best_distance(self.img_dir)
         self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0]] #type: ignore
 
@@ -580,24 +570,24 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
             self._logger.info(f'> Saving {label} image to {out_fp}')
             img.save(out_fp)
-                  
-        
+
 class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
     
-    def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
-        '''
-        Method called before entering the main for-loop across generations.
-        It is responsible for generating the initial codes
-        '''
-        ref_codes = np.tile(self._reference['code'], (self._optimizer._init_n_codes, 1))
-        noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference['code']))), ref_codes.shape)
-        # Codes initialization
-        codes = self.optimizer.init(init_codes = (ref_codes + noise))
-        
-        # Update the message codes history
-        msg.codes_history.append(codes)
-        
-        return codes, msg
+    # def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
+    #     '''
+    #     Method called before entering the main for-loop across generations.
+    #     It is responsible for generating the initial codes
+    #     '''
+    # 
+    #     ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
+    #     noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference_code))), ref_codes.shape)
+    #     # Codes initialization
+    #     codes = self.optimizer.init()#init_codes = (ref_codes + noise))
+    #     
+    #     # Update the message codes history
+    #     msg.codes_history.append(codes)
+    #     
+    #     return codes, msg
     
     def _codes_to_stimuli(self, data: Tuple[Codes, ZdreamMessage]) -> Tuple[Stimuli, ZdreamMessage]:
         
