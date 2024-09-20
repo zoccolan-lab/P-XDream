@@ -13,7 +13,7 @@ from os import path
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type, TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -24,13 +24,14 @@ from zdream.utils.dataset import NaturalStimuliLoader
 
 from .utils.logger import DisplayScreen, Logger, SilentLogger
 from .generator import Generator
-from .utils.message import Message, ZdreamMessage
+from .utils.message import Message, ParetoMessage, ZdreamMessage
 from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
 from .utils.io_ import read_json, save_json, store_pickle
 from .utils.types import Codes, Stimuli, Scores, States
-from .utils.misc import flatten_dict, overwrite_dict, stringfy_time
+from .utils.misc import flatten_dict, load_npy_npz, overwrite_dict, stringfy_time
+
 
 # --- EXPERIMENT ABSTRACT CLASS ---
 
@@ -386,41 +387,9 @@ class ZdreamExperimentState:
             a `SilentLogger` is used. 
         :type logger: Logger | None, optional
         '''
-
-        logger.info(f'Loading experiment state from {in_dir}')
-
-        loaded = dict()
-        for name, ext in cls.FILES:
-
-            # File path
-            fp = path.join(in_dir, f'{name}.{ext}')
-
-            # Loading function depending on file extension
-            match ext:
-                case 'npy': load_fun = np.load
-                case 'npz': load_fun = lambda x: dict(np.load(x))
-
-            # Loading state
-            if path.exists(fp):
-                logger.info(f"> Loading {name} history from {fp}")
-                loaded[name] = load_fun(fp)
-
-            # Warning if the state is not present
-            else:
-                logger.warn(f"> Unable to fetch {fp}")
-                loaded[name] = None
-
-        return cls(
-            mask       = loaded['mask'],
-            labels     = loaded['labels'],
-            states     = loaded['states'],
-            codes      = loaded['codes'],
-            scores_gen = loaded['scores_gen'],
-            scores_nat = loaded['scores_nat'],
-            rec_units  = loaded['rec_units'],
-            scr_units  = loaded['scr_units'],
-            rf_maps    = loaded['rf_maps']
-        )
+        loaded = load_npy_npz(in_dir = in_dir, fnames = cls.FILES, logger = logger)
+        cls_init_args = {name: loaded[name] for name, _ in cls.FILES}
+        return cls(**cls_init_args)
 
 
     def dump(self, out_dir: str, logger: Logger = SilentLogger(), store_states: bool = False):
@@ -463,7 +432,8 @@ class ZdreamExperimentState:
                 case 'rf_maps':                check_fn = lambda x : len(x)
                 case 'states':                 check_fn = lambda x : all([v.size for v in x.values()])
                 case _:                        check_fn = lambda _ : True
-            
+                #TODO @Tau
+                #add checks for new info from ParetoExperimentState
             # Get specific state 
             state = self.__getattribute__(name)
             
@@ -477,6 +447,36 @@ class ZdreamExperimentState:
                 logger.warn(f'> Attempting to dump {name}, but empty')
         
         logger.info(f'')
+
+@dataclass
+class ParetoExperimentState(ZdreamExperimentState):
+    FILES = ZdreamExperimentState.FILES + [
+    ('pf1_coords', 'npy'),
+    ('layer_scores_gen_history', 'npz'),]
+    
+    pf1_coords: NDArray[np.int32]                          | None  # [n_pareto1 x n_coords]
+    layer_scores_gen_history: Dict[str, NDArray[np.float32]] | None  # layer_name: [n_gen x pop_sz]
+    
+    @classmethod
+    def from_msg(cls, msg : ParetoMessage) -> 'ParetoExperimentState':
+        exp_state = super().from_msg(msg)
+        
+        layer_scores = {k:np.vstack(v) for k,v in msg.layer_scores_gen_history.items()}
+        
+        return ParetoExperimentState(
+            mask       = exp_state.mask,
+            labels     = exp_state.labels,
+            states     = exp_state.states,
+            codes      = exp_state.codes,
+            scores_gen = exp_state.scores_gen,
+            scores_nat = exp_state.scores_nat,
+            rec_units  = exp_state.rec_units,
+            scr_units  = exp_state.scr_units,
+            rf_maps    = exp_state.rf_maps,
+            pf1_coords = msg.Pfront_1,
+            layer_scores_gen_history = layer_scores 
+        )
+        
 
 
 class ZdreamExperiment(Experiment):
@@ -702,10 +702,10 @@ class ZdreamExperiment(Experiment):
         
         # Scorer step
         scores = self.scorer.__call__(states=states)
-    
-        # Update message scores history (synthetic and natural)
-        msg.scores_gen_history.append(scores[ msg.mask])
-        msg.scores_nat_history.append(scores[~msg.mask])
+        if scores is not None:
+            # Update message scores history (synthetic and natural)
+            msg.scores_gen_history.append(scores[ msg.mask])
+            msg.scores_nat_history.append(scores[~msg.mask])
         
         return scores, msg
     
@@ -768,8 +768,8 @@ class ZdreamExperiment(Experiment):
         The method is called at the end of the actual experiment.
         It performs the dump of states history contained in the message.
         '''
-
-        msg = super()._finish(msg=msg)  # type: ignore
+        
+        msg = cast(ZdreamMessage, super()._finish(msg=msg))
 
         # Dump
         state = ZdreamExperimentState.from_msg(msg=msg)
@@ -816,6 +816,7 @@ class ZdreamExperiment(Experiment):
         :type i: int
         '''
         self._logger.info(self._progress_info(i=i, msg=msg))
+
         
     def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
         '''
@@ -844,14 +845,17 @@ class ZdreamExperiment(Experiment):
         codes, msg = self._run_init(msg)
         
         for i in range(self._iteration):
-            self._current_iteration = i
+            self._curr_iter = i
             stimuli, msg = self._codes_to_stimuli (data=(codes,   msg))
             states,  msg = self._stimuli_to_states(data=(stimuli, msg))
             scores,  msg = self._states_to_scores (data=(states,  msg))
-            if scores is None: return msg
             codes,   msg = self._scores_to_codes  (data=(scores,  msg))
 
             self._progress(i=i, msg=msg)
+            
+            if msg.early_stopping:
+                self._logger.warn(f'Early stopping at iteration {i}')
+                break
         
         return msg
 

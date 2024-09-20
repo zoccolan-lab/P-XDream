@@ -4,33 +4,31 @@ from os import path
 import os
 import re
 from typing import Any, Dict, Iterable, List, Tuple, cast
-from einops import rearrange, reduce
-from deap import base, creator, tools
 import pandas as pd
-from torchvision import transforms
-from scipy.spatial.distance import pdist
 
 import numpy  as np
 import torch
 from numpy.typing import NDArray
 from PIL          import Image
 from torchvision.transforms.functional import to_pil_image
+from torchvision import transforms
+from scipy.spatial.distance import pdist
 
-from zdream.experiment                import ZdreamExperiment
+from zdream.experiment                import ParetoExperimentState, ZdreamExperiment
 from zdream.generator                 import Generator, DeePSiMGenerator
-from zdream.optimizer                 import GeneticOptimizer, Optimizer
-from zdream.scorer                    import ActivityScorer, Scorer, WeightedPairSimilarityScorer
+from zdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
+from zdream.scorer                    import Scorer, ParetoReferencePairDistanceScorer, _MetricKind
 from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
+from zdream.utils.io_ import load_pickle
 from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
-from zdream.utils.message             import ZdreamMessage
+from zdream.utils.message             import ParetoMessage, ZdreamMessage
 from zdream.utils.misc                import concatenate_images, device
 from zdream.utils.parameters          import ArgParams, ParamConfig
 from zdream.utils.probe               import RecordingProbe
-from zdream.utils.types               import Codes, ScoringUnit, Stimuli, Scores, States
-from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_best_stimulus_per_variant, save_stimuli_samples
+from zdream.utils.types               import Codes, Stimuli, Scores, States
 from experiment.utils.args            import ExperimentArgParams
-from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_recording, parse_scoring, parse_signature
+from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_recording, parse_reference_info, parse_scoring, parse_signature
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
 
 class AdversarialAttackMaxExperiment(ZdreamExperiment):
@@ -46,7 +44,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
     # We override the properties to cast them to the specific components to activate their methods
 
     @property
-    def scorer(self)  -> ActivityScorer:      return cast(ActivityScorer,      self._scorer ) 
+    def scorer(self)  -> ParetoReferencePairDistanceScorer:      return cast(ParetoReferencePairDistanceScorer,      self._scorer ) 
 
     @property
     def subject(self) -> TorchNetworkSubject: return cast(TorchNetworkSubject, self._subject) 
@@ -66,29 +64,28 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         # Extract parameter from configuration and cast
         
-        PARAM_weights    = str  (conf[ExperimentArgParams.GenWeights     .value])
-        PARAM_variant    = str  (conf[ExperimentArgParams.GenVariant     .value])
-        PARAM_template   = str  (conf[ExperimentArgParams.Template       .value])
-        PARAM_dataset    = str  (conf[ExperimentArgParams.Dataset        .value])
-        PARAM_shuffle    = bool (conf[ExperimentArgParams.Shuffle        .value])
-        PARAM_batch      = int  (conf[ExperimentArgParams.BatchSize      .value])
-        PARAM_net_name   = str  (conf[ExperimentArgParams.NetworkName    .value])
-        PARAM_rec_layers = str  (conf[ExperimentArgParams.RecordingLayers.value])
-        PARAM_scr_layers = str  (conf[ExperimentArgParams.ScoringLayers  .value])
-        PARAM_scr_sign   = str  (conf[ExperimentArgParams.ScoringSignature.value])
-        PARAM_bounds     = str  (conf[ExperimentArgParams.Bounds         .value])
-        PARAM_robust_path = str (conf[ExperimentArgParams.Robust_path  .value])
-        PARAM_distance   = str  (conf[ExperimentArgParams.Distance       .value])
-        PARAM_unit_red   = str  (conf[ExperimentArgParams.UnitsReduction .value])
-        PARAM_layer_red  = str  (conf[ExperimentArgParams.LayerReduction .value])
-        PARAM_pop_size   = int  (conf[ExperimentArgParams.PopulationSize .value])
-        PARAM_sigma0     = float(conf[ExperimentArgParams.Sigma0         .value])
-        PARAM_exp_name   = str  (conf[          ArgParams.ExperimentName .value])
-        PARAM_iter       = int  (conf[          ArgParams.NumIterations  .value])
-        PARAM_rnd_seed   = int  (conf[          ArgParams.RandomSeed     .value])
-        PARAM_render     = bool (conf[          ArgParams.Render         .value])
-        PARAM_ref_code   = str  (conf[ExperimentArgParams.Reference_code .value])
-        
+        PARAM_weights     = str  (conf[ExperimentArgParams.GenWeights      .value])
+        PARAM_variant     = str  (conf[ExperimentArgParams.GenVariant      .value])
+        PARAM_template    = str  (conf[ExperimentArgParams.Template        .value])
+        PARAM_dataset     = str  (conf[ExperimentArgParams.Dataset         .value])
+        PARAM_shuffle     = bool (conf[ExperimentArgParams.Shuffle         .value])
+        PARAM_batch       = int  (conf[ExperimentArgParams.BatchSize       .value])
+        PARAM_net_name    = str  (conf[ExperimentArgParams.NetworkName     .value])
+        PARAM_rec_layers  = str  (conf[ExperimentArgParams.RecordingLayers .value])
+        PARAM_scr_layers  = str  (conf[ExperimentArgParams.ScoringLayers   .value])
+        PARAM_scr_sign    = str  (conf[ExperimentArgParams.ScoringSignature.value])
+        PARAM_bounds      = str  (conf[ExperimentArgParams.Bounds          .value])
+        PARAM_robust_path = str  (conf[ExperimentArgParams.RobustPath     .value])
+        PARAM_distance    = str  (conf[ExperimentArgParams.Distance        .value])
+        PARAM_pop_size    = int  (conf[ExperimentArgParams.PopulationSize  .value])
+        PARAM_exp_name    = str  (conf[          ArgParams.ExperimentName  .value])
+        PARAM_iter        = int  (conf[          ArgParams.NumIterations   .value])
+        PARAM_rnd_seed    = int  (conf[          ArgParams.RandomSeed      .value])
+        PARAM_render      = bool (conf[          ArgParams.Render          .value])
+        PARAM_ref         = str  (conf[ExperimentArgParams.Reference       .value])
+        PARAM_ref_info    = str  (conf[ExperimentArgParams.ReferenceInfo   .value])
+        PARAM_sigma0      = float(conf[ExperimentArgParams.Sigma0          .value])
+
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
         
         # Set numpy random seed
@@ -119,7 +116,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         ).to(device)
         
         name_ref = f'reference_code_{PARAM_net_name}{"robust" if PARAM_robust_path else ""}.npy'
-        ref_code = np.load(os.path.join(PARAM_ref_code,name_ref)); reference = {'code': ref_code}
+        ref_code = np.load(os.path.join(PARAM_ref,name_ref)); reference = {'code': ref_code}
         reference['robust'] = True if PARAM_robust_path else False
         
         # --- SUBJECT ---
@@ -146,6 +143,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         reference = {**reference, **ref_states}
         
         # --- SCORER ---
+        
         # Parse target neurons
         scoring_units = parse_scoring(
             input_str=str(PARAM_scr_layers), 
@@ -163,18 +161,35 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             net_info=layer_info,
             reference = reference                 
         )
-
-        scorer = WeightedPairSimilarityScorer(
+        
+        sel_metric = str(PARAM_distance)
+        sel_metric = cast(_MetricKind, sel_metric)
+        
+        # Generate reference
+        reference_file = load_pickle(PARAM_ref)
+        layer, neuron, seed = parse_reference_info(PARAM_ref_info)
+        
+        # Extract code from reference file
+        try:
+            ref_code = reference_file[layer][neuron][seed]
+        except KeyError:
+            raise ValueError(f'No reference found for layer {layer}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
+        
+        # Generate the code and the state, unbatching it
+        ref_stimulus : Stimuli = generator(codes=np.expand_dims(ref_code, axis=0))
+        ref_states_b : States  = sbj_net(stimuli=ref_stimulus)
+        ref_states = {l: state[0] for l, state in ref_states_b.items()}
+        
+        scorer = ParetoReferencePairDistanceScorer(
             layer_weights=signature,
-            trg_neurons=scoring_units,
-            metric=str(PARAM_distance),
-            dist_reduce=None,
-            layer_reduce=None,
+            scoring_units=scoring_units,
+            reference=ref_states,
+            metric=sel_metric,
             bounds = bounds
         )
 
         # --- OPTIMIZER ---
-
+        # CMAES not working :(
         # optim = CMAESOptimizer(
         #     codes_shape = generator.input_dim,
         #     rnd_seed    = PARAM_rnd_seed,
@@ -186,7 +201,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             codes_shape  = generator.input_dim,
             rnd_seed     = PARAM_rnd_seed,
             pop_size     = PARAM_pop_size,
-            rnd_scale    = 1,#1
+            rnd_scale    = 1,
             mut_size     = 0.15,
             mut_rate     = 0.3,
             allow_clones = True,
@@ -196,8 +211,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = AdversarialAttackMaxExperiment.EXPERIMENT_TITLE
-        # logger = LoguruLogger(path=Logger.path_from_conf(conf=conf)) NOT IN ISCHIAGUALASTIA BABY :)
-        logger = LoguruLogger(on_file=False)
+        logger = LoguruLogger(path=Logger.path_from_conf(conf=conf)) # NOT IN ISCHIAGUALASTIA BABY :)
+        # logger = LoguruLogger(on_file=False)
         
         # In the case render option is enabled we add display screens
         if bool(PARAM_render):
@@ -307,10 +322,10 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         if self._use_natural: self._labels.extend(msg.labels)
         
         states, msg = super()._stimuli_to_states(data)
-
+        
         return states, msg
 
-    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ParetoMessage]) -> Tuple[Scores, ParetoMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -322,22 +337,37 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         states, msg = data
         
-        states_ = {}
-        #qui strutturi gli stati come nel vecchio AdversarialAttack, ma ripetendo gli scores calcolati sulla reference
-        for key in states.keys():
-            if key in self._reference:
-                repeated_b_array = np.repeat(self._reference[key],states[key].shape[0], axis=0)
-                states_[key] = np.stack((states[key], repeated_b_array), axis=1)
-        
         # Here we sort the mask array in descending order so that all the True come in front
         # and is then easier to just disregard later the natural images scores
         # msg.mask[::-1].sort()
         
-        scores = self.scorer.__call__(states=states_, current_iter = self._current_iteration)
+        scores, msg = super()._states_to_scores((states, msg))
         
-        if scores is not None:
-            msg.scores_gen_history.append(scores[ msg.mask])
-            msg.scores_nat_history.append(scores[~msg.mask])
+        self.layer_scores = self.scorer.unit_reduction(states=states)
+        
+        # TODO @DonTau, this will break the code
+        # `key` comes from previous for loop now moved in the class
+        # what is `key` supposed to be? Which layer?  
+        if False:
+            valid_values_count = sum(
+                1 
+                for value in self.scorer.bound_constraints(self.layer_scores)[key] 
+                if value != float('-inf')
+            )
+            if valid_values_count < 10 and self._curr_iter > 5:
+                    msg.early_stopping = True
+        
+        msg = cast(ParetoMessage, msg)
+        
+        # scores = self.scorer.__call__(states=states_, current_iter = self._current_iteration)
+        
+        for k,v in self.layer_scores.items():
+            msg.layer_scores_gen_history[k].append(v) #[ msg.mask]?
+        
+        msg.local_p1.append(np.column_stack((np.full(self.scorer.coordinates_p1.shape[0], 
+                                            self._curr_iter), self.scorer.coordinates_p1)) )
+        msg.scores_gen_history.append(scores[ msg.mask])
+        msg.scores_nat_history.append(scores[~msg.mask])
         
         return scores, msg
     
@@ -345,6 +375,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data
+        sub_score = sub_score.astype(np.float32)
 
         # We inspect if the new set of stimuli for natural images,
         # checking if they achieved an higher score than previous ones.
@@ -370,11 +401,15 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         return super()._codes_to_stimuli(data=data_)
     
-    def _init(self) -> ZdreamMessage:
+    def _init(self) -> ParetoMessage:
         ''' We initialize the experiment and add the data structure to save the best score and best image. '''
-
-        msg = super()._init()
-
+        msg = super(ZdreamExperiment, self)._init()
+        msg = ParetoMessage(
+            start_time = msg.start_time,
+            rec_units  = self.subject.target,
+            scr_units  = self.scorer.scoring_units,
+            signature  = self.scorer._layer_weights,
+        )
         # Data structures to save best natural images and labels presented
         # Note that we don't keep track for the synthetic image as it is already done by the optimizer
         if self._use_natural:
@@ -387,16 +422,14 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         return msg
     
-    def _progress(self, i: int, msg : ZdreamMessage):
+    def _progress(self, i: int, msg : ParetoMessage):
 
         super()._progress(i, msg)
-
+        
+        #TODO : UPDATE WITH PARETO BEST
         # Best synthetic stimulus (and natural one)
         best_synthetic     = self.generator(codes=msg.best_code)
         best_synthetic_img = to_pil_image(best_synthetic[0])
-        #for debug
-        for k,v in self._scorer.layer_scores.items():
-            self._readout_score[k].append(v)
                 
         if self._use_natural: best_natural = self._best_nat_img
         
@@ -418,11 +451,16 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
                 self._logger.update_screen(
                     screen_name=self.NAT_IMG_SCREEN,
                     image=to_pil_image(best_natural)
-                )   
+                ) 
+                
+        # Check early stopping
+        
+        
     
-    def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
+    def _progress_info(self, i: int, msg : ParetoMessage) -> str:
         ''' Add information about the best score and the average score.'''
         
+        # TODO: UPDATE WITH PARETO STATS
         # Best synthetic scores
         stat_gen = msg.stats_gen
         
@@ -431,7 +469,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         best_gen_str = f'{" " if best_gen < 1 else ""}{best_gen:.1f}' # Pad for decimals
         curr_gen_str = f'{curr_gen:.1f}'
-        layerwise_score = " ".join([f'{k}:{np.mean(v):.1f}' for k,v in self._scorer.layer_scores.items()])
+        
+        layerwise_score = " ".join([f'{k}:{np.mean(v):.1f}' for k,v in self.layer_scores.items()])
         #NOTE: layerwise score for input is the pixel budjet
         
         desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str} | unweighted scores: {layerwise_score}'
@@ -449,101 +488,58 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         return f'{progress_super} {desc}'
     
-    def _finish(self, msg : ZdreamMessage):
+    def _finish(self, msg : ParetoMessage):
         ''' 
         Save best stimuli and make plots
         '''
+        msg.get_pareto1()
+        msg = super(ZdreamExperiment, self)._finish(msg = msg) # type: ignore
 
-        msg = super()._finish(msg)
-        
-        # DO YOU WANT TO SAVE ALL THE SHIT BELOW? NOT IN ISCHIAGUALASTIA, LET'S SAVE SOME SPACE
-        self._readout_score = {k:np.vstack(v) for k,v in self._readout_score.items()}
-        np.savez('/home/lorenzo/Documents/GitHub/ZXDREAM/experiment/AdversarialAttack_BMM/images/readout.npz', **self._readout_score)
+        # Dump
+        state = ParetoExperimentState.from_msg(msg=msg)
+        state.dump(
+            out_dir=path.join(self.dir, 'state'),
+            logger=self._logger)
+         
         # Close screens if set (or preserve for further experiments using the same screen)
         if self._close_screen: self._logger.close_all_screens()
             
         # 1. SAVE VISUAL STIMULI (SYNTHETIC AND NATURAL)
 
         # Create image folder
-        img_dir = self.save_exp_data()
+        img_dir_gen = make_dir(path=path.join(self.dir, 'images'), logger=self._logger)
+        df_row = self.save_exp_data(img_dir_gen); self.img_dir = df_row['image_path']
+        self.best_syn = self.generator(codes=(self._reference['code']))[0]
+        self.best_gen = self.generator(codes=msg.best_code+self._reference['code'])[0]
+        self._save_images(img_dir=self.img_dir, best_gen=self.best_gen, ref=self.best_syn)
         
-        # We retrieve the best code from the optimizer
-        # and we use the generator to retrieve the best image
-        self._get_best()
-        codes = np.stack(msg.codes_history)
-        last_code_pareto = np.expand_dims(codes[self._exp_pareto[0][-1], self._exp_pareto[1][-1], :], axis=0)
+        last_layer = list(state.layer_scores_gen_history.keys())[-1] #type: ignore
         
-        best_gen = self.generator(codes=(last_code_pareto + self._reference['code']))[0]
-        to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best adversarial')]
-        #, (to_pil_image(self.generator(codes = self._reference['code'])[0]), 'reference')
-        best_syn = self.generator(codes=(self._reference['code']))[0]
-        to_save.append((to_pil_image(best_syn), 'best synthetic'))
-        to_save.append((concatenate_images(img_list=[best_syn, best_gen]), 'comparison'))
-        # If used we retrieve the best natural image
-        if self._use_natural:
-            best_nat = self._best_nat_img
-            to_save.append((to_pil_image(best_nat), 'best natural'))
-            to_save.append((concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'))
+        # Save variables to log in a multi-experiment csv
+        self.hidden_reference = int(self._reference[last_layer])
+        self.distance         = get_best_distance(self.img_dir)
+        self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0]] #type: ignore
+
+        exp_path = os.path.join(img_dir_gen, 'experiments.csv')
+        df = pd.read_csv(exp_path) if os.path.exists(exp_path) else pd.DataFrame(columns=[*df_row.keys(),'experiment', 
+                                                                                        'hidden_reference', 'hidden_dist', 'pixel_dist', 'num_iter'])
         
-        # Saving images
-        for img, label in to_save:
-            
-            out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
-            self._logger.info(f'> Saving {label} image to {out_fp}')
-            img.save(out_fp)
-            
-        self.get_best_distance(img_dir)
+        # df_row['hidden_reference']= int(self.hidden_reference)
+        # df_row['hidden_dist'] = hidden_dist
+        # df_row['pixel_dist'] = distance
+        # df_row['num_iter'] = self._curr_iter
+        # 
+        # df = pd.concat([df, pd.DataFrame([df_row])])
+        # df.to_csv(exp_path, index=False)
         
         return msg
-    
-    def _get_best(self, n = 20):
-        state = {k:v.flatten() for k,v in self._readout_score.items()}
         
-        creator.create("FitnessMulti", base.Fitness, weights=tuple([v for v in self._scorer._signature.values()]))
-        creator.create("Individual", list, fitness=creator.FitnessMulti); s_keys = list(state.keys())
-            
-        pop = [creator.Individual([state[k][i] for k in s_keys]) for i in range(len(state[s_keys[0]]))]
-        for i,ind in enumerate(pop):
-            ind.fitness.values = tuple(ind)
-            ind.id = i
-        pop2select = pop[-n:]
-        fronts = tools.sortNondominated(pop2select, len(pop2select))
-        scores = np.zeros([1, len(pop)])
-        for f_id, f in enumerate(fronts):
-            #dist_f = np.mean(squareform(pdist(np.array(f), metric='euclidean')), axis = 0)
-            for i,ind in enumerate(f):
-                scores[0, ind.id] = np.abs(f_id - len(fronts))
-                
-        coordinates = np.where(scores == np.max(scores))
-        coordinates_2d = np.unravel_index(coordinates[1], self._readout_score[s_keys[0]].shape)
-        self._exp_pareto = coordinates_2d
-        print(coordinates_2d)
-        
-    def get_best_distance(self,im_dir):
-        def load_myimg(path):
-            img = Image.open(path)
-            transform = transforms.Compose([
-            transforms.Resize(224),
-            transforms.ToTensor(),
-            ])
-            image_tensor = torch.unsqueeze(transform(img), dim = 0).to('cuda')
-            return image_tensor
-        adv_images = {os.path.basename(imp):load_myimg(imp) 
-                      for imp in glob.glob(os.path.join(im_dir, '*.png')) 
-                      if any(s in os.path.basename(imp) for s in ['adversarial', 'synthetic'])}
-        
-        matrix = np.vstack([t.view(-1).cpu().numpy() for k,t in adv_images.items()])
-        # Calcolare la distanza euclidea tra i due vettori
-        distance = pdist(matrix, 'euclidean')[0]
-        print(f"Distanza euclidea: {distance}")
-        return distance
-      
     def save_exp_data(self, img_dir_gen):
-        target_cat = int(self._subject.target[list(self._subject.target.keys())[-1]][0][0])
-        #target_cat = self._scorer._trg_neurons[list(self._scorer._trg_neurons.keys())[-1]][0]
-        task = 'invar' if list(self._scorer._signature.values())[0] < 0 else 'adv_attk'
+        # usato per salvare immagini e dati dell'esperimento. Va messo a posto
+        target_cat = int(self.subject.target[list(self.subject.target.keys())[-1]][0][0]) # non capito il type checker
+        task = 'invar' if list(self.scorer._weights.values())[0] < 0 else 'adv_attk' #rough
         robust = '_r' if self._reference['robust'] else ''
-        net_name = f"{self._subject._name}{robust}"; low_layer = list(self._scorer._signature.keys())[0]
+        net_name = f"{self.subject._name}{robust}"; low_layer = list(self.scorer._weights.keys())[0]
         category = f"c{target_cat}"
         dirname = f"{task}_{net_name}_{low_layer}_{category}"
         new_base_folder = os.path.join(img_dir_gen, self._name)
@@ -563,11 +559,28 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
                 'image_path': img_dir}
 
         return df_row
+    
+    def _save_images(self, img_dir: str, best_gen: NDArray, ref: NDArray):  
+        
+        to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best adversarial')]
+        to_save.append((to_pil_image(ref), 'best synthetic'))
+        to_save.append((concatenate_images(img_list=[ref, best_gen]), 'comparison'))
+        # If used we retrieve the best natural image
+        if self._use_natural:
+            best_nat = self._best_nat_img
+            to_save.append((to_pil_image(best_nat), 'best natural'))
+            to_save.append((concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'))
+        
+        # Saving images
+        for img, label in to_save:
+            out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
+            self._logger.info(f'> Saving {label} image to {out_fp}')
+            img.save(out_fp)
                   
         
 class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
     
-    def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
+    def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
         '''
         Method called before entering the main for-loop across generations.
         It is responsible for generating the initial codes
@@ -594,67 +607,80 @@ class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
         return super(AdversarialAttackMaxExperiment, self)._codes_to_stimuli(data=data_)
     
     
-    def _finish(self, msg : ZdreamMessage):
+    def _finish(self, msg : ParetoMessage):
         ''' 
-        Save best stimuli and make plots
+        Save best stimuli and make plots.
+        
         '''
-
-        msg = super(AdversarialAttackMaxExperiment, self)._finish(msg)
         
-        # DO YOU WANT TO SAVE ALL THE SHIT BELOW? NOT IN ISCHIAGUALASTIA, LET'S SAVE SOME SPACE
-        self._readout_score = {k:np.vstack(v) for k,v in self._readout_score.items()}
-        last_layer = list(self._readout_score.keys())[-1]
-        codes = np.stack(msg.codes_history)
-
-        np.savez('/home/lorenzo/Documents/GitHub/ZXDREAM/experiment/AdversarialAttack_BMM/images/readout.npz', **self._readout_score)
-        # Close screens if set (or preserve for further experiments using the same screen)
-        if self._close_screen: self._logger.close_all_screens()
-            
-        # 1. SAVE VISUAL STIMULI (SYNTHETIC AND NATURAL)
-        self._get_best()
-        last_code_pareto = np.expand_dims(codes[self._exp_pareto[0][-1]+1, self._exp_pareto[1][-1], :], axis=0)
-        hidden_dist = self._readout_score[last_layer][self._exp_pareto[0][-1], self._exp_pareto[1][-1]]
-        hidden_reference = self._reference[last_layer]
-        
-        # Create image folder
-        img_dir_gen = make_dir(path=path.join(self.dir, 'images'), logger=self._logger)
-        df_row = self.save_exp_data(img_dir_gen); img_dir = df_row['image_path']
-        
-        # We retrieve the best code from the optimizer
-        # and we use the generator to retrieve the best image
-        best_gen = self.generator(codes=(last_code_pareto))[0]
-        to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best adversarial')]
-        best_syn = self.generator(codes=(self._reference['code']))[0]
-        to_save.append((to_pil_image(best_syn), 'best synthetic'))
-        to_save.append((concatenate_images(img_list=[best_syn, best_gen]), 'comparison'))
-        #, (to_pil_image(self.generator(codes = self._reference['code'])[0]), 'reference')
-        
-        # If used we retrieve the best natural image
-        if self._use_natural:
-            best_nat = self._best_nat_img
-            to_save.append((to_pil_image(best_nat), 'best natural'))
-            to_save.append((concatenate_images(img_list=[best_gen, best_nat]), 'best stimuli'))
-        
-        # Saving images
-        for img, label in to_save:
-            
-            out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
-            self._logger.info(f'> Saving {label} image to {out_fp}')
-            img.save(out_fp)
-        distance = self.get_best_distance(img_dir)  
-        
-        exp_path = os.path.join(img_dir_gen, 'experiments.csv')
-        df = pd.read_csv(exp_path) if os.path.exists(exp_path) else pd.DataFrame(columns=[*df_row.keys(),'experiment', 'hidden_reference', 'hidden_dist', 'pixel_dist', 'num_iter'])
-        
-        df_row['hidden_reference']= int(hidden_reference)
-        df_row['hidden_dist'] = hidden_dist
-        df_row['pixel_dist'] = distance
-        df_row['num_iter'] = self._current_iteration
-        
-        df = pd.concat([df, pd.DataFrame([df_row])])
-        df.to_csv(exp_path, index=False)
-
+        msg = super()._finish(msg = msg)
+        self.best_gen = self.generator(codes=msg.best_code)[0]
+        self._save_images(img_dir=self.img_dir, best_gen=self.best_gen, ref=self.best_syn)
         
         return msg
     
+def get_best_distance(im_dir):
+    #per calcolare empiricamente la distanza euclidea tra due immagini.
+    #usato per adversarial attacks project @BMM
+    def load_myimg(path):
+        img = Image.open(path)
+        transform = transforms.Compose([
+        transforms.Resize(224),
+        transforms.ToTensor(),
+        ])
+        image_tensor = torch.unsqueeze(transform(img), dim = 0).to('cuda')
+        return image_tensor
     
+    adv_images = {os.path.basename(imp):load_myimg(imp) 
+                    for imp in glob.glob(os.path.join(im_dir, '*.png')) 
+                    if any(s in os.path.basename(imp) for s in ['adversarial', 'synthetic'])}
+    
+    matrix = np.vstack([t.view(-1).cpu().numpy() for k,t in adv_images.items()])
+    # Calcolare la distanza euclidea tra i due vettori
+    distance = pdist(matrix, 'euclidean')[0]
+    print(f"Distanza euclidea: {distance}")
+    return distance
+
+#TODO: refactor anche l'esperimento AdvAttk originale (evolverne 2 insieme)
+#??? Classe ParetoExperiment ???
+#class AdversarialAttackExperimentEvolvePair(AdversarialAttackMaxExperiment):
+    
+    
+
+
+class BMMMultiExperiment(BaseZdreamMultiExperiment):
+        
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'] = 'BMM Multixperiment'
+        
+        # Cluster-idx : Weighted : Scores History
+        
+        self._data['hidden_reference'] = []
+        self._data['hidden_dist']      = []
+        self._data['pixel_dist']       = []
+        self._data['num_iter']         = []
+
+    def _progress(
+        self, 
+        exp  : AdversarialAttackMaxExperiment2, 
+        conf : ParamConfig,
+        msg  : ParetoMessage, 
+        i    : int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        self._data['hidden_reference'].append(exp.hidden_reference)
+        self._data['hidden_dist']     .append(exp.hidden_dist)
+        self._data['pixel_dist']      .append(exp.distance)
+        self._data['num_iter']        .append(exp._curr_iter)
+        
+        
+
+    def _finish(self):
+        
+        super()._finish()
+        

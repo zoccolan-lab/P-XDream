@@ -11,9 +11,11 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from zdream.scorer import ParetoReferencePairDistanceScorer
 
-from .misc import SEM
+from .misc import SEM, defaultdict_list
 from .types import Codes, Mask, RFBox, RecordingUnit, ScoringUnit, Scores, States
+
 
 @dataclass
 class Message:
@@ -63,6 +65,8 @@ class ZdreamMessage(Message):
     
     # NOTE: We are not storing the actual stimuli as they can be
     #       deterministically generated from the codes using the generator.
+    
+    early_stopping : bool = False
     
     # --- UNITS ---
 
@@ -239,3 +243,49 @@ class ZdreamMessage(Message):
     @property
     def stats_nat(self) -> Dict[str, Any]: return self._scores_stats(scores=self.scores_nat_history, synthetic=False)
     ''' Return statistics for natural images '''
+    
+
+@dataclass
+class ParetoMessage(ZdreamMessage):
+    
+    local_p1 : List = field(default_factory=list)
+    ''' Pareto front of each selection. '''   
+
+    layer_scores_gen_history : Dict[str, List[Scores]] = field(default_factory=defaultdict_list)
+    ''' Scores associated to each synthetic stimuli. '''
+    
+    signature : Dict[str, float] = field(default_factory=dict)
+    
+    #Pareto_front     : List = field(default_factory=list)
+    #''' Subject responses to a visual stimuli.'''
+    def get_pareto1_global(self):
+        '''
+        Retrieve the first pareto front. Inefficient, just a groundtruth for get_pareto1
+        '''
+        # stack layer scores
+        layer_scores = {k:np.vstack(v) for k,v in self.layer_scores_gen_history.items()}
+        layer_scores_flat = {k:v.flatten() for k,v in layer_scores.items()}
+        _ , coordinates = ParetoReferencePairDistanceScorer.pareto_front(layer_scores_flat, weights = [v for v in self.signature.values()], first_front_only=True)
+        self.Pfront_1 = np.unravel_index(coordinates, layer_scores[list(layer_scores.keys())[0]].shape)
+        
+    def get_pareto1(self):
+        layer_scores = {k:np.vstack(v) for k,v in self.layer_scores_gen_history.items()}
+        p1_coords = np.vstack(self.local_p1)
+        p1_pts = {k:v[p1_coords[:, 0], p1_coords[:, 1]] for k,v in layer_scores.items()}
+        _ , coordinates = ParetoReferencePairDistanceScorer.pareto_front(p1_pts, weights = [v for v in self.signature.values()], first_front_only=True)
+        self.Pfront_1 = p1_coords[coordinates,:].astype(np.int32)
+
+    @property
+    def best_code(self) -> Codes:
+        '''
+        Retrieve a random code from the 1st Pareto front of the current iteration.
+        NOTE: This is a temporary criterion. More might be added
+
+        :return: Best code score.
+        :rtype: NDArray
+        '''
+        current_p1front = self.local_p1[-1]
+        self.best_code_idx = current_p1front[np.random.choice(current_p1front.shape[0])]
+        best_code = np.expand_dims(self.codes_history[-1][self.best_code_idx[1],:], axis = 0)
+        return best_code
+        

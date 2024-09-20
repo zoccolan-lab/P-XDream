@@ -9,24 +9,26 @@ ARGS: ParamConfig = {
     ExperimentArgParams.GenVariant       .value : "fc7"              ,
 
     # Natural Images
-    ExperimentArgParams.Template         .value : "T"               , 
+    ExperimentArgParams.Template         .value : "T"                , 
     ExperimentArgParams.Dataset          .value : DATASET            ,
     ExperimentArgParams.Shuffle          .value : False              , 
     ExperimentArgParams.BatchSize        .value : 16                 , 
 
     # Subject
-    ExperimentArgParams.NetworkName      .value : "resnet50"          , # resnet50
-    ExperimentArgParams.RecordingLayers  .value : "0=[], 126=[0]"        ,#126 resnet50
-    ExperimentArgParams.Robust_path      .value : '/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt',#'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
+    ExperimentArgParams.NetworkName      .value : "resnet50"                                            , # resnet50
+    ExperimentArgParams.RecordingLayers  .value : "0=[], 126=[0]"                                       , # 126 resnet50
+    ExperimentArgParams.RobustPath      .value : '/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt', #'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
 
-    #, Scorer
+    # Scorer
     ExperimentArgParams.ScoringLayers    .value : "0=[],126=[0]"           ,
     ExperimentArgParams.ScoringSignature .value : "0=-1, 126=1"       ,
     ExperimentArgParams.Bounds           .value : "0=N<10, 126=<10%"       ,
     ExperimentArgParams.Distance         .value : "euclidean"        ,
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,
     ExperimentArgParams.LayerReduction   .value : "mean"             ,
-    ExperimentArgParams.Reference_code   .value : REFERENCES ,
+    ExperimentArgParams.Reference        .value : REFERENCES ,
+    ExperimentArgParams.ReferenceInfo    .value : "L=fc8, N=0, S=123"  ,
+    
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,
     ExperimentArgParams.Sigma0           .value : 1.0                ,

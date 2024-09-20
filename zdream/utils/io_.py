@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from PIL import Image
 import numpy as np
 
+
 from .types import RecordingUnit
 
 # --- DIRECTORIES ---
@@ -165,3 +166,5 @@ def neurons_from_file(file_path: str) -> RecordingUnit:
 
     # Return a dictionary of arrays
     return arrays
+
+

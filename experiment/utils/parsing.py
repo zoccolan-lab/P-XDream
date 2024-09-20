@@ -1,5 +1,6 @@
 from collections import defaultdict
 from itertools import product, starmap
+import re
 from typing import Dict, List, Tuple, Callable
 import warnings
 
@@ -490,3 +491,25 @@ def get_neurons_target(
             rec_layers = '#'.join([','.join(list(set(rec_layers.split('#'))))]*(n_samples * len(neurons) * len(layers)))
 
         return targets, rec_layers, rand_seeds
+    
+
+def parse_reference_info(ref_info: str) -> Tuple[str, str, str]:
+
+    # Define the pattern to match the string format
+    pattern = r"L=(?P<L>\w+), N=(?P<N>\d+), S=(?P<S>\d+)"
+
+    # Use re.match to find the matches
+    match = re.match(pattern, ref_info)
+
+    if match:
+        
+        # Extract the values using named groups
+        L = match.group('L')
+        N = match.group('N')
+        S = match.group('S')
+        
+        return L, N, S
+    
+    else:
+        
+        raise ValueError(f"Invalid format in {ref_info}.")

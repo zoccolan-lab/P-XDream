@@ -13,7 +13,7 @@ from torchvision.transforms.functional import to_pil_image
 
 from zdream.experiment                import ZdreamExperiment
 from zdream.generator                 import Generator, DeePSiMGenerator
-from zdream.optimizer                 import GeneticOptimizer, Optimizer
+from zdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
 from zdream.scorer                    import ActivityScorer, Scorer
 from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
@@ -70,7 +70,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_net_name   = str  (conf[ExperimentArgParams.NetworkName    .value])
         PARAM_rec_layers = str  (conf[ExperimentArgParams.RecordingLayers.value])
         PARAM_scr_layers = str  (conf[ExperimentArgParams.ScoringLayers  .value])
-        PARAM_robust_path = str (conf[ExperimentArgParams.Robust_path  .value])
+        PARAM_robust_path = str (conf[ExperimentArgParams.RobustPath  .value])
         PARAM_unit_red   = str  (conf[ExperimentArgParams.UnitsReduction .value])
         PARAM_layer_red  = str  (conf[ExperimentArgParams.LayerReduction .value])
         PARAM_pop_size   = int  (conf[ExperimentArgParams.PopulationSize .value])
@@ -79,7 +79,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_iter       = int  (conf[          ArgParams.NumIterations  .value])
         PARAM_rnd_seed   = int  (conf[          ArgParams.RandomSeed     .value])
         PARAM_render     = bool (conf[          ArgParams.Render         .value])
-        PARAM_ref_code   = str  (conf[ExperimentArgParams.Reference_code .value])
+        PARAM_ref_code   = str  (conf[ExperimentArgParams.Reference .value])
 
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
         # Set numpy random seed
@@ -147,23 +147,23 @@ class MaximizeActivityExperiment(ZdreamExperiment):
 
         # --- OPTIMIZER ---
 
-        # optim = CMAESOptimizer(
-        #     codes_shape = generator.input_dim,
-        #     rnd_seed    = PARAM_rnd_seed,
-        #     pop_size    = PARAM_pop_size,
-        #     sigma0      = PARAM_sigma0
-        # )
-        
-        optim = GeneticOptimizer(
-            codes_shape  = generator.input_dim,
-            rnd_seed     = PARAM_rnd_seed,
-            pop_size     = PARAM_pop_size,
-            rnd_scale    = 1,
-            mut_size     = 0.6,
-            mut_rate     = 0.25,
-            allow_clones = True,
-            n_parents    = 4
+        optim = CMAESOptimizer(
+            codes_shape = generator.input_dim,
+            rnd_seed    = PARAM_rnd_seed,
+            pop_size    = PARAM_pop_size,
+            sigma0      = PARAM_sigma0
         )
+        
+        #optim = GeneticOptimizer(
+        #    codes_shape  = generator.input_dim,
+        #    rnd_seed     = PARAM_rnd_seed,
+        #    pop_size     = PARAM_pop_size,
+        #    rnd_scale    = 1,
+        #    mut_size     = 0.6,
+        #    mut_rate     = 0.25,
+        #    allow_clones = True,
+        #    n_parents    = 4
+        #)
 
         #  --- LOGGER --- 
 

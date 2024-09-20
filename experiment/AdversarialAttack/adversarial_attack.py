@@ -14,7 +14,7 @@ from zdream.experiment import ZdreamExperiment
 from zdream.generator import Generator, DeePSiMGenerator
 from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
 from zdream.optimizer import GeneticOptimizer, Optimizer
-from zdream.scorer import Scorer, WeightedPairSimilarityScorer
+from zdream.scorer import Scorer, ParetoReferencePairDistanceScorer
 from zdream.subject import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.probe import RecordingProbe
 from zdream.utils.io_ import to_gif
@@ -34,7 +34,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
     GEN_IMG_SCREEN = 'Best Synthetic Adversarial Example'
 
     @property
-    def scorer(self)  -> WeightedPairSimilarityScorer: return cast(WeightedPairSimilarityScorer, self._scorer) 
+    def scorer(self)  -> ParetoReferencePairDistanceScorer: return cast(ParetoReferencePairDistanceScorer, self._scorer) 
 
     @property
     def subject(self) -> TorchNetworkSubject:    return cast(TorchNetworkSubject, self._subject) 
@@ -114,9 +114,9 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             net_info=layer_info,
         )
 
-        scorer = WeightedPairSimilarityScorer(
+        scorer = ParetoReferencePairDistanceScorer(
             layer_weights=signature,
-            trg_neurons=scoring_units,
+            scoring_units=scoring_units,
             metric=scr_conf['metric'],
             dist_reduce=None,
             layer_reduce=None,

@@ -67,7 +67,7 @@ class ExperimentArgParams(Enum):
     # Subject
     NetworkName        = ArgParam(name="net_name",           type=str,   help="SubjectNetwork name")
     RecordingLayers    = ArgParam(name="rec_layers",         type=str,   help=f"Recording layers with specification\n{LAYERS_NEURONS_SPECIFICATION}")
-    Robust_path        = ArgParam(name="robust_path",        type=str,   help="Path to weights of robust version of the network")
+    RobustPath         = ArgParam(name="robust_path",        type=str,   help="Path to weights of robust version of the network")
     
     
     # Scorer
@@ -77,7 +77,8 @@ class ExperimentArgParams(Enum):
     UnitsReduction     = ArgParam(name="units_reduction",    type=str,   help="Name of reducing function across units")
     LayerReduction     = ArgParam(name="layer_reduction",    type=str,   help="Name of reducing function across layers")
     Distance           = ArgParam(name="distance",           type=str,   help="Distance metric for the scorer")
-    Reference_code     = ArgParam(name="ref_code",           type=str,   help="path to reference code for the optimization")
+    Reference          = ArgParam(name="reference",          type=str,   help="Path to file containing reference supestimuli mapping layer->neuron->rand_seed->superstimuli")
+    ReferenceInfo      = ArgParam(name="reference_info",     type=str,   help="Reference info in format L=<layer>, N=<neuron>, S=<seed>")
     
     # Optimizer
     OptimType          = ArgParam(name="optimizer_type",     type=str,   help="Type of optimizer. Either `genetic` or `cmaes`")

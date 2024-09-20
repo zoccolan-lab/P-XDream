@@ -16,12 +16,12 @@ ARGS: ParamConfig = {
     # Subject
     ExperimentArgParams.NetworkName      .value : "resnet50"          , # resnet50
     ExperimentArgParams.RecordingLayers  .value : "126=[0]"           ,#126=[0] for rn50
-    ExperimentArgParams.Robust_path      .value : '',#'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
+    ExperimentArgParams.RobustPath      .value : '',#'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
     #, Scorer
     ExperimentArgParams.ScoringLayers    .value : "126=[0]"            ,
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,
     ExperimentArgParams.LayerReduction   .value : "mean"             ,
-    ExperimentArgParams.Reference_code   .value : REFERENCES,
+    ExperimentArgParams.Reference   .value : REFERENCES,
 
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,

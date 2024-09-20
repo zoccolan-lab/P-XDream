@@ -77,7 +77,7 @@ class Scorer(ABC):
         self._units_reduce : UnitsReduction = units_reduce
 
 
-    def __call__(self, states : States, current_iter = None) -> Scores | None:
+    def __call__(self, states : States) -> Scores:
         '''
         Compute the subject scores given a subject state by 
         using the proper mapping and reducing functions.
@@ -87,23 +87,41 @@ class Scorer(ABC):
         :return: Tuple containing the scores associated to input stimuli.
         :rtype: Scores
         '''
-        if current_iter is not None:
-            self.current_iter = current_iter
+        
+        # if current_iter is not None:
+        #     self.current_iter = current_iter
 
         # 1. Mapping activations
-        state_mapped: States  = {
+        # state_mapped: States  = {
+        #     layer: self._units_map(act.copy())
+        #     for layer, act in states.items()
+        # }
+        # 
+        # # 2. Performing units reduction
+        # layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
+        # self.layer_scores = layer_scores
+        # 
+        # # 3. Performing layer reduction
+        # scores = self._layer_reduce(layer_scores)
+        
+        scores = self.layer_reduce(states=states)
+
+        return scores
+    
+    def states_mapping(self, states: States) -> States:
+        
+        return {
             layer: self._units_map(act.copy())
             for layer, act in states.items()
         }
         
-        # 2. Performing units reduction
-        layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
-        self.layer_scores = layer_scores
+    def unit_reduction(self, states: States) -> Dict[str, Scores]:
         
-        # 3. Performing layer reduction
-        scores = self._layer_reduce(layer_scores)
-
-        return scores
+        return self._units_reduce(self.states_mapping(states))
+    
+    def layer_reduce(self, states: States) -> Scores:
+        
+        return self._layer_reduce(self.unit_reduction(states))
     
     # --- STRING REPRESENTATION ---
         
@@ -382,125 +400,76 @@ class ActivityScorer(Scorer):
 
         return self._scoring_units
 
-
-class WeightedPairSimilarityScorer(Scorer):
-    '''
-    The scorer computes weighted similarities between groups of subject states.
-    It uses negative distances so that identic object will have the maximum score of 0.
-    in a logic of optimizer maximization.
+class PairDistanceScorer(Scorer):
+    """
+    Class implementing a score associated to a pair of states, using their layer-wise distance.
+    The class implements the units reduction using an arbitrary distance function.
     
-    Each layer is associated with a weight, that can be either positive or negative,
-    which is used to compute the final score.
-    '''
+    It doesn't implement any specific layer reduction, which remains general and in case
+    to be implemented in possible subclasses.
+    """
     
-    name = 'WeightedPairSimilarityScorer'
-
+    
     def __init__(
         self,
-        layer_weights : Dict[str, float],
-        trg_neurons   : Dict[str, ScoringUnit], 
-        metric        : _MetricKind = 'euclidean',
-        dist_reduce   : Callable[[NDArray], NDArray] | None = None,
-        layer_reduce  : Callable[[NDArray], NDArray] | None = None,
-        reference     : dict[str, Any] | None = None,
-        bounds        : Dict[str, Callable[[float], bool]] | None = None
-        
-    ) -> None: 
-        '''
+        scoring_units : Dict[str, ScoringUnit],
+        layer_reduce  : LayerReduction,
+        metric        : _MetricKind                  = 'euclidean',
+        dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
+    ):
+        """
+        Initialize the PairDistanceScorer object.
 
-
-        :param layer_weights: Dictionary mapping each recorded layer 
-            (dict key) the corresponding weight (a float) to be used in the 
-            final aggregation step. Positive weights (> 0) denote desired similarity, 
-            while negative weights (< 0) denote desired dissimilarity.
-        :type layer_weights: Dict[str, float]
-        :param metric: Distance metric to be used in the similarity computation.
-        :type metric: string
-        :param pair_fn: Grouping function defining (within a given state,
-            i.e. a given recorded layer) which set of activations should be
-            compared against.
-            
-            Default: Odd-even pairing, i.e. given the subject state:
-                state = {
-                    'layer_1' : [+0, +1, -1, +3, +2, +4],
-                    'layer_2' : [-4, -5, +9, -2, -7, +8],
-                }
-                
-            the default pairing build the following pairs:
-                'layer_1' : {
-                    'l1_pair_1: [+0, -1, +2],
-                    'l1_pair_2: [+1, +3, +4],
-                }
-                'layer_2' : {
-                    'l2_pair_1': [-4, +9, -7],
-                    'l2_pair_2': [-5, -2, +8],
-                }
-            
-            so that the similarities will be computed as:
-                'layer_1' : similarity(l1_pair_1, l1_pair_2)
-                'layer_2' : similarity(l2_pair_1, l2_pair_2)
+        :param scoring_units: Target neurons for each layer.
+        :type scoring_units: Dict[str, ScoringUnit]
+        :param layer_reduce: Function to reduce layer scores.
+        :type layer_reduce: LayerReduction
+        :param metric: Distance metric to be used in the similarity computation, defaults to 'euclidean'.
+        :type metric: _MetricKind, optional
+        :param dist_reduce: Function to reduce the distance across units, defaults to the mean.
+        :type dist_reduce: Callable[[NDArray], NDArray], optional
+        """
         
-        :type pair_fn: Callable[[NDArray], Tuple[NDArray, NDArray]] | None
-        '''
-        
-        # Save input parameters
-        self._signature   = layer_weights
-        self._trg_neurons = trg_neurons
-        self._bounds      = bounds
-        
-        # If grouping function is not given use even-odd split as default
-        dist_reduce  = default(dist_reduce,  np.mean)
-        layer_reduce = default(layer_reduce, partial(np.mean, axis=0))
-        
-        # If similarity function is not given use euclidean distance as default
-        self._metric = partial(pdist, metric=metric)
+        # Save the input parameters
+        self._scoring_units = scoring_units
         self._metric_name = metric
+        self._metric = partial(pdist, metric=self._metric_name)
         
-        # Define reducing function across units using the given distance function
+        # Define the units reduction function by fixing the distance metric
         units_reduce: UnitsReduction = partial(
-            self._score,
+            self._distance_reduction,
             reduce=dist_reduce,
-            trg_neurons=trg_neurons,   
+            scoring_units=scoring_units
         )
         
-        # Define reducing function across layers using the given distance 
-        # function and the layer weights
-        layer_reduce_: LayerReduction = partial(
-            #self._dotprod, 
-            self._best_pareto,
-            weights=layer_weights,
-            reduce=layer_reduce    
-        )
-        
-        # Initialize the parent class providing the two reductions
         super().__init__(
             units_reduce=units_reduce,
-            layer_reduce=layer_reduce_
+            layer_reduce=layer_reduce
         )
         
-    # --- STRING REPRESENTATION ---
-    
-    def __str__(self) -> str:        
-        ''' Return a string representation of the scorer including also the signature '''
-        return f'{super()}[signature: {self._signature}]'
-    
-    # --- REDUCTIONS ---
-
-    def _score(
+    def __str__(self) -> str:
+        return  f'{super()}['\
+                f'layers: { {layer: len(units) for layer, units in self._scoring_units.items()}  }'\
+                f'metric: {self._metric_name}'\
+                ']'
+        
+    def _distance_reduction(
         self,
-        state       : States,
-        reduce      : Callable[[NDArray], NDArray],
-        trg_neurons : Dict[str, ScoringUnit],
+        state         : States,
+        reduce        : Callable[[NDArray], NDArray],
+        scoring_units : Dict[str, ScoringUnit],
     ) -> Dict[str, NDArray]:
         '''
-        Compute the similarity scores between groups of activations in the subject state.
+        Class used for the unit reduction.
+        
+        It computes the similarity scores between groups of activations in the subject state.
 
         :param state: Subject state.
         :type state: State
         :param reduce: Reducing function across groups of activations.
         :type reduce: Callable[[NDArray], NDArray]
-        :param trg_neurons: Target neurons for each layer.
-        :type trg_neurons: Dict[str, ScoringUnit]
+        :param scoring_units: Target neurons for each layer.
+        :type scoring_units: Dict[str, ScoringUnit]
         :return: Similarity scores between groups of activations.
         :rtype: Dict[str, NDArray]
         '''
@@ -509,17 +478,72 @@ class WeightedPairSimilarityScorer(Scorer):
             layer: np.array([
                 reduce(-self._metric(group))
                 for group in activations[..., 
-                    trg_neurons[layer]    # Specified scoring units for that layer
-                    if trg_neurons[layer]
+                    scoring_units[layer]    # Specified scoring units for that layer
+                    if scoring_units[layer]
                     else slice(None)      # In the case of no units specified, all units are considered
                 ]
             ])
             for layer, activations in state.items()
-            if layer in trg_neurons
+            if layer in scoring_units
         }
         
         return scores
+    
+    @property
+    def scoring_units(self) -> Dict[str, ScoringUnit]:
+        ''' How many units involved in optimization '''
+        return self._scoring_units
 
+    
+class WeightedPairDistanceScorer(PairDistanceScorer):
+    """
+    Class implementing a score associated to a pair of states,
+    by combining their layer-wise activation distance in a weighted fashion.
+    """
+    
+    def __init__(
+        self,
+        layer_weights : Dict[str, float],
+        scoring_units : Dict[str, ScoringUnit],
+        metric        : _MetricKind = 'euclidean',
+        dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
+        layer_reduce  : Callable[[NDArray], NDArray] = np.mean
+    ):
+        """
+        Initialize the WeightedPairDistanceScorer object.
+
+        :param layer_weights: Weights to be used for the weighted distance computation.
+        :type layer_weights: Dict[str, float]
+        :param scoring_units: Target neurons for each layer.
+        :type scoring_units: Dict[str, ScoringUnit]
+        :param metric: Distance metric to be used in the similarity computation, defaults to 'euclidean'.
+        :type metric: _MetricKind, optional
+        :param dist_reduce: Function to reduce the distance across units, defaults to the mean.
+        :type dist_reduce: Callable[[NDArray], NDArray], optional
+        :param layer_reduce: Function to reduce layer scores, defaults to the mean.
+        :type layer_reduce: Callable[[NDArray], NDArray], optional
+        """
+        
+        self._layer_weights = layer_weights
+        
+        layer_reduce_: LayerReduction = partial(
+            self._dotprod,
+            weights=self._layer_weights,
+            reduce=layer_reduce
+        )
+        
+        super().__init__(
+            scoring_units=scoring_units,
+            layer_reduce=layer_reduce_,
+            metric=metric,
+            dist_reduce=dist_reduce
+        )
+        
+    def __str__(self) -> str:
+        return  f'{str(super())[:-1]}; '\
+                f'weights: {self._layer_weights}, '\
+                f']'
+    
     def _dotprod(
         self,
         state     : Dict[str, Scores],
@@ -538,61 +562,255 @@ class WeightedPairSimilarityScorer(Scorer):
         :return: The result of the dot product after reducing.
         :rtype: Score
         '''
+        
         return cast(
             Scores,
             reduce(
                 # Multiply each layer score by the corresponding weight
-                #np.stack([v * minmax_norm(state[k]) for k, v in weights.items()])
                 np.stack([v * state[k] for k, v in weights.items()])
             )
         )
+
+class ParetoReferencePairDistanceScorer(PairDistanceScorer):
+    '''
+    The scorer computes the similarity between the subject state and a reference state involving multiple layers.
+    It associates to each layer a weight that in a pareto front optimization to assign a score to each state.
+    
+    The score is assigned such that:
+    - units in an higher pareto front have an higher score
+    - units in the same pareto front use a random internal rank 
+    
+    Since we using pairs of states but a reference, a state preprocessing is needed 
+    to create a pair of states with the reference as the second state.
+    '''
+    
+    name = 'WeightedPairSimilarityScorer'
+
+    def __init__(
+        self,
+        layer_weights : Dict[str, float],
+        scoring_units : Dict[str, ScoringUnit], 
+        reference     : Dict[str, NDArray],
+        metric        : _MetricKind = 'euclidean',
+        dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
+        bounds        : Dict[str, Callable[[float], bool]] | None = None
+    ) -> None: 
+        '''
+        Initialize the scorer.
+        
+        :param scoring_units: Dictionary mapping each recorded layer to the corresponding 
+            weight to be used in the final aggregation step. 
+            Positive weights (> 0) denote desired similarity, 
+            while negative weights (< 0) denote desired dissimilarity.
+        :type scoring_units: Dict[str, float]
+        :param trg_neurons: Dictionary mapping each layer to the indices of the units to be scored in that layer.
+        :type trg_neurons: Dict[str, ScoringUnit]
+        :param reference: Dictionary describing the states of the target reference. The state is supposed to
+            describe all the layers used for recordings.
+        :param metric: Distance metric to be used in the similarity computation.
+        :type metric: string
+        :param dist_reduce: Function to reduce the distance across units, defaults to the mean.
+        :type dist_reduce: Callable[[NDArray], NDArray], optional
+        :param bounds: TODO @DonTau. If specified, the bounds must be specified for all the layers in the reference.
+        :type bounds: Dict[str, Callable[[float], bool]] | None, defaults to None
+        
+        '''
+        
+        # Sanity Check - Check if all the layers in the reference are specified in the bounds
+        if bounds and not all(k in reference for k in bounds):
+            
+            not_specified = set(reference.keys()).difference(set(bounds.keys()))
+            
+            raise ValueError(
+                f'Bounds must be specified for all the layers in the reference', 
+                f'but the following layers are not specified: {not_specified}'
+            )
+        
+        # Save the input parameters
+        self._reference     = reference
+        self._bounds        = bounds
+        self._layer_weights = layer_weights
+        
+        # Define reducing function across layers using the pareto front
+        layer_reduce_: LayerReduction = partial(
+            self._best_pareto,
+            weights=layer_weights
+        )
+        
+        # Initialize the parent class providing the two reductions
+        super().__init__(
+            scoring_units=scoring_units,
+            layer_reduce=layer_reduce_,
+            metric=metric,
+            dist_reduce=dist_reduce
+        )
+        
+    def _preprocess_states(self, states: States) -> States:
+        """ 
+        Preprocess the states by appending the reference to the states for each layer
+        
+        :layer states: The states to preprocess
+        :type states: States
+        :return: The preprocessed states
+        :rtype: States
+        """
+        
+        # New states
+        states_ = {}
+        
+        # Add the reference to the states
+        for layer in states:
+            
+            if layer in self._reference:
+                
+                # Repeat the reference as many times as the states
+                repeated_b_array = np.repeat(self._reference[layer], states[layer].shape[0], axis=0)
+                
+                # Stack the states and the reference
+                states_[layer]   = np.stack((states[layer], repeated_b_array), axis=1)
+                
+        return states_
+    
+    def __call__(self, states: States):
+        """ 
+        STUB to the parent class using preprocessed states
+        """
+        
+        states_preprocess = self._preprocess_states(states)
+        
+        return super().__call__(states=states_preprocess)
+        
+    # --- STRING REPRESENTATION ---
+    
+    def __str__(self) -> str:        
+        ''' Return a string representation of the scorer including also the signature '''
+        return  f'{str(super())[:-1]}; '\
+                f'weights: {self._layer_weights}, '\
+                f'reference: { {layer: state.shape for layer, state in self._reference.items()} }, '\
+                f']'
+    
+    # --- PARETO ---
+    
+    @staticmethod
+    def pareto_front(
+        state            : Dict[str, Scores],
+        weights          : List[float], 
+        first_front_only : bool = False
+    ):
+        """
+        Compute the pareto front of the given state.
+        
+        :param state: The state to compute the pareto front
+        :type state: Dict[str, Scores]
+        :param weights: The weights to use for the pareto front
+        :type weights: List[float]
+        :param first_front_only: Whether to return only the first front
+        :type first_front_only: bool
+        """
+        
+        # Create 
+        creator.create("FitnessMulti", base.Fitness, weights=tuple(weights))
+        creator.create("Individual", list, fitness=creator.FitnessMulti) # type: ignore
+        layers = list(state.keys()) 
+        
+        # Create the population
+        individuals = [
+            creator.Individual([  # type: ignore
+                state[layer][i] 
+                for layer in layers
+            ]) 
+            for i, _ in enumerate(state[layers[0]])
+        ]
+        
+        # TODO @DonTau
+        for individual_id, individual in enumerate(individuals):
+            individual.fitness.values = tuple(individual)
+            individual.id = individual_id
+        
+        # Compute the pareto front
+        fronts = tools.sortNondominated(
+            individuals=individuals, 
+            k=len(individuals), 
+            first_front_only=first_front_only
+        )
+        
+        scores = np.zeros([len(individuals)])
+        
+        # Assign the scores
+        for front_id, front in enumerate(fronts):
+            for individual_id, individual in enumerate(front):
+                scores[individual.id] = np.abs(front_id - (len(fronts)))
+        
+        # TODO @DonTau
+        coordinates_p1 = np.where(scores == np.max(scores))
+        
+        return scores, coordinates_p1[0]
         
     def _best_pareto(
         self,
         state     : Dict[str, Scores],
-        weights   : Dict[str, float],
-        reduce    : Callable[[NDArray], NDArray], 
+        weights   : Dict[str, float]
     )-> Scores:
+        """
+        The function acts as a layer reduction function.
         
-        creator.create("FitnessMulti", base.Fitness, weights=tuple([v for _,v in weights.items()]))  # Max a, Min b
-        creator.create("Individual", list, fitness=creator.FitnessMulti); s_keys = list(state.keys())
-        #state = {k: minmax_norm(state[k]) for k in s_keys}
-        state_dup = {}
-        for key in s_keys:
-            state_dup[key] = [x if self._bounds[key](x) else -float('inf') for x in state[key]]
-            valid_values_count = sum(1 for value in state_dup[key] if value != float('-inf'))
-            if valid_values_count < 10 and self.current_iter > 5:
-                return None
+        It computes the best pareto front for the given state 
+        and assign a score to each individual in the population
 
-        pop = [creator.Individual([state_dup[k][i] for k in s_keys]) for i in range(len(state_dup[s_keys[0]]))]
-        #pop = [creator.Individual([state[k][i] for k in s_keys]) for i in range(len(state[s_keys[0]]))] #old manual way that works good
-
-        for i,ind in enumerate(pop):
-            ind.fitness.values = tuple(ind)
-            #ind.fitness.values = tuple(ind) if np.abs(ind[1]) < 3 else tuple([ind[0],-float('inf')])
-            #ind.fitness.values = tuple(ind) if np.abs(ind[0]) < 180 else tuple([-float('inf'),ind[1]])
-            ind.id = i
-        fronts = tools.sortNondominated(pop, len(pop))
-        scores = np.zeros([2, len(pop)])
-        for f_id, f in enumerate(fronts):
-            #dist_f = np.mean(squareform(pdist(np.array(f), metric='euclidean')), axis = 0)
-            for i,ind in enumerate(f):
-                scores[0, ind.id] = np.abs(f_id - len(fronts))
-                #scores[1, ind.id] = 1/(dist_f[i]+0.0001)
-        scores[1, :] = np.random.rand(scores.shape[1])
-                
-        scores = (scores[0,:]+1)*(max(scores[1,:])+1)+scores[1,:]
+        :param state: State to compute the pareto front
+        :type state: Dict[str, Scores]
+        :param weights: Weights to use for the pareto front
+        :type weights: Dict[str, float]
+        :return: The scores for the given state
+        :rtype: Scores
+        """
         
-        return cast(Scores, scores)                
+        # Apply bound constraints
+        state_dup = self._bound_constraints(state)
         
+        pf_scores, coordinates_p1 = self.pareto_front(state_dup, weights = [v for v in weights.values()])
+        self.coordinates_p1 = coordinates_p1
+        rand_scores = np.random.rand(pf_scores.shape[0])
+        scores = (pf_scores+1)*(max(rand_scores)+1)+rand_scores
+        
+        return scores
     
+    # --- BOUND CONSTRAINTS ---
+    
+    def _bound_constraints(self, state: States) -> States:
+        """
+        Apply bound constraints to the state, pushing to minus infinity
+        the values that do not satisfy the constraints.
         
+        In the case no bounds are specified, the state is returned as it is.
+
+        :param state: The state to apply the bound constraints
+        :type state: States
+        :return: The state with the bound constraints
+        :rtype: States
+        """
+        
+        if self._bounds is None:
+            return state
+        
+        state_dup = {
+            layer: np.array([
+                individual_state if self._bounds[layer](individual_state) else -float('inf') 
+                for individual_state in layer_state
+            ])
+            for layer, layer_state in state.items()
+        }
+        
+        return state_dup
+    
+    def bound_constraints(self, state: States) -> States:
+        """ 
+        It is a stub to the private method using the preprocessed states 
+        It is supposed to be used externally to the typical `__call__` pipeline
+        """
+        return self._bound_constraints(state=self._preprocess_states(state))
 
 
-    # --- PROPERTIES ---
-        
-    @property
-    def scoring_units(self) -> Dict[str, ScoringUnit]:
-        ''' How many units involved in optimization '''
-        return self._trg_neurons
+
+
 

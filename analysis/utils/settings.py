@@ -11,7 +11,7 @@ settings      = read_json(SETTINGS_FILE)
 
 OUT_DIR             : str = settings['out_dir']
 WORDNET_DIR         : str = settings['wordnet_dir']
-ALEXNET_DIR         : str = settings['alexnet_dir']
+#ALEXNET_DIR         : str = settings['alexnet_dir']
 NEURON_SCALING_FILE : str = settings['neuron_scaling_file']
 
 

@@ -11,7 +11,7 @@ from torchvision.transforms.functional import to_pil_image
 from zdream.experiment                import ZdreamExperiment
 from zdream.generator                 import Generator, DeePSiMGenerator
 from zdream.optimizer                 import GeneticOptimizer, Optimizer
-from zdream.scorer                    import ActivityScorer, Scorer, WeightedPairSimilarityScorer
+from zdream.scorer                    import ActivityScorer, Scorer, ParetoReferencePairDistanceScorer
 from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
 from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
 from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
@@ -141,13 +141,10 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             net_info=layer_info,
         )
 
-
-        scorer = WeightedPairSimilarityScorer(
+        scorer = ParetoReferencePairDistanceScorer(
             layer_weights=signature,
-            trg_neurons=scoring_units,
+            scoring_units=scoring_units,
             metric=str(PARAM_distance),
-            dist_reduce=None,
-            layer_reduce=None,
         )
 
         # --- OPTIMIZER ---

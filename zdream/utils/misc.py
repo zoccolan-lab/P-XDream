@@ -2,10 +2,15 @@
 This is a general purpose file containing utility functions that are used across the entire Zdream framework.
 '''
 
+from collections import defaultdict
 from copy import deepcopy
-import re
+import glob
+import os
+from os import path
 from subprocess import PIPE, Popen
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
+from torchvision import transforms
+from scipy.spatial.distance import pdist
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,6 +23,9 @@ from PIL import Image
 from einops import rearrange
 from pandas import DataFrame
 from numpy.typing import NDArray
+
+from zdream.utils.logger import Logger, SilentLogger
+
 
 
 from .types import RFBox
@@ -364,3 +372,46 @@ def copy_exec(
 def minmax_norm(vector):
     min_val = np.min(vector)
     return (vector - min_val) / (np.max(vector) - min_val)
+
+def defaultdict_list():
+    return defaultdict(list)
+
+
+def load_npy_npz(in_dir:str, fnames:list[tuple[str, str]], logger: Logger = SilentLogger()):
+    '''
+    Load a .npy/.npz file (e.g. a experiment state) from a folder where the file
+    was dumped. It raises a warning for not present states.
+
+    :param in_dir: Directory where states are dumped.
+    :type in_dir: str
+    :param fnames: List of file names to load, structured as
+        tuples (fname, extension).
+    :type fnames: list[tuple[str, str]]
+    :param logger: Logger to log i/o information. If not specified
+        a `SilentLogger` is used. 
+    :type logger: Logger | None, optional
+    '''
+    logger.info(f'Loading experiment state from {in_dir}')
+
+    loaded = dict()
+    for name, ext in fnames:
+
+        # File path
+        fp = path.join(in_dir, f'{name}.{ext}')
+
+        # Loading function depending on file extension
+        match ext:
+            case 'npy': load_fun = np.load
+            case 'npz': load_fun = lambda x: dict(np.load(x))
+
+        # Loading state
+        if path.exists(fp):
+            logger.info(f"> Loading {name} history from {fp}")
+            loaded[name] = load_fun(fp)
+
+        # Warning if the state is not present
+        else:
+            logger.warn(f"> Unable to fetch {fp}")
+            loaded[name] = None
+    return loaded
+
