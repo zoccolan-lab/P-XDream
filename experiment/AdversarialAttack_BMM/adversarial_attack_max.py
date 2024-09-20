@@ -115,9 +115,9 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             variant = str(PARAM_variant) # type: ignore
         ).to(device)
         
-        name_ref = f'reference_code_{PARAM_net_name}{"robust" if PARAM_robust_path else ""}.npy'
-        ref_code = np.load(os.path.join(PARAM_ref,name_ref)); reference = {'code': ref_code}
-        reference['robust'] = True if PARAM_robust_path else False
+        # name_ref = f'reference_code_{PARAM_net_name}{"robust" if PARAM_robust_path else ""}.npy'
+        # ref_code = np.load(os.path.join(PARAM_ref, name_ref)); reference = {'code': ref_code}
+        # reference['robust'] = True if PARAM_robust_path else False
         
         # --- SUBJECT ---
 
@@ -138,11 +138,29 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         )
         
         # Set the network in evaluation mode
-        sbj_net.eval()
-        ref_states = sbj_net(stimuli=generator(codes = ref_code))
-        reference = {**reference, **ref_states}
+        # sbj_net.eval()
+        # ref_states = sbj_net(stimuli=generator(codes = ref_code))
+        # reference = {**reference, **ref_states}
         
         # --- SCORER ---
+        
+        reference_file      = load_pickle(PARAM_ref)
+        layer, neuron, seed = parse_reference_info(PARAM_ref_info)
+        
+        # Extract code from reference file
+        try:
+            ref_code = reference_file[layer][neuron][seed]['code']
+        except KeyError:
+            raise ValueError(f'No reference found for layer {layer}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
+        
+        # Generate the code and the state, unbatching it
+        ref_code_b = np.expand_dims(ref_code, axis=0)
+        ref_stimulus : Stimuli = generator(codes=ref_code_b)
+        ref_states_b : States  = sbj_net(stimuli=ref_stimulus)
+        ref_states = {
+            l: state[0] for l, state in ref_states_b.items()
+            if l in record_target
+        }
         
         # Parse target neurons
         scoring_units = parse_scoring(
@@ -159,27 +177,13 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         bounds = parse_bounds(
             input_str=str(PARAM_bounds),
             net_info=layer_info,
-            reference = reference                 
+            reference = reference                
         )
         
         sel_metric = str(PARAM_distance)
         sel_metric = cast(_MetricKind, sel_metric)
         
-        # Generate reference
-        reference_file = load_pickle(PARAM_ref)
-        layer, neuron, seed = parse_reference_info(PARAM_ref_info)
-        
-        # Extract code from reference file
-        try:
-            ref_code = reference_file[layer][neuron][seed]
-        except KeyError:
-            raise ValueError(f'No reference found for layer {layer}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
-        
-        # Generate the code and the state, unbatching it
-        ref_stimulus : Stimuli = generator(codes=np.expand_dims(ref_code, axis=0))
-        ref_states_b : States  = sbj_net(stimuli=ref_stimulus)
-        ref_states = {l: state[0] for l, state in ref_states_b.items()}
-        
+        # Generate reference        
         scorer = ParetoReferencePairDistanceScorer(
             layer_weights=signature,
             scoring_units=scoring_units,

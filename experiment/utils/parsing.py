@@ -493,7 +493,7 @@ def get_neurons_target(
         return targets, rec_layers, rand_seeds
     
 
-def parse_reference_info(ref_info: str) -> Tuple[str, str, str]:
+def parse_reference_info(ref_info: str) -> Tuple[str, int, int]:
 
     # Define the pattern to match the string format
     pattern = r"L=(?P<L>\w+), N=(?P<N>\d+), S=(?P<S>\d+)"
@@ -508,7 +508,7 @@ def parse_reference_info(ref_info: str) -> Tuple[str, str, str]:
         N = match.group('N')
         S = match.group('S')
         
-        return L, N, S
+        return L, int(N), int(S)
     
     else:
         
