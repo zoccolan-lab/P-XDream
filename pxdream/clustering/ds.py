@@ -6,10 +6,10 @@ from typing import Any, Dict, Iterable, List, Set, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from zdream.clustering.cluster import Cluster, Clusters
-from zdream.clustering.model import AffinityMatrix, Labels
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.io_ import read_json
+from pxdream.clustering.cluster import Cluster, Clusters
+from pxdream.clustering.model import AffinityMatrix, Labels
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.io_ import read_json
 
 from functools import cache
 

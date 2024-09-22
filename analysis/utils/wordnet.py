@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 
 from tqdm import tqdm
 
-from zdream.utils.io_ import read_txt, read_json
-from zdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.io_ import read_txt, read_json
+from pxdream.utils.logger import Logger, SilentLogger
 import pickle
 
 @dataclass

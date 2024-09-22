@@ -6,8 +6,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.misc import SEM
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.misc import SEM
 
 
 def plot_hyperparam(

@@ -16,21 +16,21 @@ from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string, parse_recording, parse_scoring
 from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
 from experiment.utils.settings import FILE_NAMES
-from zdream.clustering.cluster import Clusters
-from zdream.clustering.ds import DSClusters
-from zdream.experiment import ZdreamExperiment
-from zdream.generator import Generator, DeePSiMGenerator
-from zdream.optimizer import CMAESOptimizer, Optimizer
-from zdream.scorer import ActivityScorer, Scorer
-from zdream.subject import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
-from zdream.utils.io_ import read_json
-from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
-from zdream.utils.message import ZdreamMessage
-from zdream.utils.misc import concatenate_images, device
-from zdream.utils.parameters import ArgParams, ParamConfig
-from zdream.utils.probe import RecordingProbe
-from zdream.utils.types import Codes, Scores, ScoringUnit, States, Stimuli, UnitsMapping
+from pxdream.clustering.cluster import Clusters
+from pxdream.clustering.ds import DSClusters
+from pxdream.experiment import ZdreamExperiment
+from pxdream.generator import Generator, DeePSiMGenerator
+from pxdream.optimizer import CMAESOptimizer, Optimizer
+from pxdream.scorer import ActivityScorer, Scorer
+from pxdream.subject import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
+from pxdream.utils.io_ import read_json
+from pxdream.utils.logger import DisplayScreen, Logger, LoguruLogger
+from pxdream.utils.message import ZdreamMessage
+from pxdream.utils.misc import concatenate_images, device
+from pxdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.utils.probe import RecordingProbe
+from pxdream.utils.types import Codes, Fitness, ScoringUnits, States, Stimuli, UnitsMapping
 
 # --- EXPERIMENT CLASS ---
 
@@ -379,7 +379,7 @@ class FeatureMapOptimizationExperiment(ZdreamExperiment):
 
         return super()._stimuli_to_states(data)
 
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         sub_score, msg = data
 

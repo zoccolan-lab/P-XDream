@@ -16,20 +16,20 @@ from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string
 from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
 from experiment.utils.settings import FILE_NAMES
-from zdream.clustering.cluster import Clusters
-from zdream.clustering.ds import DSClusters
-from zdream.experiment import ZdreamExperiment
-from zdream.generator import Generator, DeePSiMGenerator
-from zdream.optimizer import CMAESOptimizer, Optimizer
-from zdream.scorer import ActivityScorer, Scorer
-from zdream.subject import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
-from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
-from zdream.utils.message import ZdreamMessage
-from zdream.utils.misc import concatenate_images, device
-from zdream.utils.parameters import ArgParams, ParamConfig
-from zdream.utils.probe import RecordingProbe
-from zdream.utils.types import Codes, Scores, ScoringUnit, States, Stimuli, UnitsMapping
+from pxdream.clustering.cluster import Clusters
+from pxdream.clustering.ds import DSClusters
+from pxdream.experiment import ZdreamExperiment
+from pxdream.generator import Generator, DeePSiMGenerator
+from pxdream.optimizer import CMAESOptimizer, Optimizer
+from pxdream.scorer import ActivityScorer, Scorer
+from pxdream.subject import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.dataset import MiniImageNet, NaturalStimuliLoader
+from pxdream.utils.logger import DisplayScreen, Logger, LoguruLogger
+from pxdream.utils.message import ZdreamMessage
+from pxdream.utils.misc import concatenate_images, device
+from pxdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.utils.probe import RecordingProbe
+from pxdream.utils.types import Codes, Fitness, ScoringUnits, States, Stimuli, UnitsMapping
 
 # --- EXPERIMENT CLASS ---
 
@@ -176,7 +176,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         
         # Dictionary indicating groups of activations to store
         # mapping key name to neurons indexes
-        activations_idx: Dict[str, ScoringUnit] = {}
+        activations_idx: Dict[str, ScoringUnits] = {}
         
         # Default unit reduction as mean
         units_mapping   = lambda x: x
@@ -189,7 +189,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         scr_type = PARAM_scr_type
         
-        scoring_units: ScoringUnit
+        scoring_units: ScoringUnits
         
         match scr_type:
 
@@ -257,9 +257,9 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                     
                 # Get cluster indexes and sort them by score
                 # From high centrality to lower one
-                clu_idx: ScoringUnit = cluster.scoring_units  # NOTE: They are already sorted by descending rank
+                clu_idx: ScoringUnits = cluster.scoring_units  # NOTE: They are already sorted by descending rank
                 
-                clu_opt_idx: ScoringUnit
+                clu_opt_idx: ScoringUnits
                 match scr_type:
                     
                     case 'subset'     : clu_opt_idx = [clu_idx[opt_unit-1] for opt_unit in opt_units]             # Use specified list of index (off-by-one)
@@ -387,7 +387,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         self._render         = cast(bool,                   data['render'])
         self._close_screen   = cast(bool,                   data['close_screen'])
         self._use_nat        = cast(bool,                   data['use_nat'])
-        self._activation_idx = cast(Dict[str, ScoringUnit], data['activation_idx'])
+        self._activation_idx = cast(Dict[str, ScoringUnits], data['activation_idx'])
 
     def _progress_info(self, i: int, msg : ZdreamMessage) -> str:
 
@@ -510,7 +510,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
     
     # --- PIPELINE ---
     
-    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Fitness, ZdreamMessage]:
         
         states, msg = data
         
@@ -532,7 +532,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
 
         return super()._stimuli_to_states(data)
 
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         sub_score, msg = data
 

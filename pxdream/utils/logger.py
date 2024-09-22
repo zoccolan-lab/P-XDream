@@ -25,7 +25,7 @@ from rich.console import Console
 from PIL import Image, ImageTk
 import loguru
 
-from zdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.utils.parameters import ArgParams, ParamConfig
 
 from .io_   import rmdir
 import os

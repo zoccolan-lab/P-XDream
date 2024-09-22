@@ -5,8 +5,8 @@ from matplotlib import pyplot as plt
 
 import seaborn as sns
 
-from zdream.clustering.ds import DSClusters
-from zdream.utils.logger import Logger, SilentLogger
+from pxdream.clustering.ds import DSClusters
+from pxdream.utils.logger import Logger, SilentLogger
 
 
 def plot_cluster_extraction_trend(

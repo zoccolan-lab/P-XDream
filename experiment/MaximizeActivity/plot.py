@@ -14,12 +14,12 @@ from matplotlib.axes import Axes
 from torchvision.transforms.functional import to_pil_image
 
 from analysis.utils.misc import load_imagenet
-from zdream.generator import DeePSiMGenerator, DeePSiMVariant, Generator, DeePSiMVariant
-from zdream.utils.misc import default, overwrite_dict
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.dataset import ExperimentDataset
-from zdream.utils.misc import SEM, default
-from zdream.utils.types import Codes, Scores, Stimuli
+from pxdream.generator import DeePSiMGenerator, DeePSiMVariant, Generator, DeePSiMVariant
+from pxdream.utils.misc import default, overwrite_dict
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.dataset import ExperimentDataset
+from pxdream.utils.misc import SEM, default
+from pxdream.utils.types import Codes, Fitness, Stimuli
 
 # --- DEFAULT PLOTTING PARAMETERS ----
 
@@ -656,7 +656,7 @@ def multiexp_lineplot(out_df: DataFrame, ax: Axes | None = None,
 
 
 def save_stimuli_samples(
-    stimuli_scores: Dict[str, List[Tuple[Scores, Codes]]],
+    stimuli_scores: Dict[str, List[Tuple[Fitness, Codes]]],
     generator: Generator,
     out_dir: str,
     logger: Logger = SilentLogger(),
@@ -725,7 +725,7 @@ def save_stimuli_samples(
 
 
 def save_best_stimulus_per_variant(
-    neurons_variant_codes: Dict[str, Dict[DeePSiMVariant, Tuple[Codes, Scores]]],
+    neurons_variant_codes: Dict[str, Dict[DeePSiMVariant, Tuple[Codes, Fitness]]],
     gen_weights: str,
     out_dir: str,
     logger: Logger = SilentLogger()

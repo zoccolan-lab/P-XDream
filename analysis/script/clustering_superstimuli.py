@@ -13,9 +13,9 @@ from experiment.ClusterOptimization.plot import generate_cluster_units_superstim
 from experiment.utils.args import WEIGHTS
 from experiment.utils.misc import make_dir
 from experiment.utils.settings import FILE_NAMES
-from zdream.generator import DeePSiMGenerator
-from zdream.utils.io_ import load_pickle
-from zdream.utils.logger import LoguruLogger
+from pxdream.generator import DeePSiMGenerator
+from pxdream.utils.io_ import load_pickle
+from pxdream.utils.logger import LoguruLogger
 
 # --- SETTINGS ---
 

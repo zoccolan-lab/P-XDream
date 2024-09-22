@@ -16,7 +16,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from .misc import InputLayer, default, fit_bbox
-from .types import RFBox, RecordingUnit, States
+from .types import RFBox, RecordingUnits, States
 
 # TODO Document together
 
@@ -200,8 +200,8 @@ class InfoProbe(SilicoProbe):
         self,
         inp_shape : Tuple[int, ...],
         rf_method : Literal['forward', 'backward'] = 'forward',
-        forward_target : None | Dict[str, RecordingUnit] = None,
-        backward_target: None | Dict[str, Dict[str, RecordingUnit]] = None,
+        forward_target : None | Dict[str, RecordingUnits] = None,
+        backward_target: None | Dict[str, Dict[str, RecordingUnits]] = None,
     ) -> None:
         '''
         Construct a InfoProbe by specifying the input shape of the network,
@@ -424,7 +424,7 @@ class InfoProbe(SilicoProbe):
         
     def _get_forward_rf(
         self,
-        fw_target : Dict[str, RecordingUnit]
+        fw_target : Dict[str, RecordingUnits]
     ) -> Dict[Tuple[str, str], List[RFBox]]:
         fields : Dict[Tuple[str, str], List[RFBox]] = {}
         
@@ -458,7 +458,7 @@ class InfoProbe(SilicoProbe):
     
     def _get_backward_rf(
         self,
-        bw_target : Dict[str, Dict[str, RecordingUnit]],
+        bw_target : Dict[str, Dict[str, RecordingUnits]],
         act_scale : float = 1e2,
     ) -> Dict[Tuple[str, str], List[RFBox]]:
         # raise NotImplementedError()
@@ -507,7 +507,7 @@ class RecordingProbe(SilicoProbe):
     
     def __init__(
         self,
-        target : Dict[str, RecordingUnit],
+        target : Dict[str, RecordingUnits],
         format : DTypeLike = np.float32,
     ) -> None:
         '''
@@ -534,7 +534,7 @@ class RecordingProbe(SilicoProbe):
         self._data : Dict[str, List[NDArray]] = defaultdict(list)
 
     @property
-    def target(self) -> Dict[str, RecordingUnit]: return self._target
+    def target(self) -> Dict[str, RecordingUnits]: return self._target
         
     @property
     def features(self) -> States:

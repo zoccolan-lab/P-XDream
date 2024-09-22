@@ -1,6 +1,6 @@
 from analysis.utils.settings import ALEXNET_DIR
 from experiment.utils.args import ALEXNET_DIR, DATASET, OUT_DIR, WEIGHTS, FEATURE_MAPS, ExperimentArgParams
-from zdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.utils.parameters import ArgParams, ParamConfig
 
 
 ARGS: ParamConfig = {

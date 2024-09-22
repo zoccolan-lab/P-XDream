@@ -10,11 +10,11 @@ import seaborn as sns
 from typing import Any, Callable, Dict, List, Literal, Tuple
 from analysis.utils.settings import CLU_ORDER, COLORS, LAYER_SETTINGS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
-from zdream.clustering.cluster import Clusters
-from zdream.clustering.ds import DSClusters
-from zdream.utils.io_ import load_pickle, read_json
-from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
-from zdream.utils.misc import default
+from pxdream.clustering.cluster import Clusters
+from pxdream.clustering.ds import DSClusters
+from pxdream.utils.io_ import load_pickle, read_json
+from pxdream.utils.logger import Logger, LoguruLogger, SilentLogger
+from pxdream.utils.misc import default
 
 # --- LOGGING ---
 

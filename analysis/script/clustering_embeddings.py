@@ -12,8 +12,8 @@ import colorcet as cc
 from analysis.utils.misc import AlexNetLayerLoader, load_imagenet
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
-from zdream.utils.io_ import load_pickle, store_pickle
-from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
+from pxdream.utils.io_ import load_pickle, store_pickle
+from pxdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
 

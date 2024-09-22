@@ -1,7 +1,7 @@
 from typing import List
 
 from experiment.utils.args import OUT_DIR, WEIGHTS, ExperimentArgParams
-from zdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.utils.parameters import ArgParams, ParamConfig
 
 ARGS: ParamConfig =  {
     

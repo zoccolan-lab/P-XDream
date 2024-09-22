@@ -19,8 +19,8 @@ from sklearn.metrics import mutual_info_score
 from analysis.utils.misc import AlexNetLayerLoader, boxplots, end, start
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
-from zdream.utils.io_ import save_json
-from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
+from pxdream.utils.io_ import save_json
+from pxdream.utils.logger import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
 

@@ -4,8 +4,8 @@ from typing import List, Tuple
 
 import numpy as np
 
-from zdream.utils.misc import copy_exec
-from zdream.utils.parameters import ArgParams
+from pxdream.utils.misc import copy_exec
+from pxdream.utils.parameters import ArgParams
 from experiment.utils.args import ExperimentArgParams
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))

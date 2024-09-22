@@ -5,8 +5,8 @@ from typing import List, Tuple
 import numpy as np
 
 from experiment.utils.args import ExperimentArgParams
-from zdream.utils.misc       import copy_exec
-from zdream.utils.parameters import ArgParams
+from pxdream.utils.misc       import copy_exec
+from pxdream.utils.parameters import ArgParams
 
 def get_rnd_seed() -> str:
     return str(np.random.randint(1000, 100000))

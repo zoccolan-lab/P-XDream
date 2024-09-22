@@ -17,7 +17,7 @@ from torchvision.models import get_model, get_model_weights
 from .utils.logger import Logger, SilentLogger
 from .utils.probe import SetterProbe, SilicoProbe,RecordingProbe
 from .utils.misc import InputLayer, default, device, unpack, replace_inplace
-from .utils.types import RecordingUnit, Stimuli, States
+from .utils.types import RecordingUnits, Stimuli, States
 # from robustness.datasets import ImageNet
 # from robustness.model_utils import make_and_restore_model
 
@@ -67,7 +67,7 @@ class InSilicoSubject(Subject):
 
     @property
     @abstractmethod
-    def target(self) -> Dict[str, RecordingUnit]:
+    def target(self) -> Dict[str, RecordingUnits]:
         '''
         Returns the units to record for each layer in the network.
 
@@ -206,7 +206,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
     # --- PROPERTIES ---
 
     @property
-    def target(self) -> Dict[str, RecordingUnit]:
+    def target(self) -> Dict[str, RecordingUnits]:
         '''
         Return the units to record for each layer in the network.
 

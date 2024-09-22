@@ -2,10 +2,10 @@ import os
 from typing import Any, Dict, List, Type, cast
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_boolean_string
-from zdream.experiment import Experiment, MultiExperiment, ZdreamExperiment
-from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
-from zdream.utils.misc import overwrite_dict
-from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger, SilentLogger
+from pxdream.experiment import Experiment, MultiExperiment, ZdreamExperiment
+from pxdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
+from pxdream.utils.misc import overwrite_dict
+from pxdream.utils.logger import DisplayScreen, Logger, LoguruLogger, SilentLogger
 from IPython import get_ipython
 
 def in_notebook():

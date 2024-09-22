@@ -8,18 +8,18 @@ from numpy.typing import NDArray
 from PIL          import Image
 from torchvision.transforms.functional import to_pil_image
 
-from zdream.experiment                import ZdreamExperiment
-from zdream.generator                 import Generator, DeePSiMGenerator
-from zdream.optimizer                 import GeneticOptimizer, Optimizer
-from zdream.scorer                    import ActivityScorer, Scorer, ParetoReferencePairDistanceScorer
-from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
-from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
-from zdream.utils.message             import ZdreamMessage
-from zdream.utils.misc                import concatenate_images, device
-from zdream.utils.parameters          import ArgParams, ParamConfig
-from zdream.utils.probe               import RecordingProbe
-from zdream.utils.types               import Codes, ScoringUnit, Stimuli, Scores, States
+from pxdream.experiment                import ZdreamExperiment
+from pxdream.generator                 import Generator, DeePSiMGenerator
+from pxdream.optimizer                 import GeneticOptimizer, Optimizer
+from pxdream.scorer                    import ActivityScorer, Scorer, ParetoReferencePairDistanceScorer
+from pxdream.subject                   import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader
+from pxdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
+from pxdream.utils.message             import ZdreamMessage
+from pxdream.utils.misc                import concatenate_images, device
+from pxdream.utils.parameters          import ArgParams, ParamConfig
+from pxdream.utils.probe               import RecordingProbe
+from pxdream.utils.types               import Codes, ScoringUnits, Stimuli, Fitness, States
 from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_best_stimulus_per_variant, save_stimuli_samples
 from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_recording, parse_scoring, parse_signature
@@ -312,7 +312,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         return states, msg
 
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data
@@ -338,7 +338,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         
         return codes, msg
 
-    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Fitness, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 

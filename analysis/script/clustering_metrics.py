@@ -8,8 +8,8 @@ import pandas as pd
 from analysis.utils.misc import AlexNetLayerLoader
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
-from zdream.clustering.cluster import Clusters
-from zdream.utils.logger import LoguruLogger
+from pxdream.clustering.cluster import Clusters
+from pxdream.utils.logger import LoguruLogger
 
 # --- SETTINGS ---
 

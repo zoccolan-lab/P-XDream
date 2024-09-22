@@ -3,7 +3,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 
-from zdream.utils.misc import copy_exec
+from pxdream.utils.misc import copy_exec
 
 
 NAME = 'opt_comparison_cluster'

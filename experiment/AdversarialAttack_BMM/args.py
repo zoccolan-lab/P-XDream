@@ -1,5 +1,5 @@
 from experiment.utils.args import DATASET, OUT_DIR, WEIGHTS, REFERENCES, ExperimentArgParams
-from zdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.utils.parameters import ArgParams, ParamConfig
 
 
 ARGS: ParamConfig = {

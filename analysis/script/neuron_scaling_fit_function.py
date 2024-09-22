@@ -14,9 +14,9 @@ from analysis.utils.misc import CurveFitter
 from analysis.utils.settings import OUT_DIR, NEURON_SCALING_FILE, LAYER_SETTINGS
 from experiment.MaximizeActivity.plot import plot_optimizing_units
 from experiment.utils.misc import make_dir
-from zdream.utils.io_        import load_pickle, store_pickle
-from zdream.utils.logger     import Logger, LoguruLogger, SilentLogger
-from zdream.utils.misc       import default
+from pxdream.utils.io_        import load_pickle, store_pickle
+from pxdream.utils.logger     import Logger, LoguruLogger, SilentLogger
+from pxdream.utils.misc       import default
 
 # --- SETTINGS ---
 

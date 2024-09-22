@@ -11,13 +11,13 @@ from numpy.typing import NDArray
 from torchvision.transforms.functional import to_pil_image
 
 from experiment.utils.misc import make_dir
-from zdream.clustering.cluster import Cluster, Clusters
-from zdream.generator import Generator
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.misc import SEM, concatenate_images
-from zdream.utils.types import Codes
+from pxdream.clustering.cluster import Cluster, Clusters
+from pxdream.generator import Generator
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.misc import SEM, concatenate_images
+from pxdream.utils.types import Codes
 
-from zdream.utils.misc import SEM
+from pxdream.utils.misc import SEM
 
 
 def plot_ds_weigthed_score(

@@ -5,15 +5,15 @@ import numpy as np
 from numpy.typing import NDArray
 
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS
-from zdream.clustering.algo import (
+from pxdream.clustering.algo import (
     DominantSetClusteringAlgorithm,
     NormalizedCutClusteringAlgorithm,
     GaussianMixtureModelsClusteringAlgorithm,
     DBSCANClusteringAlgorithm
 )
-from zdream.clustering.cluster import Clusters
-from zdream.clustering.model import PairwiseSimilarity
-from zdream.utils.logger     import Logger, LoguruLogger, SilentLogger
+from pxdream.clustering.cluster import Clusters
+from pxdream.clustering.model import PairwiseSimilarity
+from pxdream.utils.logger     import Logger, LoguruLogger, SilentLogger
 
 # --- SETTINGS ---
 

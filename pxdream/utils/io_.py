@@ -9,7 +9,7 @@ from PIL import Image
 import numpy as np
 
 
-from .types import RecordingUnit
+from .types import RecordingUnits
 
 # --- DIRECTORIES ---
 
@@ -138,7 +138,7 @@ def read_txt(file_path: str) -> List[str]:
     return lines
 
 
-def neurons_from_file(file_path: str) -> RecordingUnit:
+def neurons_from_file(file_path: str) -> RecordingUnits:
     ''' 
     Read a set of number from files which is expected   
     to contain a number per line.

@@ -3,8 +3,8 @@ from __future__ import annotations
 from os import path
 from enum import Enum
 
-from zdream.utils.parameters import ArgParam
-from zdream.utils.io_ import read_json
+from pxdream.utils.parameters import ArgParam
+from pxdream.utils.io_ import read_json
 
 SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))
 LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')

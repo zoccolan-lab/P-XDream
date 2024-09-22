@@ -11,17 +11,17 @@ from PIL import Image
 from experiment.OptimizerTuning.plot import plot_hyperparam, plot_optim_type_comparison
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.misc import BaseZdreamMultiExperiment, make_dir
-from zdream.experiment import ZdreamExperiment
-from zdream.generator import Generator, DeePSiMGenerator
-from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
-from zdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
-from zdream.scorer import ActivityScorer, Scorer
-from zdream.subject import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
-from zdream.utils.probe import RecordingProbe
-from zdream.utils.misc import device
+from pxdream.experiment import ZdreamExperiment
+from pxdream.generator import Generator, DeePSiMGenerator
+from pxdream.utils.logger import DisplayScreen, Logger, LoguruLogger
+from pxdream.optimizer import CMAESOptimizer, GeneticOptimizer, Optimizer
+from pxdream.scorer import ActivityScorer, Scorer
+from pxdream.subject import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
+from pxdream.utils.probe import RecordingProbe
+from pxdream.utils.misc import device
 from experiment.utils.parsing import parse_recording, parse_scoring
-from zdream.utils.message import ZdreamMessage
+from pxdream.utils.message import ZdreamMessage
 
 # --- EXPERIMENT CLASS ---
 

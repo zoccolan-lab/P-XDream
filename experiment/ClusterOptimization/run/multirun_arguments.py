@@ -7,9 +7,9 @@ import numpy as np
 from analysis.utils.settings import ALEXNET_DIR
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.settings import FILE_NAMES
-from zdream.clustering.ds      import Clusters
-from zdream.utils.misc         import copy_exec
-from zdream.utils.parameters import ArgParams
+from pxdream.clustering.ds      import Clusters
+from pxdream.utils.misc         import copy_exec
+from pxdream.utils.parameters import ArgParams
 
 def get_rnd_seed() -> str:
     return str(np.random.randint(1000, 100000))

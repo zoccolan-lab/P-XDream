@@ -12,9 +12,9 @@ from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, WORDNET_DIR
 from analysis.utils.wordnet import ImageNetWords, WordNet
 
 from experiment.utils.settings import FILE_NAMES
-from zdream.clustering.cluster import Clusters
-from zdream.utils.io_ import save_json
-from zdream.utils.logger import LoguruLogger
+from pxdream.clustering.cluster import Clusters
+from pxdream.utils.io_ import save_json
+from pxdream.utils.logger import LoguruLogger
 
 # ------------------------------------------- SETTINGS ---------------------------------------
 

@@ -11,10 +11,10 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-from zdream.scorer import ParetoReferencePairDistanceScorer
+from pxdream.scorer import ParetoReferencePairDistanceScorer
 
 from .misc import SEM, defaultdict_list
-from .types import Codes, Mask, RFBox, RecordingUnit, ScoringUnit, Scores, States
+from .types import Codes, Mask, RFBox, RecordingUnits, ScoringUnits, Fitness, States
 
 
 @dataclass
@@ -57,10 +57,10 @@ class ZdreamMessage(Message):
     states_history     : List[States] = field(default_factory=list)
     ''' Subject responses to a visual stimuli.'''
     
-    scores_gen_history : List[Scores] = field(default_factory=list)
+    scores_gen_history : List[Fitness] = field(default_factory=list)
     ''' Scores associated to each synthetic stimuli. '''
     
-    scores_nat_history : List[Scores] = field(default_factory=list)
+    scores_nat_history : List[Fitness] = field(default_factory=list)
     ''' Scores associated to each natural stimuli. '''
     
     # NOTE: We are not storing the actual stimuli as they can be
@@ -70,12 +70,12 @@ class ZdreamMessage(Message):
     
     # --- UNITS ---
 
-    rec_units : Dict[str, RecordingUnit] = field(default_factory=dict)
+    rec_units : Dict[str, RecordingUnits] = field(default_factory=dict)
     '''
     Dictionary containing the recording units associated to the different layers.
     '''
     
-    scr_units : Dict[str, ScoringUnit]   = field(default_factory=dict)
+    scr_units : Dict[str, ScoringUnits]   = field(default_factory=dict)
     '''
     Dictionary containing the scoring units associated to the different layers.
     '''
@@ -134,12 +134,12 @@ class ZdreamMessage(Message):
         except IndexError: raise ValueError('No states in history')
     
     @property
-    def scores_gen(self) -> Scores:
+    def scores_gen(self) -> Fitness:
         try: return self.scores_gen_history[-1]
         except IndexError: raise ValueError('No synthetic scores in history')
     
     @property
-    def scores_nat(self) -> Scores: 
+    def scores_nat(self) -> Fitness: 
         try: return self.scores_nat_history[-1]
         except IndexError: raise ValueError('No natural scores in history')
         
@@ -251,7 +251,7 @@ class ParetoMessage(ZdreamMessage):
     local_p1 : List = field(default_factory=list)
     ''' Pareto front of each selection. '''   
 
-    layer_scores_gen_history : Dict[str, List[Scores]] = field(default_factory=defaultdict_list)
+    layer_scores_gen_history : Dict[str, List[Fitness]] = field(default_factory=defaultdict_list)
     ''' Scores associated to each synthetic stimuli. '''
     
     signature : Dict[str, float] = field(default_factory=dict)

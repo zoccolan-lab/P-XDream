@@ -1,5 +1,5 @@
 """
-This file is used to install the package zdream.
+This file is used to install the package pxdream.
 
 Run the following command from the root directory of the package to install the package:
     ```pip install -e .```
@@ -9,6 +9,6 @@ Run the following command from the root directory of the package to install the 
 from setuptools import find_packages, setup
 
 setup(
-    name='zdream',
+    name='pxdream',
     packages=find_packages(),
 )

@@ -6,14 +6,14 @@ from torch.utils.data import Dataset
 
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.parsing import parse_int_list, parse_recording
-from zdream.experiment import Experiment
-from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
-from zdream.subject import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig
-from zdream.utils.probe import RecordingProbe
-from zdream.utils.dataset import MiniImageNet
-from zdream.utils.misc import device
-from zdream.utils.message import Message
+from pxdream.experiment import Experiment
+from pxdream.utils.logger import Logger, LoguruLogger, SilentLogger
+from pxdream.subject import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.parameters import ArgParam, ArgParams, ParamConfig
+from pxdream.utils.probe import RecordingProbe
+from pxdream.utils.dataset import MiniImageNet
+from pxdream.utils.misc import device
+from pxdream.utils.message import Message
 
 class NeuralRecordingExperiment(Experiment):
     

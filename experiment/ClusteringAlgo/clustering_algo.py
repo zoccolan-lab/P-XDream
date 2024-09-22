@@ -7,12 +7,12 @@ from numpy.typing import NDArray
 from experiment.ClusteringAlgo.plotting import plot_cluster_extraction_trend, plot_cluster_extraction_ranks
 from experiment.utils.args import ExperimentArgParams
 from experiment.utils.misc import make_dir
-from zdream.clustering.model import PairwiseSimilarity
-from zdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU, DBSCANClusteringAlgorithm, GaussianMixtureModelsClusteringAlgorithm, NormalizedCutClusteringAlgorithm
-from zdream.experiment import Experiment
-from zdream.utils.logger import Logger, LoguruLogger, SilentLogger
-from zdream.utils.message import Message
-from zdream.utils.parameters import ArgParams, ParamConfig
+from pxdream.clustering.model import PairwiseSimilarity
+from pxdream.clustering.algo import BaseDSClustering, BaseDSClusteringGPU, DBSCANClusteringAlgorithm, GaussianMixtureModelsClusteringAlgorithm, NormalizedCutClusteringAlgorithm
+from pxdream.experiment import Experiment
+from pxdream.utils.logger import Logger, LoguruLogger, SilentLogger
+from pxdream.utils.message import Message
+from pxdream.utils.parameters import ArgParams, ParamConfig
 
 class DSClusteringExperiment(Experiment):
     

@@ -4,8 +4,8 @@ import re
 from typing import Dict, List, Tuple, Callable
 import warnings
 
-from zdream.utils.types import RecordingUnit, ScoringUnit
-from zdream.utils.io_ import neurons_from_file
+from pxdream.utils.types import RecordingUnits, ScoringUnits
+from pxdream.utils.io_ import neurons_from_file
 
 import numpy as np
 
@@ -117,7 +117,7 @@ def parse_bounds(
 def parse_recording(
         input_str: str,
         net_info: Dict[str, Tuple[int, ...]],
-    ) -> Dict[str, RecordingUnit]:
+    ) -> Dict[str, RecordingUnits]:
     '''
     Converts a input string indicating the units associated to each layer
     to a dictionary mapping layer number to units indices.
@@ -160,7 +160,7 @@ def parse_recording(
             raise SyntaxError(f'Invalid specification in {input_str}: {e}.')
 
     # Output dictionary
-    target_dict : Dict[str, RecordingUnit] = dict()
+    target_dict : Dict[str, RecordingUnits] = dict()
 
     # Extract layer names from the net information 
     # for mapping layer-IDs to their name
@@ -336,8 +336,8 @@ def parse_recording(
 def parse_scoring(
         input_str: str, 
         net_info: Dict[str, Tuple[int, ...]],
-        rec_info: Dict[str, RecordingUnit]
-    ) -> Dict[str, ScoringUnit]: 
+        rec_info: Dict[str, RecordingUnits]
+    ) -> Dict[str, ScoringUnits]: 
     '''
     Converts an input string indicating the scoring units associated to each layer
     to a dictionary mapping layer name to a one-dimensional array of activations indexes
@@ -386,7 +386,7 @@ def parse_scoring(
                 raise SyntaxError(f'Invalid format in {input_str}: {e}')
 
         # Output
-        scoring : Dict[str, ScoringUnit] = dict()
+        scoring : Dict[str, ScoringUnits] = dict()
         layer_names = list(net_info.keys())
 
         for layer_idx, units in targets.items():

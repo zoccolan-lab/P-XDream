@@ -11,8 +11,8 @@ from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.misc import default
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.misc import default
 
 # --- TYPE ALIAS ---
 

@@ -15,11 +15,11 @@ from torchvision.transforms.functional import to_pil_image
 from analysis.utils.misc import AlexNetLayerLoader
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.misc import make_dir
-from zdream.generator import DeePSiMGenerator, Generator
-from zdream.utils.dataset import MiniImageNet
+from pxdream.generator import DeePSiMGenerator, Generator
+from pxdream.utils.dataset import MiniImageNet
 from experiment.utils.args import WEIGHTS, DATASET
 from analysis.script.feature_maps import COLORS, _squares_visualization
-from zdream.utils.logger import LoguruLogger
+from pxdream.utils.logger import LoguruLogger
 
 LAYER             = 'conv5-maxpool'
 FM_NUMBER         = 256

@@ -7,9 +7,9 @@ import numpy as np
 
 from experiment.utils.args import FEATURE_MAPS, ExperimentArgParams
 from experiment.utils.settings import FILE_NAMES
-from zdream.utils.io_ import read_json
-from zdream.utils.misc         import copy_exec
-from zdream.utils.parameters import ArgParams
+from pxdream.utils.io_ import read_json
+from pxdream.utils.misc         import copy_exec
+from pxdream.utils.parameters import ArgParams
 
 
 NAME = 'prova'

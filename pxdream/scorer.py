@@ -21,7 +21,7 @@ from scipy.spatial.distance import pdist, squareform
 from deap import base, creator, tools
 
 
-from .utils.types import LayerReduction, ScoringUnit, Scores, States, UnitsReduction, UnitsMapping
+from .utils.types import LayerReduction, ScoringUnits, Fitness, States, UnitsReduction, UnitsMapping
 from .utils.misc import default, minmax_norm
 
 # NOTE: This is the same type of _MetricKind from scipy.spatial.distance
@@ -77,7 +77,7 @@ class Scorer(ABC):
         self._units_reduce : UnitsReduction = units_reduce
 
 
-    def __call__(self, states : States) -> Tuple[States, Dict[str, NDArray] ,Scores]:
+    def __call__(self, states : States) -> Tuple[States, Dict[str, NDArray] ,Fitness]:
         '''
         Compute the subject scores given a subject state by 
         using the proper mapping and reducing functions.
@@ -95,7 +95,7 @@ class Scorer(ABC):
         }
         
         # 2. Performing units reduction
-        layer_scores: Dict[str, Scores] = self._units_reduce(state_mapped)
+        layer_scores: Dict[str, Fitness] = self._units_reduce(state_mapped)
         
         # 3. Performing layer reduction
         scores = self._layer_reduce(layer_scores)
@@ -120,7 +120,7 @@ class Scorer(ABC):
 
     @property
     @abstractmethod
-    def scoring_units(self) -> Dict[str, ScoringUnit]:
+    def scoring_units(self) -> Dict[str, ScoringUnits]:
         '''
         Returns the scoring units associated to each layer.
         Units index refers to activations in the layer.
@@ -218,7 +218,7 @@ class MSEScorer(Scorer):
         
     # --- MSE ---    
     
-    def _mse_reduction(self, state: States, target: States) -> Dict[str, Scores]:
+    def _mse_reduction(self, state: States, target: States) -> Dict[str, Fitness]:
         '''
         Compute the MSE between the subject state and the fixed target.
 
@@ -260,7 +260,7 @@ class MSEScorer(Scorer):
     ''' Fixed target state for the MSE scorer. '''
     
     @property
-    def scoring_units(self) -> Dict[str, ScoringUnit]:
+    def scoring_units(self) -> Dict[str, ScoringUnits]:
         '''
         Return the target units for each layer as the product of the target shapes.
 
@@ -285,7 +285,7 @@ class ActivityScorer(Scorer):
     
     def __init__(
         self, 
-        scoring_units   : Dict[str, ScoringUnit],
+        scoring_units   : Dict[str, ScoringUnits],
         units_reduction : Reduction = 'mean',
         layer_reduction : Reduction = 'mean',
         units_map       : UnitsMapping = lambda x: x
@@ -332,7 +332,7 @@ class ActivityScorer(Scorer):
         
     # --- UNITS REDUCTION ----
     
-    def _units_reducing(self, state: States, reduce: Callable[[NDArray], NDArray]) -> Dict[str, Scores]:
+    def _units_reducing(self, state: States, reduce: Callable[[NDArray], NDArray]) -> Dict[str, Fitness]:
         '''
         Perform aggregation over units across layers
 
@@ -369,7 +369,7 @@ class ActivityScorer(Scorer):
     # --- PROPERTIES ---
     
     @property
-    def scoring_units(self) -> Dict[str, ScoringUnit]:
+    def scoring_units(self) -> Dict[str, ScoringUnits]:
         '''
         Return the scoring units associated to each layer.
 
@@ -391,7 +391,7 @@ class PairDistanceScorer(Scorer):
     
     def __init__(
         self,
-        scoring_units : Dict[str, ScoringUnit],
+        scoring_units : Dict[str, ScoringUnits],
         layer_reduce  : LayerReduction,
         metric        : _MetricKind                  = 'euclidean',
         dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
@@ -436,7 +436,7 @@ class PairDistanceScorer(Scorer):
         self,
         state         : States,
         reduce        : Callable[[NDArray], NDArray],
-        scoring_units : Dict[str, ScoringUnit],
+        scoring_units : Dict[str, ScoringUnits],
     ) -> Dict[str, NDArray]:
         '''
         Class used for the unit reduction.
@@ -469,7 +469,7 @@ class PairDistanceScorer(Scorer):
         return scores
     
     @property
-    def scoring_units(self) -> Dict[str, ScoringUnit]:
+    def scoring_units(self) -> Dict[str, ScoringUnits]:
         ''' How many units involved in optimization '''
         return self._scoring_units
 
@@ -483,7 +483,7 @@ class WeightedPairDistanceScorer(PairDistanceScorer):
     def __init__(
         self,
         layer_weights : Dict[str, float],
-        scoring_units : Dict[str, ScoringUnit],
+        scoring_units : Dict[str, ScoringUnits],
         metric        : _MetricKind = 'euclidean',
         dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
         layer_reduce  : Callable[[NDArray], NDArray] = np.mean
@@ -525,10 +525,10 @@ class WeightedPairDistanceScorer(PairDistanceScorer):
     
     def _dotprod(
         self,
-        state     : Dict[str, Scores],
+        state     : Dict[str, Fitness],
         weights   : Dict[str, float],
         reduce    : Callable[[NDArray], NDArray],     
-    ) -> Scores:
+    ) -> Fitness:
         '''
         Compute the dot product of the state and weights, and reduce the result using the given reduce function.
 
@@ -543,7 +543,7 @@ class WeightedPairDistanceScorer(PairDistanceScorer):
         '''
         
         return cast(
-            Scores,
+            Fitness,
             reduce(
                 # Multiply each layer score by the corresponding weight
                 np.stack([v * state[k] for k, v in weights.items()])
@@ -568,7 +568,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
     def __init__(
         self,
         layer_weights : Dict[str, float],
-        scoring_units : Dict[str, ScoringUnit], 
+        scoring_units : Dict[str, ScoringUnits], 
         reference     : Dict[str, NDArray],
         metric        : _MetricKind = 'euclidean',
         dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
@@ -672,7 +672,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
     
     @staticmethod
     def pareto_front(
-        state            : Dict[str, Scores],
+        state            : Dict[str, Fitness],
         weights          : List[float], 
         first_front_only : bool = False
     ):
@@ -727,9 +727,9 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         
     def _best_pareto(
         self,
-        state     : Dict[str, Scores],
+        state     : Dict[str, Fitness],
         weights   : Dict[str, float]
-    )-> Scores:
+    )-> Fitness:
         """
         The function acts as a layer reduction function.
         

@@ -11,18 +11,18 @@ from pandas       import DataFrame
 from PIL          import Image
 from torchvision.transforms.functional import to_pil_image
 
-from zdream.experiment                import ZdreamExperiment
-from zdream.generator                 import Generator, DeePSiMGenerator
-from zdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
-from zdream.scorer                    import ActivityScorer, Scorer
-from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
-from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
-from zdream.utils.message             import ZdreamMessage
-from zdream.utils.misc                import concatenate_images, device
-from zdream.utils.parameters          import ArgParams, ParamConfig
-from zdream.utils.probe               import RecordingProbe
-from zdream.utils.types               import Codes, ScoringUnit, Stimuli, Scores, States
+from pxdream.experiment                import ZdreamExperiment
+from pxdream.generator                 import Generator, DeePSiMGenerator
+from pxdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
+from pxdream.scorer                    import ActivityScorer, Scorer
+from pxdream.subject                   import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
+from pxdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
+from pxdream.utils.message             import ZdreamMessage
+from pxdream.utils.misc                import concatenate_images, device
+from pxdream.utils.parameters          import ArgParams, ParamConfig
+from pxdream.utils.probe               import RecordingProbe
+from pxdream.utils.types               import Codes, ScoringUnits, Stimuli, Fitness, States
 from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_best_stimulus_per_variant, save_stimuli_samples
 from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_recording, parse_scoring
@@ -278,7 +278,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
 
         return states, msg
 
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data
@@ -883,7 +883,7 @@ class LayersCorrelationMultiExperiment(BaseZdreamMultiExperiment):
         return pd.DataFrame(data)
 
     @staticmethod
-    def _get_non_scoring_units(exp: MaximizeActivityExperiment) -> Dict[str, ScoringUnit]:
+    def _get_non_scoring_units(exp: MaximizeActivityExperiment) -> Dict[str, ScoringUnits]:
         '''
         Given an experiment returns a mapping between layer name and activations indexes
         for recorded but non-scored units

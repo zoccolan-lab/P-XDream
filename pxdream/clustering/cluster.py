@@ -8,10 +8,10 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, rand_score, silhouette_score
 
-from zdream.clustering.model import Label, Labels
-from zdream.utils.io_ import read_json, save_json
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.types import ScoringUnit
+from pxdream.clustering.model import Label, Labels
+from pxdream.utils.io_ import read_json, save_json
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.types import ScoringUnits
 from typing import List
 import random
 from numpy.typing import ArrayLike
@@ -79,7 +79,7 @@ class Cluster:
         return np.array([obj.label for obj in self]) # type: ignore
 
     @property
-    def scoring_units(self) -> ScoringUnit: 
+    def scoring_units(self) -> ScoringUnits: 
         ''' 
         Return the scoring units of the cluster
         NOTE:   This is only available if the labels are of type np.int32

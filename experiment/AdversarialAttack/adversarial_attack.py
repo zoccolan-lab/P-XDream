@@ -10,19 +10,19 @@ from torch.utils.data import DataLoader
 from typing import Any, Dict, List, Tuple, cast
 from torchvision.transforms.functional import to_pil_image
 
-from zdream.experiment import ZdreamExperiment
-from zdream.generator import Generator, DeePSiMGenerator
-from zdream.utils.logger import DisplayScreen, Logger, LoguruLogger
-from zdream.optimizer import GeneticOptimizer, Optimizer
-from zdream.scorer import Scorer, ParetoReferencePairDistanceScorer
-from zdream.subject import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.probe import RecordingProbe
-from zdream.utils.io_ import to_gif
-from zdream.utils.misc import concatenate_images, device
-from zdream.utils.dataset import MiniImageNet
+from pxdream.experiment import ZdreamExperiment
+from pxdream.generator import Generator, DeePSiMGenerator
+from pxdream.utils.logger import DisplayScreen, Logger, LoguruLogger
+from pxdream.optimizer import GeneticOptimizer, Optimizer
+from pxdream.scorer import Scorer, ParetoReferencePairDistanceScorer
+from pxdream.subject import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.probe import RecordingProbe
+from pxdream.utils.io_ import to_gif
+from pxdream.utils.misc import concatenate_images, device
+from pxdream.utils.dataset import MiniImageNet
 from experiment.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
-from zdream.utils.types import Codes, MaskGenerator, ScoringUnit, Stimuli, Scores, States, mask_generator_from_template
-from zdream.utils.message import ZdreamMessage
+from pxdream.utils.types import Codes, MaskGenerator, ScoringUnits, Stimuli, Fitness, States, mask_generator_from_template
+from pxdream.utils.message import ZdreamMessage
 
 from numpy.typing import NDArray
 
@@ -400,7 +400,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         return super()._stimuli_to_states(data)
     
 
-    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Fitness, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -432,7 +432,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         
         return scores, msg
 
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
 
         stm_score, msg = data
         

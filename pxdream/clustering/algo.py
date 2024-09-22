@@ -8,11 +8,11 @@ from sklearn.manifold import TSNE
 from sklearn.mixture import GaussianMixture
 
 import torch
-from zdream.clustering.cluster import Clusters
-from zdream.clustering.ds import DSCluster, DSClusters
-from zdream.clustering.model import AffinityMatrix, DimensionalityReduction
-from zdream.utils.logger import Logger, SilentLogger
-from zdream.utils.misc import default, device
+from pxdream.clustering.cluster import Clusters
+from pxdream.clustering.ds import DSCluster, DSClusters
+from pxdream.clustering.model import AffinityMatrix, DimensionalityReduction
+from pxdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.misc import default, device
 
 
 import numpy as np

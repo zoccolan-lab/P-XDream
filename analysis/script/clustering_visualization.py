@@ -11,11 +11,11 @@ from torchvision.transforms.functional import to_pil_image
 from PIL import Image
 from  PIL.Image import Image as ImgType
 
-from zdream.generator import DeePSiMGenerator, Generator
-from zdream.clustering.cluster import Cluster
-from zdream.clustering.ds import DSCluster
-from zdream.utils.dataset import MiniImageNet
-from zdream.utils.logger import LoguruLogger
+from pxdream.generator import DeePSiMGenerator, Generator
+from pxdream.clustering.cluster import Cluster
+from pxdream.clustering.ds import DSCluster
+from pxdream.utils.dataset import MiniImageNet
+from pxdream.utils.logger import LoguruLogger
 from analysis.utils.misc import AlexNetLayerLoader
 from analysis.utils.settings import ALEXNET_DIR, LAYER_SETTINGS, OUT_DIR
 from experiment.utils.args import DATASET, WEIGHTS

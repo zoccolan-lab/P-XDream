@@ -2,7 +2,7 @@
 from os import path
 from argparse import ArgumentParser
 
-from zdream.utils.io_ import read_json
+from pxdream.utils.io_ import read_json
 
 
 SCRIPT_DIR     = path.abspath(path.join(__file__, '..', '..'))

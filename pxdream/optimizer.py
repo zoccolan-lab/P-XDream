@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from scipy.special import softmax
 from cma import CMAEvolutionStrategy
 
-from .utils.types import Codes, Scores
+from .utils.types import Codes, Fitness
 from .utils.misc import default
 
 RandomDistribution = Literal['normal', 'gumbel', 'laplace', 'logistic']
@@ -144,7 +144,7 @@ class Optimizer(ABC):
     
     # --- STEP ---
     
-    def step(self, scores: Scores) -> Codes:
+    def step(self, scores: Fitness) -> Codes:
         '''
         Wrapper for actual step implementation in `_step()` that automatizes 
         saving of last generation codes in `self_codes`.
@@ -161,7 +161,7 @@ class Optimizer(ABC):
     
     
     @abstractmethod
-    def _step(self, scores: Scores) -> Codes:
+    def _step(self, scores: Fitness) -> Codes:
         '''
         Abstract step method.
         The `step()` method receives the scores associated to the
@@ -369,7 +369,7 @@ class GeneticOptimizer(Optimizer):
     
     def _step(
         self,
-        scores : Scores,
+        scores : Fitness,
         out_pop_size : int | None = None  
     ) -> Codes:
         '''
@@ -589,7 +589,7 @@ class CMAESOptimizer(Optimizer):
 
     # --- STEP ---
 
-    def _step(self, scores: Scores) -> Codes:
+    def _step(self, scores: Fitness) -> Codes:
         '''
         Perform a step of the optimization process using the CMA-ES optimizer.
 

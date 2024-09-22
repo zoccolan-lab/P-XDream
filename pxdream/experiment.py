@@ -19,8 +19,8 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.progress import Progress
 
-from zdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
-from zdream.utils.dataset import NaturalStimuliLoader
+from pxdream.utils.parameters import ArgParam, ArgParams, ParamConfig, Parameter
+from pxdream.utils.dataset import NaturalStimuliLoader
 
 from .utils.logger import DisplayScreen, Logger, SilentLogger
 from .generator import Generator
@@ -29,7 +29,7 @@ from .optimizer import Optimizer
 from .scorer import Scorer
 from .subject import InSilicoSubject
 from .utils.io_ import read_json, save_json, store_pickle
-from .utils.types import Codes, Stimuli, Scores, States
+from .utils.types import Codes, Stimuli, Fitness, States
 from .utils.misc import flatten_dict, load_npy_npz, overwrite_dict, stringfy_time
 
 
@@ -688,7 +688,7 @@ class ZdreamExperiment(Experiment):
     
         return states, msg
     
-    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Scores, ZdreamMessage]:
+    def _states_to_scores(self, data: Tuple[States, ZdreamMessage]) -> Tuple[Fitness, ZdreamMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -710,7 +710,7 @@ class ZdreamExperiment(Experiment):
         
         return scores, msg
     
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         '''
         The method uses the scores for each stimulus to optimize the images
         in the latent coded space, resulting in a new set of codes.

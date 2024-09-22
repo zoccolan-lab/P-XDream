@@ -14,19 +14,19 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision import transforms
 from scipy.spatial.distance import pdist
 
-from zdream.experiment                import ParetoExperimentState, ZdreamExperiment
-from zdream.generator                 import Generator, DeePSiMGenerator
-from zdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
-from zdream.scorer                    import Scorer, ParetoReferencePairDistanceScorer, _MetricKind
-from zdream.subject                   import InSilicoSubject, TorchNetworkSubject
-from zdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
-from zdream.utils.io_ import load_pickle
-from zdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
-from zdream.utils.message             import ParetoMessage, ZdreamMessage
-from zdream.utils.misc                import concatenate_images, device
-from zdream.utils.parameters          import ArgParams, ParamConfig
-from zdream.utils.probe               import RecordingProbe
-from zdream.utils.types               import Codes, Stimuli, Scores, States
+from pxdream.experiment                import ParetoExperimentState, ZdreamExperiment
+from pxdream.generator                 import Generator, DeePSiMGenerator
+from pxdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
+from pxdream.scorer                    import Scorer, ParetoReferencePairDistanceScorer, _MetricKind
+from pxdream.subject                   import InSilicoSubject, TorchNetworkSubject
+from pxdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
+from pxdream.utils.io_ import load_pickle
+from pxdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
+from pxdream.utils.message             import ParetoMessage, ZdreamMessage
+from pxdream.utils.misc                import concatenate_images, device
+from pxdream.utils.parameters          import ArgParams, ParamConfig
+from pxdream.utils.probe               import RecordingProbe
+from pxdream.utils.types               import Codes, Stimuli, Fitness, States
 from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_recording, parse_reference_info, parse_scoring, parse_signature
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
@@ -314,7 +314,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         return states, msg
 
-    def _states_to_scores(self, data: Tuple[States, ParetoMessage]) -> Tuple[Scores, ParetoMessage]:
+    def _states_to_scores(self, data: Tuple[States, ParetoMessage]) -> Tuple[Fitness, ParetoMessage]:
         '''
         The method evaluate the SubjectResponse in light of a Scorer logic.
 
@@ -366,7 +366,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         return scores, msg
     
-    def _scores_to_codes(self, data: Tuple[Scores, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
+    def _scores_to_codes(self, data: Tuple[Fitness, ZdreamMessage]) -> Tuple[Codes, ZdreamMessage]:
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data

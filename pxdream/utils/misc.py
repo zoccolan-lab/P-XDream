@@ -24,7 +24,7 @@ from einops import rearrange
 from pandas import DataFrame
 from numpy.typing import NDArray
 
-from zdream.utils.logger import Logger, SilentLogger
+from pxdream.utils.logger import Logger, SilentLogger
 
 
 
