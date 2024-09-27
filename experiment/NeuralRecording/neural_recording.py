@@ -87,7 +87,7 @@ class NeuralRecordingExperiment(Experiment):
         # --- LOGGER ---
         
         conf[ArgParams.ExperimentTitle.value] = NeuralRecordingExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # --- NEURAL RECORDING ---
         
@@ -132,7 +132,7 @@ class NeuralRecordingExperiment(Experiment):
             if i % self._log_chk == 0:
                 progress = f'{i:>{len(str(len(self._image_ids)))+1}}/{len(self._image_ids)}'
                 perc     = f'{i * 100 / len(self._image_ids):>5.2f}%'
-                self._logger.info(mess=f'Iteration [{progress}] ({perc})')
+                self._logger.info(msg=f'Iteration [{progress}] ({perc})')
             
             # Retrieve stimulus
             stimulus = self._dataset[idx]

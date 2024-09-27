@@ -142,7 +142,7 @@ def plot_embedding(
 
     # Save the figure
     fig_fp = os.path.join(out_fp, f'{file_name}.svg')
-    logger.info(mess=f'Saving plot to {fig_fp}')
+    logger.info(msg=f'Saving plot to {fig_fp}')
     fig.savefig(fig_fp, bbox_inches='tight')
 
 
@@ -158,7 +158,7 @@ def main():
     out_dir = os.path.join(OUT_DIR, "clustering_analysis")
     layer_ = LAYER_SETTINGS[LAYER]['title']
 
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
     layer_loader = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)
     clusters = layer_loader.load_clusters()
     embeddings_dir = make_dir(os.path.join(out_dir, 'embeddings', LAYER))
@@ -180,14 +180,14 @@ def main():
     # 2. TSNE Embedding
     
     recordings_fp = os.path.join(layer_dir, 'recordings', 'recordings.npy')
-    logger.info(mess=f'Loading recordings from {recordings_fp}')
+    logger.info(msg=f'Loading recordings from {recordings_fp}')
     recordings = np.load(recordings_fp)
     
     for perp in TSNE_PERP:
 
         embeddings_dir_perp = make_dir(os.path.join(embeddings_dir, f'perplexity_{perp}'))
         
-        logger.info(mess=f'Computing t-SNE embedding up to 2 dimensions with perplexity={perp}')
+        logger.info(msg=f'Computing t-SNE embedding up to 2 dimensions with perplexity={perp}')
         tsne = TSNE(n_components=2, perplexity=perp, n_iter=TSNE_STEPS)
         
         perp_s = str(perp)
@@ -245,7 +245,7 @@ def main():
     logger.info(f'Storing precomputed embeddings to {embeddings_fp}')
     store_pickle(embeddings, embeddings_fp)
     
-    logger.info(mess='')
+    logger.info(msg='')
     logger.close()
     
 if __name__ == '__main__': 

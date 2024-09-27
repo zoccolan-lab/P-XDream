@@ -146,7 +146,7 @@ def images_to_pdf(image_triples, pdf_path):
 
 def main():
 
-    logger    = LoguruLogger(on_file=False)
+    logger    = LoguruLogger(to_file=False)
     out_dir   = make_dir(os.path.join(OUT_DIR, "clustering_analysis", "visualization", LAYER_SETTINGS[LAYER]['directory']), logger=logger)
     
     alexnet_loader    = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)

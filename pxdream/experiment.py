@@ -224,15 +224,15 @@ class Experiment(ABC):
             
             # Log
             self._logger.info(f"")
-            self._logger.info(mess=str(self))
+            self._logger.info(msg=str(self))
             self._logger.info(f"Parameters:")
 
             max_key_len = max(len(key) for key in flat_dict.keys()) + 1 # for padding
 
             for k, v in flat_dict.items():
                 k_ = f"{k}:"
-                self._logger.info(mess=f'{k_:<{max_key_len}}   {v}')
-            self._logger.info(mess=f'')
+                self._logger.info(msg=f'{k_:<{max_key_len}}   {v}')
+            self._logger.info(msg=f'')
 
             # Save
             config_param_fp = path.join(self.dir, 'params.json')
@@ -247,8 +247,8 @@ class Experiment(ABC):
             max_key_len = max(len(key) for key, _ in self._components) + 1 # for padding 
             for k, v in self._components:
                 k_ = f"{k}:"
-                self._logger.info(mess=f'{k_:<{max_key_len}}   {v}')
-            self._logger.info(mess=f'')
+                self._logger.info(msg=f'{k_:<{max_key_len}}   {v}')
+            self._logger.info(msg=f'')
         
                 
         # Generate an initial message containing the start time
@@ -272,8 +272,8 @@ class Experiment(ABC):
 
         # Log total elapsed time
         str_time = stringfy_time(sec=msg.elapsed_time)
-        self._logger.info(mess=f"Experiment finished successfully. Elapsed time: {str_time}.")
-        self._logger.info(mess="")
+        self._logger.info(msg=f"Experiment finished successfully. Elapsed time: {str_time}.")
+        self._logger.info(msg="")
 
         # NOTE: The method is also supposed to close logger screens
         #       However this is not implemented in the default version 
@@ -1058,7 +1058,7 @@ class MultiExperiment:
         '''
 
         # Initial logging
-        self._logger.info(mess=f'RUNNING {self}')
+        self._logger.info(msg=f'RUNNING {self}')
         
         # NOTE: Handling screen turns fundamental in time
         #       overhead and memory during multi-experiment run.
@@ -1105,8 +1105,8 @@ class MultiExperiment:
         '''
 
         j = i+1
-        self._logger.info(mess=f'EXPERIMENT {j} OF {len(self)} RUN SUCCESSFULLY.')
-        self._logger.info(mess=f'')
+        self._logger.info(msg=f'EXPERIMENT {j} OF {len(self)} RUN SUCCESSFULLY.')
+        self._logger.info(msg=f'')
 
     def _finish(self):
         '''
@@ -1115,13 +1115,13 @@ class MultiExperiment:
         '''
 
         str_time = stringfy_time(sec=self._elapsed_time)
-        self._logger.info(mess=f'ALL EXPERIMENT RUN SUCCESSFULLY. ELAPSED TIME: {str_time} s.')
-        self._logger.info(mess=f'')
+        self._logger.info(msg=f'ALL EXPERIMENT RUN SUCCESSFULLY. ELAPSED TIME: {str_time} s.')
+        self._logger.info(msg=f'')
 
         # Save multi-run experiment as a .PICKLE file
         if self._data:
             out_fp = path.join(self.target_dir, 'data.pkl')
-            self._logger.info(mess=f'Saving multi-experiment data to {out_fp}')
+            self._logger.info(msg=f'Saving multi-experiment data to {out_fp}')
             store_pickle(data=self._data, path=out_fp)
 
     def _run(self):
@@ -1141,7 +1141,7 @@ class MultiExperiment:
                 total=len(self._search_config)
             ):  
                 
-                self._logger.info(mess=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
+                self._logger.info(msg=f'RUNNING EXPERIMENT {i+1} OF {len(self)}.')
                 
                 exp = self._Exp.from_config(conf=conf)
                 

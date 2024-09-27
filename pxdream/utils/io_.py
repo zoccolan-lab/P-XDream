@@ -1,3 +1,7 @@
+'''
+This module implements 
+'''
+
 from collections import defaultdict
 import os
 import json

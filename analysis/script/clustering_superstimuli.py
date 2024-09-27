@@ -34,7 +34,7 @@ def main():
 
     # LOAD
 
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
     
     layer_loader = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)
     clusters = layer_loader.load_clusters()

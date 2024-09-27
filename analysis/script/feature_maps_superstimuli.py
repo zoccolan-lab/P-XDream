@@ -147,7 +147,7 @@ def create_pdf(image_dict: Dict[str, List[Tuple[ImgType, ImgType, ImgType]]], ou
 
 def main():
 
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
 
     dataset   = MiniImageNet(root=DATASET)
     generator = DeePSiMGenerator(root=WEIGHTS, variant=GENERATOR_VARIANT)

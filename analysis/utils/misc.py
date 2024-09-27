@@ -20,14 +20,14 @@ from pxdream.utils.misc import default
 
 def start(logger: Logger, name: str):
     
-    logger.info(mess=name)
+    logger.info(msg=name)
     logger.formatting = lambda x: f'> {x}'
 
 def end(logger: Logger):
     
-    logger.info(mess='Done')
+    logger.info(msg='Done')
     logger.reset_formatting()
-    logger.info(mess='')
+    logger.info(msg='')
     
 # --- LOADING ---
 
@@ -72,7 +72,7 @@ class AlexNetLayerLoader:
     
         clusters = {}
         
-        self._logger.info(mess=f'Loading clusters from {dir}')
+        self._logger.info(msg=f'Loading clusters from {dir}')
         
         for root, _, files in os.walk(self.cluster_dir):
             
@@ -81,14 +81,14 @@ class AlexNetLayerLoader:
                 if file.endswith(".json") and file not in exclude:
                     
                     file_path = os.path.join(root, file)
-                    self._logger.info(mess=f' > Loading {file}')
+                    self._logger.info(msg=f' > Loading {file}')
                     clu_algo = file.replace(".json", "")
 
                     C = DSClusters if clu_algo == 'DominantSet'else Clusters
                     clusters[clu_algo] = C.from_file(fp=file_path)
                     
                 else:
-                    self._logger.info(mess=f' > Skipping {file}')
+                    self._logger.info(msg=f' > Skipping {file}')
                     
         clusters = dict(sorted(clusters.items(), key=lambda x: CLU_ORDER[x[0]]))
 
@@ -99,7 +99,7 @@ class AlexNetLayerLoader:
         f_name = 'recordings_inet' if inet else 'recordings'
 
         fp = os.path.join(self.recordings_dir, f'{f_name}.npy')
-        self._logger.info(mess=f'Loading recordings from {fp}')
+        self._logger.info(msg=f'Loading recordings from {fp}')
         return np.load(fp)
     
     def load_superstimuli(self) -> Tuple[Dict[str, Dict[int, SuperStimuliInfo]], Dict[int, SuperStimuliInfo]]:
@@ -107,10 +107,10 @@ class AlexNetLayerLoader:
         clu_fp = path.join(self.superstimuli_dir, 'cluster_superstimuli.pkl')
         units_fp = path.join(self.superstimuli_dir, 'units_superstimuli.pkl')
 
-        self._logger.info(mess=f'Loading cluster superstimuli from {clu_fp}')
+        self._logger.info(msg=f'Loading cluster superstimuli from {clu_fp}')
         clu_supertimuli = load_pickle(clu_fp)
 
-        self._logger.info(mess=f'Loading units superstimuli from {units_fp}')
+        self._logger.info(msg=f'Loading units superstimuli from {units_fp}')
         units_supertimuli = load_pickle(units_fp)
 
         return clu_supertimuli, units_supertimuli
@@ -119,7 +119,7 @@ class AlexNetLayerLoader:
 
         fp = path.join(self.alexnet_dir, 'neuron_scaling', 'neuron_scaling_functions.pkl')
 
-        self._logger.info(mess=f'Loading neuron scaling functions from {fp}')
+        self._logger.info(msg=f'Loading neuron scaling functions from {fp}')
         fun = load_pickle(fp)
 
         return fun[gen_variant][self.layer]
@@ -129,10 +129,10 @@ class AlexNetLayerLoader:
         fm_file  = path.join(self.fm_clu_segmentation_dir, 'fm_segmentation.json')
         clu_file = path.join(self.fm_clu_segmentation_dir, 'clu_segmentation.json')
 
-        self._logger.info(mess=f'Loading feature map segmentation from {fm_file}')
+        self._logger.info(msg=f'Loading feature map segmentation from {fm_file}')
         fm_segmentation = read_json(fm_file)
 
-        self._logger.info(mess=f'Loading cluster segmentation from {clu_file}')
+        self._logger.info(msg=f'Loading cluster segmentation from {clu_file}')
         clu_segmentation = read_json(clu_file)
 
         return fm_segmentation, clu_segmentation
@@ -142,10 +142,10 @@ class AlexNetLayerLoader:
         fm_file  = path.join(self.fm_clu_segmentation_dir, 'fm_segmentation_superstimuli.pkl')
         clu_file = path.join(self.fm_clu_segmentation_dir, 'clu_segmentation_superstimuli.pkl')
 
-        self._logger.info(mess=f'Loading feature map segmentation from {fm_file}')
+        self._logger.info(msg=f'Loading feature map segmentation from {fm_file}')
         fm_segmentation = load_pickle(fm_file)
 
-        self._logger.info(mess=f'Loading cluster segmentation from {clu_file}')
+        self._logger.info(msg=f'Loading cluster segmentation from {clu_file}')
         clu_segmentation = load_pickle(clu_file)
 
         return fm_segmentation, clu_segmentation
@@ -159,7 +159,7 @@ def load_wordnet(logger: Logger = SilentLogger()) -> WordNet:
     # Load WordNet with precomputed words if available
     if os.path.exists(words_precomputed_fp):
         
-        logger.info(mess='Loading precomputed WordNet')
+        logger.info(msg='Loading precomputed WordNet')
         
         wordnet = WordNet.from_precomputed(
             wordnet_fp=words_fp, 
@@ -170,7 +170,7 @@ def load_wordnet(logger: Logger = SilentLogger()) -> WordNet:
     
     else:
         
-        logger.info(mess=f'No precomputation found at {words_precomputed_fp}. Loading WordNet from scratch')
+        logger.info(msg=f'No precomputation found at {words_precomputed_fp}. Loading WordNet from scratch')
         
         wordnet = WordNet(
             wordnet_fp=words_fp, 
@@ -188,12 +188,12 @@ def load_imagenet(wordnet: WordNet | None = None, logger: Logger = SilentLogger(
     wordnet = default(wordnet, load_wordnet(logger))
     
     # Load ImageNet
-    logger.info(mess='Loading ImageNet')
+    logger.info(msg='Loading ImageNet')
     inet_fp = os.path.join(WORDNET_DIR, 'imagenet_class_index.json')
     inet = ImageNetWords(imagenet_fp=inet_fp, wordnet=wordnet)
     
     # Load SuperImageNet
-    logger.info(mess='Loading ImageNet superclasses')
+    logger.info(msg='Loading ImageNet superclasses')
     inet_super_fp = os.path.join(WORDNET_DIR, 'imagenet_superclass_index.json')
     inet_super = ImageNetWords(imagenet_fp=inet_super_fp, wordnet=wordnet)
     

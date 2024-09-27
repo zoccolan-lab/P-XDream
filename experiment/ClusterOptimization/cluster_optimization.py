@@ -145,7 +145,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
         # --- LOGGER ---
         
         conf[ArgParams.ExperimentTitle.value] = ClusteringOptimizationExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
 
         # --- CLUSTERING ---
 
@@ -504,7 +504,7 @@ class ClusteringOptimizationExperiment(ZdreamExperiment):
                 logger=self._logger
             )
         
-        self._logger.info(mess='')
+        self._logger.info(msg='')
         
         return msg
     
@@ -711,7 +711,7 @@ class ClusterUnitsSuperStimulusMultiExperiment(BaseZdreamMultiExperiment):
         super()._finish()
         
         stimuli_dir = path.join(self.target_dir, 'stimuli')
-        self._logger.info(mess=f'Saving stimuli to {stimuli_dir}')
+        self._logger.info(msg=f'Saving stimuli to {stimuli_dir}')
         os.makedirs(stimuli_dir)
         
         conf = self._search_config[0]
@@ -730,7 +730,7 @@ class ClusterUnitsSuperStimulusMultiExperiment(BaseZdreamMultiExperiment):
         # )
         self._logger.reset_formatting()
         
-        self._logger.info(mess='')
+        self._logger.info(msg='')
 
 class ClusterSubsettingOptimizationMultiExperiment(BaseZdreamMultiExperiment):
 
@@ -787,7 +787,7 @@ class ClusterSubsettingOptimizationMultiExperiment(BaseZdreamMultiExperiment):
         super()._finish()
         
         plot_dir = path.join(self.target_dir, 'plot')
-        self._logger.info(mess=f'Saving plots to {plot_dir}')
+        self._logger.info(msg=f'Saving plots to {plot_dir}')
         os.makedirs(plot_dir)
         
         plot_subset_acwtivations(

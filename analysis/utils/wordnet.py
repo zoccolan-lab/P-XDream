@@ -185,9 +185,9 @@ class WordNet:
             # NOTE: This is done by calling methods for each word to save results in their fields
             #       Object attributes are used as cache for dynamic programming
             
-            self._logger.info(mess='Precomputing Depth');       _ = [self.get_depth            (word)  for word in tqdm(self._words)]
-            self._logger.info(mess='Precomputing Ancestors');   _ = [self.get_ancestors  (word)  for word in tqdm(self._words)]
-            self._logger.info(mess='Precomputing Descendants'); _ = [self.get_descendants(word)  for word in tqdm(self._words)]
+            self._logger.info(msg='Precomputing Depth');       _ = [self.get_depth            (word)  for word in tqdm(self._words)]
+            self._logger.info(msg='Precomputing Ancestors');   _ = [self.get_ancestors  (word)  for word in tqdm(self._words)]
+            self._logger.info(msg='Precomputing Descendants'); _ = [self.get_descendants(word)  for word in tqdm(self._words)]
     
     @classmethod
     def from_precomputed(

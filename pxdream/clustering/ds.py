@@ -291,7 +291,7 @@ class DSClusters(Clusters):
         :rtype: DSClusters
         '''
         
-        logger.info(mess=f'Reading clusters from {fp}')
+        logger.info(msg=f'Reading clusters from {fp}')
         data = read_json(path=fp)
         
         clusters = [

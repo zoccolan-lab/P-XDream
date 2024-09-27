@@ -1,8 +1,8 @@
 '''
-This file contains the implementation of the Logger class, which is responsible for
-- logging in the channels info, warn and error;
-- handling display screens;
-- organize target directory for saving results.
+This module contains the implementation of the Logger class, which is responsible for
+	- logging in the three channels INFO, WARN and ERROR;
+	- handling display screens;
+	- organize target directory for saving results.
 
 The Logger class is a base class that can be extended to implement different logging strategies.
 The following are the implemented classes:
@@ -10,7 +10,7 @@ The following are the implemented classes:
 - LoguruLogger: Logger using `loguru` technology to log both on terminal and file.
 - SilentLogger: Trivial logger with for non-logging.
 
-The class also provides the implementation of the DisplayScreen class, which is a screen to display and update images.
+The class also provides the implementation of the `DisplayScreen` class, which is a screen to display and update images.
 '''
 
 from __future__ import annotations
@@ -37,15 +37,16 @@ import loguru
 from .io_   import rmdir
 
 
-class Logger:
+class Logger():
 	'''
 	Class responsible for 
-	- logging in the channels info, warn and error;
-	- handling display screens;
-	- organize directory foldering for saving results.
+		- logging in the channels info, warn and error;
+		- handling display screens;
+		- organize foldering for saving results.
 	'''
 
-	CONSOLE = Console(color_system=None, stderr=None)  # type: ignore
+	# Rich console progress bar 
+	CONSOLE = Console(color_system=None, stderr=False)
 
 	def __init__(self, path: Dict[str, str] | str  = '.') -> None:
 		'''
@@ -70,6 +71,34 @@ class Logger:
 		# Initialize screen dictionary
 		self._screens : Dict[str, DisplayScreen] = dict()
 
+	@classmethod
+	def from_conf(cls, conf: ParamConfig) -> 'Logger': 
+		'''
+		Initialize the logger from parameter configuration
+		The parameter requires specifications for output directory and experiment
+			- title: it typically refers to the experiment class it is run with, for example `MaximizeActivity`.
+			- name: it refers to the specific purpose the experiment is run with.
+			- version: it refers to the versioning of the experiment, for example by changing the hyperparameters.
+
+		:param conf: Parameter configuration for the experiment.
+		:type conf: ParamConfig
+		:return: Mapping for experiment directory, title, name and version.
+		:rtype: Dict[str, str]
+		'''
+
+		try: 
+		
+			return Logger(
+				path= {
+				'out_dir': str(conf[ArgParams.OutputDirectory  .value]),
+				'title'  : str(conf[ArgParams.ExperimentTitle  .value]),
+				'name'   : str(conf[ArgParams.ExperimentName   .value]),
+				'version': str(conf[ArgParams.ExperimentVersion.value])
+				}
+			)
+		
+		except KeyError as e:
+			raise KeyError(f'Cannot create Logger from configuration as some keys are missing {e}')
 
 	# --- FORMATTING ---
 
@@ -102,20 +131,21 @@ class Logger:
 	#	    Subclasses that intend to log with other strategies and technologies should
 	#       override the private ones.
 	
-	def  info(self,  mess: str): self._info(mess=self.formatting(mess))
-	def _info(self,  mess: str): logging.info(mess)
+	def  info(self,  msg: str): self._info(msg=self.formatting(msg))
+	def _info(self,  msg: str): logging.info(msg=msg)
 	
-	def  warn(self,  mess: str): self._warn(mess=self.formatting(mess))
-	def _warn(self,  mess: str): logging.warn(mess)
+	def  warn(self,  msg: str): self._warn(msg=self.formatting(msg))
+	def _warn(self,  msg: str): logging.warning(msg=msg)
 	
-	def  error(self, mess: str): self._error(mess=self.formatting(mess))
-	def _error(self, mess: str): logging.error(mess)
+	def  error(self, msg: str): self._error(msg=self.formatting(msg))
+	def _error(self, msg: str): logging.error(msg=msg)
 
 	def close(self, close_screens: bool = False):
 		''' 
-		Function including generic operations
-		when the logger is no more intended to be used
-		Such as releasing resources
+		Function including generic operations when the logger is no more intended to be used,
+		such as releasing resources
+
+		In the default version is only close display screen with an option flag.
 
 		:param close_screens: If to close all screens, defaults to False.
 		:type close_screens: bool, optional
@@ -127,10 +157,12 @@ class Logger:
 		if close_screens:
 			self.close_all_screens()
 
-		pass
-
 	def set_progress_bar(self):
-		''' Logger setup for progress bar '''
+		''' 
+		Logger setup for progress bar
+		
+		NOTE: Currently only supported for `LoguruLogger` class
+		'''
 
 		if isinstance(self, LoguruLogger):
 
@@ -141,12 +173,12 @@ class Logger:
 	
 	def _get_dir(self, conf: Dict[str, str]) -> str:
 		'''
-		Return the target directory for saving experiment results, building
-		a directory hierarchy across the specified keys:
-		- `out_dir`, the result output directory.
-		- `title`,   the experiment title.
-		- `name`,    the experiment name.
-		- `version`, the experiment version, optional.
+		Return the target directory for saving experiment results, 
+		building a directory hierarchy across the specified keys:
+			- `out_dir`, the result output directory.
+			- `title`,   the experiment title.
+			- `name`,    the experiment name.
+			- `version`, the experiment version, optional.
 		
 		In the case `version` key is specified it logs at the level of experiment versioning,
 		otherwise it logs at the level of the specific experiment name.
@@ -201,7 +233,7 @@ class Logger:
 		# NOTE This is possible because we allow an arbitrary input version specification
 		if path.exists(target_dir):
 
-			self.warn(mess=f'The new new version will overwrite {target_dir}. Continue [y/n]')
+			self.warn(msg=f'The new new version will overwrite {target_dir}. Continue [y/n]')
 			inp = input()
 
 			# If continue, remove old directory
@@ -225,21 +257,12 @@ class Logger:
 	def dir(self) -> str: return self._dir
 	''' Returns experiment target directory for saving results. '''
 
-	@staticmethod
-	def path_from_conf(conf: ParamConfig) -> Dict[str, str]: 
-		
-		return {
-			'out_dir': str(conf[ArgParams.OutputDirectory  .value]),
-			'title'  : str(conf[ArgParams.ExperimentTitle  .value]),
-			'name'   : str(conf[ArgParams.ExperimentName   .value]),
-			'version': str(conf[ArgParams.ExperimentVersion.value])
-		}
-
 	# --- SCREENS ---
 
 	def add_screen(self, screen: DisplayScreen):
 		'''
-		Add a new screen with name and size. It raises a key error if that screen name already exists.
+		Add a new screen with name and size. 
+		It raises a key error if that screen name already exists.
 		
 		:param screen: Display screen object.
 		:type screen: DisplayScreen
@@ -325,10 +348,10 @@ class LoguruLogger(Logger):
 
 	LOG_FILE = 'info.log'
 
-	def __init__(self, path: Dict[str, str] | str = '.', on_file: bool = True) -> None:
+	def __init__(self, path: Dict[str, str] | str = '.', to_file: bool = True) -> None:
 		'''
 		Initialize the logger with a possible specific target directory.
-		In the case `on_file` flag is active, it logs on file.
+		In the case `to_file` flag is active, it logs on file.
 
 		:param path_: Path where to save the experiment results.
 			It supports two types of input:
@@ -336,10 +359,9 @@ class LoguruLogger(Logger):
 				on experiment directory, title, name and version.
 			- str: target directory path.
 		:type path_: Dict[str, str] | None
-		:param on_file: If to log on file, defaults to True.
-		:type on_file: bool, optional
+		:param to_file: If to log on file, defaults to True.
+		:type to_file: bool, optional
 		'''
-
 
 		# Assign the unique ID
 		self._id = self._factory_id
@@ -351,23 +373,59 @@ class LoguruLogger(Logger):
 		super().__init__(path=path)
 
 		# File logging
-		if on_file:
+		if to_file:
 
-			# Create the log file and add the handler
-			# binding to the unique ID
+			# Create the log file and add the handler binding it to the unique ID
 			log_file = os.path.join(self.dir, self.LOG_FILE)
 			self._handler = self._logger.add(
 				log_file, level=0, enqueue=True, 
 				filter=lambda x: x['extra']['id'] == self._id
 			)
 	
-	# Overriding logging methods with `loguru` specific ones
-	def _info(self, mess: str): self._logger.info(mess)
-	def _warn(self, mess: str): self._logger.warning(mess)
-	def _err (self, mess: str): self._logger.error(mess)
+	@classmethod
+	def from_conf(cls, conf: ParamConfig, to_file: bool = True) -> 'LoguruLogger': 
+		'''
+		Initialize the logger from parameter configuration
+		The parameter requires specifications for output directory and experiment
+			- title: it typically refers to the experiment class it is run with, for example `MaximizeActivity`.
+			- name: it refers to the specific purpose the experiment is run with.
+			- version: it refers to the versioning of the experiment, for example by changing the hyperparameters.
 
-	def close(self):
-		''' Close the logger releasing resources '''
+		:param conf: Parameter configuration for the experiment.
+		:type conf: ParamConfig
+		:param to_file: If to log on file, defaults to True.
+		:type to_file: bool, optional
+		:return: Mapping for experiment directory, title, name and version.
+		:rtype: Dict[str, str]
+		'''
+		
+		try: 
+			return LoguruLogger(
+				path= {
+					'out_dir': str(conf[ArgParams.OutputDirectory  .value]),
+					'title'  : str(conf[ArgParams.ExperimentTitle  .value]),
+					'name'   : str(conf[ArgParams.ExperimentName   .value]),
+					'version': str(conf[ArgParams.ExperimentVersion.value])
+				},
+				to_file=to_file
+			)
+		
+		except KeyError as e:
+			raise KeyError(f'Cannot create Logger from configuration as some keys are missing {e}')
+	
+	# Overriding logging methods with `loguru` specific ones
+	def _info(self, msg: str): self._logger.info   (msg)
+	def _warn(self, msg: str): self._logger.warning(msg)
+	def _err (self, msg: str): self._logger.error  (msg)
+
+	def close(self, close_screens: bool = False):
+		'''
+		Close the logger releasing resources. 
+		It reimplement superclass `Logger` behavior and removes the logger
+		handles to free their references.
+		'''
+
+		super().close(close_screens=close_screens)
 
 		if hasattr(self, '_handler'):
 			self._logger.remove(handler_id=self._handler)
@@ -376,9 +434,12 @@ class LoguruLogger(Logger):
 class SilentLogger(Logger):
 	''' Trivial logger with for non-logging '''
 
-	def __init__(self) -> None:
-		''' Initialize the logger '''
-
+	def __init__(self, path: Dict[str, str] | str = '.') -> None:
+		''' 
+		Initialize the logger
+		
+		NOTE: `path` input parameter is left for interface compatibility, but ignored
+		'''
 		super().__init__()
 	
 	# Override for no logging
@@ -452,8 +513,8 @@ class DisplayScreen:
 		photo = ImageTk.PhotoImage(resized_image)
 
 		# Configure the label with the resized image
-		self._image_label.configure(image=photo)
-		self._image_label.image = photo              # type: ignore
+		self._image_label.configure(image=photo) # type: ignore
+		self._image_label.image = photo          # type: ignore
 
 		# Update the frame
 		self._controller.update()

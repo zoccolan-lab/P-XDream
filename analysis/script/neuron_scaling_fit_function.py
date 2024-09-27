@@ -170,7 +170,7 @@ def plot_fit(
 def main():
     
     # Logger and directories
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
 
     neuron_scaling_dir = os.path.dirname(NEURON_SCALING_FILE)
     neuron_scaling_file, ext = os.path.basename(NEURON_SCALING_FILE).split('.')

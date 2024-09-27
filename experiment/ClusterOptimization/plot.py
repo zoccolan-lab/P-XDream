@@ -69,7 +69,7 @@ def plot_ds_weigthed_score(
         ax.legend()
         
         out_fp = path.join(out_dir, f'clu_{clu_idx}_weighted_ds_fitness.png')
-        logger.info(mess=f'Saving plot to {out_fp}')
+        logger.info(msg=f'Saving plot to {out_fp}')
         fig.savefig(out_fp)
 
 def generate_clusters_superstimuli(
@@ -91,7 +91,7 @@ def generate_clusters_superstimuli(
         
         
         out_fp = path.join(out_superstim_fp, f'clu{clu_idx}_superstimulus.png')
-        logger.info(mess=f'Saving superstimulus to {out_fp}')
+        logger.info(msg=f'Saving superstimulus to {out_fp}')
         best_stim_img.save(out_fp)
 
 def generate_cluster_units_superstimuli(
@@ -120,7 +120,7 @@ def generate_cluster_units_superstimuli(
         superstimuli_combined = concatenate_images(img_list=list(superstimuli), nrow=side)
 
         out_fp = path.join(out_superstim_fp, f'clu{clu_idx}_units_superstimuli.png')
-        logger.info(mess=f'Saving superstimulus to {out_fp}')
+        logger.info(msg=f'Saving superstimulus to {out_fp}')
         superstimuli_combined.save(out_fp)
 
 def plot_clusters_superstimuli(
@@ -231,7 +231,7 @@ def plot_clusters_superstimuli(
     ]:
         for ext in ['.svg']:
             out_fp = path.join(plot_dir, f'{name}{ext}')
-            logger.info(mess=f'Saving plot to {out_fp}')
+            logger.info(msg=f'Saving plot to {out_fp}')
             fig.savefig(out_fp, bbox_inches='tight', dpi=300)
 
 def plot_activations(
@@ -275,7 +275,7 @@ def plot_activations(
         ax.legend()
 
     out_fp = path.join(out_dir, f'subset_optimization.png')
-    logger.info(mess=f'Saving plot to {out_fp}')
+    logger.info(msg=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
 
 
@@ -410,7 +410,7 @@ def plot_subset_activations(
 
         # Save the figure to the specified output directory
         out_fp = os.path.join(out_dir, f'clu{clu_idx}-{file_name}')
-        logger.info(mess=f'Saving plot to {out_fp}')
+        logger.info(msg=f'Saving plot to {out_fp}')
         fig.savefig(out_fp, dpi=300, bbox_inches='tight')
 
 
@@ -482,5 +482,5 @@ def plot_dsweighting_clusters_superstimuli(
     
     for ext in ['.svg']:
         out_fp = path.join(plot_dir, f'comparative_ds_weighting{ext}')
-        logger.info(mess=f'Saving comparative plot to {out_fp}')
+        logger.info(msg=f'Saving comparative plot to {out_fp}')
         fig.savefig(out_fp, bbox_inches='tight', dpi=300)

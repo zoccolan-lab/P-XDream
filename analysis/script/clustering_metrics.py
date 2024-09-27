@@ -28,7 +28,7 @@ def main():
     clu_dir = os.path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'], 'clusters')  
 
     # Initialize logger
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
     
     # Load clusters
     layer_loader = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)
@@ -37,7 +37,7 @@ def main():
     # Create metric directory
     metric_dir = make_dir(out_dir)
     
-    logger.info(mess=f'Computing {len(METRICS)}: {", ".join(METRICS.keys())}')
+    logger.info(msg=f'Computing {len(METRICS)}: {", ".join(METRICS.keys())}')
 
     indexes_df = {}
 
@@ -57,14 +57,14 @@ def main():
         indexes_df[metric_name] = index_df
         
     # Save the dataframes
-    logger.info(mess='Saving dataframes.')
+    logger.info(msg='Saving dataframes.')
 
     for metric_name, df in indexes_df.items():
         fp = os.path.join(metric_dir, f'{metric_name}.csv')
-        logger.info(mess=f' > Saving {metric_name} to {fp}')
+        logger.info(msg=f' > Saving {metric_name} to {fp}')
         df.to_csv(fp)
 
-    logger.info(mess='')
+    logger.info(msg='')
     logger.close()
     
 if __name__ == '__main__': 

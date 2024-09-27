@@ -170,8 +170,8 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = AdversarialAttackExperiment.EXPERIMENT_TITLE
-        # logger = LoguruLogger(path=Logger.path_from_conf(conf=conf)) NOT IN ISCHIAGUALASTIA BABY :)
-        logger = LoguruLogger(on_file=False)
+        # logger = LoguruLogger.from_conf(conf=conf) NOT IN ISCHIAGUALASTIA BABY :)
+        logger = LoguruLogger(to_file=False)
         
         # In the case render option is enabled we add display screens
         if bool(PARAM_render):
@@ -475,7 +475,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         # self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
         # to_gif(image_list=self._gif, out_fp=out_fp)
 
-        self._logger.info(mess='')
+        self._logger.info(msg='')
         
         # 2. SAVE PLOTS
 
@@ -512,6 +512,6 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             )
         
         self._logger.reset_formatting()
-        self._logger.info(mess='')
+        self._logger.info(msg='')
         
         return msg

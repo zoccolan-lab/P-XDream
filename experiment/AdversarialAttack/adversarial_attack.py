@@ -318,7 +318,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         img_dir = path.join(self.dir, 'images')
         os.makedirs(img_dir, exist_ok=True)
-        self._logger.info(mess=f"Saving images to {img_dir}")
+        self._logger.info(msg=f"Saving images to {img_dir}")
 
         # We retrieve the best code from the optimizer
         # and we use the generator to retrieve the best image
@@ -350,13 +350,13 @@ class AdversarialAttackExperiment(ZdreamExperiment):
         self._logger.info(f'> Saving evolving best stimuli across generations to {out_fp}')
         to_gif(image_list=self._gif, out_fp=out_fp)
 
-        self._logger.info(mess='')
+        self._logger.info(msg='')
         
         # 2. Save plots
 
         plots_dir = path.join(self.dir, 'plots')
         os.makedirs(plots_dir, exist_ok=True)
-        self._logger.info(mess=f"Saving plots to {plots_dir}")
+        self._logger.info(msg=f"Saving plots to {plots_dir}")
         
         self._logger.formatting = lambda x: f'> {x}'
 
@@ -365,7 +365,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         self._logger.reset_formatting()
         
-        self._logger.info(mess='')
+        self._logger.info(msg='')
         
     def _run_init(self, msg : ZdreamMessage) -> Tuple[Codes, ZdreamMessage]:
         codes, msg = super()._run_init(msg)

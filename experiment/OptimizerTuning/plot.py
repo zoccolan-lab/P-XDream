@@ -77,7 +77,7 @@ def plot_hyperparam(
     
     # Save
     out_fp = path.join(out_dir, f'tuning_{hyperparam}.png')
-    logger.info(mess=f'Saving plot to {out_fp}')
+    logger.info(msg=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)
     
 def plot_optim_type_comparison(
@@ -140,5 +140,5 @@ def plot_optim_type_comparison(
     
     # Save
     out_fp = path.join(out_dir, f'optimizer_comparison.png')
-    logger.info(mess=f'Saving plot to {out_fp}')
+    logger.info(msg=f'Saving plot to {out_fp}')
     fig.savefig(out_fp)

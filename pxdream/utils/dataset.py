@@ -357,7 +357,7 @@ class MiniImageNet(ImageFolder, ExperimentDataset):
         # Check if output directory already exists.
         if os.path.exists(out_dir):
             err_msg = f"Output directory `{out_dir}` already exists."
-            logger.error(mess=err_msg)
+            logger.error(msg=err_msg)
             raise FileExistsError(err_msg)
         
         # Create directory
@@ -376,7 +376,7 @@ class MiniImageNet(ImageFolder, ExperimentDataset):
             # Folders
             else:
                 
-                logger.info(mess=f'Copying directory {item}')
+                logger.info(msg=f'Copying directory {item}')
                 in_subfolder = os.path.join(in_dir, item)
                 
                 # Create output folder

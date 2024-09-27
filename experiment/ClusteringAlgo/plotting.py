@@ -84,7 +84,7 @@ def plot_cluster_extraction_trend(
     # fig.tight_layout(rect=(0, 0, 1, 0.95))
     # Save the figure
     out_fp = os.path.join(out_dir, file_name)
-    logger.info(mess=f'Saving DS trend plot to {out_fp}')
+    logger.info(msg=f'Saving DS trend plot to {out_fp}')
     fig.savefig(out_fp, dpi=300)
 
     
@@ -140,5 +140,5 @@ def plot_cluster_extraction_ranks(
 
     # Save the figure
     out_fp = os.path.join(out_dir, file_name)
-    logger.info(mess=f'Saving DS ranks plot to {out_fp}')
+    logger.info(msg=f'Saving DS ranks plot to {out_fp}')
     fig.savefig(out_fp, dpi=300)

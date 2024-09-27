@@ -201,7 +201,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = AdversarialAttackMaxExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf=conf)) # NOT IN ISCHIAGUALASTIA BABY :)
+        logger = LoguruLogger.from_conf(conf=conf) # NOT IN ISCHIAGUALASTIA BABY :)
         # logger = LoguruLogger(on_file=False)
         
         # In the case render option is enabled we add display screens

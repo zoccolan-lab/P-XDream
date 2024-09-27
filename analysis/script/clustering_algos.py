@@ -97,7 +97,7 @@ def adj(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger()
     
     elements, *_ = data.shape
     
-    logger.info(mess=f'Creating adjacent clusters with {n_clu} clusters')
+    logger.info(msg=f'Creating adjacent clusters with {n_clu} clusters')
     
     clusters = Clusters.adjacent_clusters(n_clu=n_clu, elements=elements)
     
@@ -107,7 +107,7 @@ def rand(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(
     
     elements, *_ = data.shape
     
-    logger.info(mess=f'Creating random clusters with {n_clu} clusters')
+    logger.info(msg=f'Creating random clusters with {n_clu} clusters')
     
     clusters = Clusters.random_clusters(n_clu=n_clu, elements=elements)
     
@@ -117,7 +117,7 @@ def fm(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),
     
     elements, *_ = data.shape
     
-    logger.info(mess=f'Creating feature map clusters with {FM_SIZE} clusters')
+    logger.info(msg=f'Creating feature map clusters with {FM_SIZE} clusters')
     
     clusters = Clusters.adjacent_clusters(n_clu=FM_SIZE, elements=elements)
     setattr(clusters, 'NAME', "FeatureMapClusters")
@@ -127,7 +127,7 @@ def fm(data: NDArray, clu_dir: str, n_clu: int, logger: Logger = SilentLogger(),
 
 def main():
     
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
 
     # Use the number of clusters from the DominantSet Clustering
     clu_dir  = path.join(ALEXNET_DIR, LAYER_SETTINGS[LAYER]['directory'], 'clusters')
@@ -135,64 +135,64 @@ def main():
         n_clu = len(Clusters.from_file(path.join(clu_dir, 'DominantSet.json')).clusters)
     
     data_fp = path.join(clu_dir, 'recordings.npy')
-    logger.info(mess=f'Loading data from {data_fp}')
+    logger.info(msg=f'Loading data from {data_fp}')
     data = np.load(data_fp)
     
-    logger.info(mess='')
-    logger.info(mess=f'Running clustering algorithms for {LAYER}')
-    logger.info(mess='')
+    logger.info(msg='')
+    logger.info(msg=f'Running clustering algorithms for {LAYER}')
+    logger.info(msg='')
     
     # --- DS ---
     if CLU_ALGOS['ds']:
-        logger.info(mess='Running Dominant Set Clustering')
+        logger.info(msg='Running Dominant Set Clustering')
         ds(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping Dominant Set Clustering')
-    logger.info(mess='')
+    else: logger.info(msg='Skipping Dominant Set Clustering')
+    logger.info(msg='')
     
     # --- GMM ---
     if CLU_ALGOS['gmm']:
-        logger.info(mess='Running Gaussian Mixture Models Clustering')
+        logger.info(msg='Running Gaussian Mixture Models Clustering')
         gmm(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping Gaussian Mixture Models Clustering')
-    logger.info(mess='')
+    else: logger.info(msg='Skipping Gaussian Mixture Models Clustering')
+    logger.info(msg='')
     
     # --- NC ---
     if CLU_ALGOS['nc']:
-        logger.info(mess='Running Normalized Cut Clustering')
+        logger.info(msg='Running Normalized Cut Clustering')
         nc(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping Normalized Cut Clustering')
-    logger.info(mess='')
+    else: logger.info(msg='Skipping Normalized Cut Clustering')
+    logger.info(msg='')
     
     # --- DBSCAN ---
     if CLU_ALGOS['dbscan']:
-        logger.info(mess='Running DBSCAN Clustering')
+        logger.info(msg='Running DBSCAN Clustering')
         dbscan(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping DBSCAN Clustering')
-    logger.info(mess='')
+    else: logger.info(msg='Skipping DBSCAN Clustering')
+    logger.info(msg='')
     
     # --- ADJ ---
     if CLU_ALGOS['adj']:
-        logger.info(mess='Running Adjacent Clustering')
+        logger.info(msg='Running Adjacent Clustering')
         adj(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping Adjacent Clustering')
-    logger.info(mess='')
+    else: logger.info(msg='Skipping Adjacent Clustering')
+    logger.info(msg='')
     
     # --- RAND ---
     if CLU_ALGOS['rand']:
-        logger.info(mess='Running Random Clustering')
+        logger.info(msg='Running Random Clustering')
         rand(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping Random Clustering')
-    logger.info(mess='')
+    else: logger.info(msg='Skipping Random Clustering')
+    logger.info(msg='')
     
     # --- FM ---
     if CLU_ALGOS['fm'] and LAYER_SETTINGS[LAYER]['feature_map']:
-        logger.info(mess='Running Feature Map Clustering')
+        logger.info(msg='Running Feature Map Clustering')
         fm(data=data, clu_dir=clu_dir, n_clu=n_clu, logger=logger)
-    else: logger.info(mess='Skipping Feature Map Clustering')
+    else: logger.info(msg='Skipping Feature Map Clustering')
     
-    logger.info(mess='')
+    logger.info(msg='')
     
-    logger.info(mess='Clustering algorithms finished')
+    logger.info(msg='Clustering algorithms finished')
     
 if __name__ == '__main__':
     

@@ -35,7 +35,7 @@ class DSClusteringExperiment(Experiment):
         
         # Save affinity matrix
         aff_mat_fp = path.join(self.dir, 'affinity_matrix.npy')
-        logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
+        logger.info(msg=f'Saving numpy matrix to {aff_mat_fp}')
         np.save(file=aff_mat_fp, arr=self._aff_mat.A)
         
         self._clu_algo = DSAlgo(
@@ -67,7 +67,7 @@ class DSClusteringExperiment(Experiment):
         
         # --- LOGGER ---
         conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # --- DATA ---
         data = {
@@ -167,7 +167,7 @@ class GMMClusteringExperiment(Experiment):
         
         # --- LOGGER ---
         conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # --- DATA ---
         
@@ -249,7 +249,7 @@ class NCClusteringExperiment(Experiment):
         
         # Save affinity matrix
         aff_mat_fp = path.join(self.dir, 'affinity_matrix.npy')
-        logger.info(mess=f'Saving numpy matrix to {aff_mat_fp}')
+        logger.info(msg=f'Saving numpy matrix to {aff_mat_fp}')
         np.save(file=aff_mat_fp, arr=self._aff_mat.A)
         
         self._nc_algo = NormalizedCutClusteringAlgorithm(
@@ -274,7 +274,7 @@ class NCClusteringExperiment(Experiment):
         
         # --- LOGGER ---
         conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # --- DATA ---
         data = {
@@ -384,7 +384,7 @@ class DBSCANClusteringExperiment(Experiment):
         # --- LOGGER ---
         
         conf[ArgParams.ExperimentTitle.value] = cls.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # --- DATA ---
         

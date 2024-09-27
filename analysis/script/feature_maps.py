@@ -115,7 +115,7 @@ def feature_map_visualization(
     one_page_images = [tuple(images[i:i+K]) for i in range(0, len(images), K)]
     
     # Create a PdfPages object to handle multi-page PDF export
-    logger.info(mess=f'Saving pdf to {out_fp}...')
+    logger.info(msg=f'Saving pdf to {out_fp}...')
     
     with PdfPages(out_fp) as pdf:
         
@@ -167,7 +167,7 @@ def cluster_visualization(
     # 2. Save as pdf
     blank_image = PIL.Image.new('RGB', (1, 1), 'white')  # type: ignore
     
-    logger.info(mess=f'Saving pdf to {out_fp}...')
+    logger.info(msg=f'Saving pdf to {out_fp}...')
     
     with PdfPages(out_fp) as pdf:
         
@@ -198,7 +198,7 @@ def cluster_visualization(
 
 def main():
 
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
 
     out_dir = os.path.join(OUT_DIR, "feature_maps", LAYER_SETTINGS[LAYER]['directory'])
     alexnet_loader = AlexNetLayerLoader(alexnet_dir=ALEXNET_DIR, layer=LAYER, logger=logger)
@@ -272,7 +272,7 @@ def main():
     
     optim_file = os.path.join(fm_seg_dir, 'fm_segmentation_optim.json')
     
-    logger.info(mess=f'Saving optimization files to {optim_file}')
+    logger.info(msg=f'Saving optimization files to {optim_file}')
     
     save_json(fm_clu_optim, optim_file)
 
@@ -290,7 +290,7 @@ def main():
 
     for cluster_algo, clu in clusters.items():
 
-        logger.info(mess=f'Processing {cluster_algo}...')
+        logger.info(msg=f'Processing {cluster_algo}...')
         
         involved_fm: Dict[int, Dict[int, List[int]]] = defaultdict(lambda: defaultdict(list))
 
@@ -353,7 +353,7 @@ def main():
 
     optim_file = os.path.join(clu_seg_dir, 'clu_segmentation_optim.json')
     
-    logger.info(mess=f'Saving optimization files to {optim_file}')
+    logger.info(msg=f'Saving optimization files to {optim_file}')
     
     save_json(fm_clu_optim, optim_file)
 

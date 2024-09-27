@@ -82,13 +82,13 @@ SUPER_LABELS = [
 if __name__ == '__main__':
     
     # Initialize logger
-    logger = LoguruLogger(on_file=False)
+    logger = LoguruLogger(to_file=False)
     
     # WordNet paths
     wordnet = load_wordnet(logger)
 
     # Load ImageNet
-    logger.info(mess='Loading ImageNet')
+    logger.info(msg='Loading ImageNet')
     inet_fp = os.path.join(WORDNET_DIR, FILE_NAMES['imagenet'])
     inet    = ImageNetWords(imagenet_fp=inet_fp, wordnet=wordnet)
 
@@ -97,8 +97,8 @@ if __name__ == '__main__':
 
     for word in inet:  # type: ignore
         
-        logger.info(mess='')
-        logger.info(mess=f"Step {word.id} - {word.name}")
+        logger.info(msg='')
+        logger.info(msg=f"Step {word.id} - {word.name}")
         
         # Compute all word ancestors
         ancestors = [wordnet[a] for a in word.ancestors_codes]  # type: ignore
@@ -119,23 +119,23 @@ if __name__ == '__main__':
         
         # B) Ask the user to select one
         
-        logger.info(mess='No class found. Please select one from the list below:')
-        for j, a in enumerate(ancestors): logger.info(mess=f'> {j}. {a.name}')
+        logger.info(msg='No class found. Please select one from the list below:')
+        for j, a in enumerate(ancestors): logger.info(msg=f'> {j}. {a.name}')
         k = int(input('Enter the number of the class: '))
         chosen_class = ancestors[k]
         out[word.id] = [chosen_class.code, chosen_class.name]
-        logger.info(mess=f'Chosen class: {chosen_class}')
+        logger.info(msg=f'Chosen class: {chosen_class}')
     
     # Log the total number of superclasses used
-    logger.info(mess='')
+    logger.info(msg='')
     selected_classes = set([code for code, _ in out.values()])
-    logger.info(mess=f"TOTAL CLASSES: {len(selected_classes)}")
+    logger.info(msg=f"TOTAL CLASSES: {len(selected_classes)}")
     
     # Save superclasses to file
     superclass_fp = os.path.join(WORDNET_DIR, FILE_NAMES['imagenet_super'])
-    logger.info(mess=f'Saving superclasses to {superclass_fp}')
+    logger.info(msg=f'Saving superclasses to {superclass_fp}')
     save_json(out, superclass_fp)
-    logger.info(mess='')
+    logger.info(msg='')
     
     # Save cluster
     class_mapping = {code: i for i, code in enumerate(selected_classes)}

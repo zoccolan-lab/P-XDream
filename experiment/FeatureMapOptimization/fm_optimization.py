@@ -192,7 +192,7 @@ class FeatureMapOptimizationExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = FeatureMapOptimizationExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger(path=Logger.path_from_conf(conf))
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # In the case render option is enabled we add display screens
         if PARAM_render:
@@ -366,7 +366,7 @@ class FeatureMapOptimizationExperiment(ZdreamExperiment):
             self._logger.info(f'> Saving {name} image to {out_fp}')
             img.save(out_fp)
         
-        self._logger.info(mess='')
+        self._logger.info(msg='')
         
         return msg
     

@@ -488,7 +488,7 @@ class BaseDSClustering(DominantSetClusteringAlgorithm):
             
             delta_w = w - w_old
             if delta_w < 0:
-                self._logger.warn(mess=f'Iteration {iter}: coherence decreased of {delta_w}. ')
+                self._logger.warn(msg=f'Iteration {iter}: coherence decreased of {delta_w}. ')
 
             # Normalize the distribution
             x = x_ / w
@@ -522,7 +522,7 @@ class BaseDSClustering(DominantSetClusteringAlgorithm):
         while aff_mat:
             
             info = f'Running clustering step {iter}. Elements to cluster: {len(aff_mat)}'
-            self._logger.info(mess=info)
+            self._logger.info(msg=info)
 
             # Perform 1-step of replicator dynamics
             x, w, converged = self._replicator_dynamics(
@@ -636,7 +636,7 @@ class BaseDSClusteringGPU(BaseDSClustering):
             
             delta_w = w - w_old
             if delta_w < 0:
-                self._logger.warn(mess=f'Iteration {iter}: coherence decreased of {delta_w}. ')
+                self._logger.warn(msg=f'Iteration {iter}: coherence decreased of {delta_w}. ')
 
             # Normalize the distribution
             x_ten = x_ten_.div(w)
