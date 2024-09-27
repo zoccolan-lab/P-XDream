@@ -600,9 +600,6 @@ class CMAESOptimizer(Optimizer):
         '''
         
         super()._step(scores=scores)
-
-        print("SCORES")
-        print(scores.shape)
         
         self._es.tell(
             solutions=list(self._codes.copy()), # type: ignore

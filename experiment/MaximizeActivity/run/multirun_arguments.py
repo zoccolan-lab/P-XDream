@@ -11,7 +11,7 @@ from experiment.utils.args import ExperimentArgParams
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
 
-NAME   = f'sample_max'
+NAME   = f'trial_for_references'
 
 ITER     = 15
 SAMPLE   =  30
@@ -37,7 +37,14 @@ VARIANTS = ['fc8', 'fc7', 'fc6']
 VARIANT_LAYER = 21
 VARIANT_NEURONS = list(range(2))
 
+# --- REFERENCES ---
 def get_rnd(): return str(random.randint(1000, 1000000))
+
+REF_GEN_VARIANT = ['fc8', 'fc7']
+REF_LAYERS      = [21, 20]
+REF_NEURONS     = [0, 1]
+REF_SEED        = [get_rnd() for _ in range(2)]
+
 
 def get_args_neuron_scaling() -> Tuple[str, str, str]:
 
@@ -100,6 +107,22 @@ def get_args_generator_variants() -> Tuple[str, str, str]:
     
     return rec_str, variant_str, rand_seed_str
 
+def get_args_reference() -> Tuple[str, str, str]:
+    
+    args = [
+        (gen_var, f'{layer}=[{neuron}]', seed)
+        for gen_var in REF_GEN_VARIANT
+        for layer   in REF_LAYERS
+        for neuron  in REF_NEURONS
+        for seed    in REF_SEED
+    ]
+    
+    gen_var_str = '#'.join(a for a, _, _ in args)
+    rec_str     = '#'.join(a for _, a, _ in args)
+    seed_str    = '#'.join(a for _, _, a in args)
+    
+    return gen_var_str, rec_str, seed_str
+
 
 if __name__ == '__main__':
 
@@ -108,6 +131,7 @@ if __name__ == '__main__':
     print('[2] Layers correlation')
     print('[3] Maximize samples')
     print('[4] Generator variants')
+    print('[5] Create references')
     
     option = int(input('Choose option: '))
     
@@ -146,7 +170,7 @@ if __name__ == '__main__':
                 str(ExperimentArgParams.ScoringLayers  )  : scr_str,
                 str(          ArgParams.RandomSeed     )  : rand_seed_str
             }
-             
+            
             file = 'run_multiple_maximize_samples.py'
             
         case 4:
@@ -162,12 +186,25 @@ if __name__ == '__main__':
             
             file = 'run_multiple_generator_variants.py'
             
+        case 5:
+            
+            gen_var_str, rec_layer_str, seed_str = get_args_reference()
+            
+            args = {
+                str(ExperimentArgParams.GenVariant     ) : gen_var_str,
+                str(ExperimentArgParams.RecordingLayers) : rec_layer_str,
+                str(ExperimentArgParams.ScoringLayers  ) : rec_layer_str,
+                str(          ArgParams.RandomSeed     ) : seed_str
+            }
+            
+            file = 'run_multiple_references.py'
+            
         case _:
             
             print('Invalid option')
             
-    args[ArgParams          .ExperimentName] = NAME
-    args[ArgParams          .NumIterations ] = str(ITER)
-    args[ExperimentArgParams.Template      ] = 'T'
+    args[str(ArgParams          .ExperimentName)] = NAME
+    args[str(ArgParams          .NumIterations )] = str(ITER)
+    args[str(ExperimentArgParams.Template      )] = 'T'
 
     copy_exec(file=file, args=args)

@@ -52,8 +52,6 @@ def main():
     dsw_superstimuli = clu_superstimuli.pop('DominantSetWeighted')
     dsw_superstimuli_clu = {'DominantSetWeighted': dsw_superstimuli}
 
-    print(clu_superstimuli.keys())
-
     clu_superstimuli = {k: clu_superstimuli[k] for k in sorted(clu_superstimuli.keys(), key=lambda x: CLU_ORDER[x])}
     
     logger.info('Loading generator')

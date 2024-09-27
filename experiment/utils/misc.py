@@ -22,7 +22,7 @@ def in_notebook():
 # --- SINGLE RUN --- 
 
 def param_from_str(name: str) -> ArgParam:
-    try:               return           ArgParams.from_str(name)
+    try:               return           ArgParam.from_str(name)
     except ValueError: return ExperimentArgParams.from_str(name)
 
 def convert_argparams_to_dict(argparams_dict):

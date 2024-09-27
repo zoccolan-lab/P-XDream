@@ -11,13 +11,14 @@ LOCAL_SETTINGS = path.join(SCRIPT_DIR, 'local_settings.json')
 
 local_setting = read_json(LOCAL_SETTINGS)
 
-OUT_DIR      : str = local_setting.get('out_dir',      None)
-WEIGHTS      : str = local_setting.get('weights',      None)
-DATASET      : str = local_setting.get('dataset',      None)
-IMAGE        : str = local_setting.get('image',        None)
-ALEXNET_DIR  : str = local_setting.get('alexnet_dir',  None)
-FEATURE_MAPS : str = local_setting.get('feature_maps', None)
-REFERENCES   : str = local_setting.get('references',   None)
+OUT_DIR         : str = local_setting.get('out_dir',      None)
+WEIGHTS         : str = local_setting.get('weights',      None)
+DATASET         : str = local_setting.get('dataset',      None)
+IMAGE           : str = local_setting.get('image',        None)
+ALEXNET_DIR     : str = local_setting.get('alexnet_dir',  None)
+FEATURE_MAPS    : str = local_setting.get('feature_maps', None)
+REFERENCES      : str = local_setting.get('references',   None)
+CUSTOM_WEIGHTS  : str = local_setting.get('custom_weights',  None)
 
 LAYERS_NEURONS_SPECIFICATION = '''
 TODO write here how to specify neurons
@@ -65,11 +66,10 @@ class ExperimentArgParams(Enum):
     LogCheckpoint      = ArgParam(name="log_chk",            type=int,   help="Logger iteration checkpoint")
 
     # Subject
-    NetworkName        = ArgParam(name="net_name",           type=str,   help="SubjectNetwork name")
-    RecordingLayers    = ArgParam(name="rec_layers",         type=str,   help=f"Recording layers with specification\n{LAYERS_NEURONS_SPECIFICATION}")
-    RobustPath         = ArgParam(name="robust_path",        type=str,   help="Path to weights of robust version of the network")
-    
-    
+    NetworkName         = ArgParam(name="net_name",           type=str,   help="SubjectNetwork name")
+    RecordingLayers     = ArgParam(name="rec_layers",         type=str,   help=f"Recording layers with specification\n{LAYERS_NEURONS_SPECIFICATION}")
+    CustomWeightsPath   = ArgParam(name="robust_path",        type=str,   help="Path to weights of robust version of the network")
+    CustomWeightsVariant= ArgParam(name="robust_variant",     type=str,   help="Variant of robust network")
     # Scorer
     ScoringSignature   = ArgParam(name="scr_sign",           type=str,   help="Scoring signature for WeightedPairSimilarityScorer")
     Bounds             = ArgParam(name="bounds",             type=str,   help="Bounds for the WeightedPairSimilarityScorer")
