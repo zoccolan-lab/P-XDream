@@ -75,7 +75,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         PARAM_scr_layers  = str  (conf[ExperimentArgParams.ScoringLayers   .value])
         PARAM_scr_sign    = str  (conf[ExperimentArgParams.ScoringSignature.value])
         PARAM_bounds      = str  (conf[ExperimentArgParams.Bounds          .value])
-        PARAM_robust_path = str  (conf[ExperimentArgParams.RobustPath     .value])
+        PARAM_customW_path = str  (conf[ExperimentArgParams.CustomWeightsPath     .value])
+        PARAM_customW_var  = str  (conf[ExperimentArgParams.CustomWeightsVariant  .value])
         PARAM_distance    = str  (conf[ExperimentArgParams.Distance        .value])
         PARAM_pop_size    = int  (conf[ExperimentArgParams.PopulationSize  .value])
         PARAM_exp_name    = str  (conf[          ArgParams.ExperimentName  .value])
@@ -85,8 +86,10 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         PARAM_ref         = str  (conf[ExperimentArgParams.Reference       .value])
         PARAM_ref_info    = str  (conf[ExperimentArgParams.ReferenceInfo   .value])
         PARAM_sigma0      = float(conf[ExperimentArgParams.Sigma0          .value])
+        PARAM_optim_type  = str  (conf[ExperimentArgParams.OptimType       .value])
 
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
+        path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
         
         # Set numpy random seed
         
@@ -134,7 +137,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
-            robust_net_path = ""# PARAM_robust_path
+            custom_weights_path = path2CustomW
         )
         
         # Set the network in evaluation mode
@@ -145,17 +148,18 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         # --- SCORER ---
         
         reference_file      = load_pickle(PARAM_ref)
-        layer, neuron, seed = parse_reference_info(PARAM_ref_info)
+        gen_var, layer, neuron, seed = parse_reference_info(PARAM_ref_info)
+        
+        layer_name = list(layer_info.keys())[layer]
         
         # Extract code from reference file
         try:
-            ref_code = reference_file[layer][neuron][seed]['code']
+            ref_code = reference_file[gen_var][layer_name][neuron][seed]['code']
         except KeyError:
-            raise ValueError(f'No reference found for layer {layer}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
+            raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
         
         # Generate the code and the state, unbatching it
-        ref_code_b = np.expand_dims(ref_code, axis=0)
-        ref_stimulus : Stimuli = generator(codes=ref_code_b)
+        ref_stimulus : Stimuli = generator(codes=ref_code)
         ref_states_b : States  = sbj_net(stimuli=ref_stimulus)
         
         # Parse target neurons
@@ -189,14 +193,28 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         )
 
         # --- OPTIMIZER ---
-
-        optim = CMAESOptimizer(
-            codes_shape = generator.input_dim,
-            rnd_seed    = PARAM_rnd_seed,
-            pop_size    = PARAM_pop_size,
-            sigma0      = PARAM_sigma0,
-            x0          = ref_code
-        )
+        if PARAM_optim_type == 'cmaes':
+            optim = CMAESOptimizer(
+                codes_shape = generator.input_dim,
+                rnd_seed    = PARAM_rnd_seed,
+                pop_size    = PARAM_pop_size,
+                sigma0      = PARAM_sigma0,
+                x0          = ref_code
+            )
+        elif PARAM_optim_type == 'genetic':
+            optim = GeneticOptimizer(
+                codes_shape  = generator.input_dim,
+                rnd_seed     = PARAM_rnd_seed,
+                pop_size     = PARAM_pop_size,
+                rnd_scale    = 1,
+                mut_size     = 0.3,
+                mut_rate     = 0.3,
+                allow_clones = True,
+                n_parents    = 4
+            )
+        else:
+            raise ValueError(f'Optimizer type {PARAM_optim_type} not recognized')
+            
 
         #  --- LOGGER --- 
 
@@ -456,18 +474,11 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         # TODO: UPDATE WITH PARETO STATS
         # Best synthetic scores
-        stat_gen = msg.stats_gen
-        
-        best_gen     = cast(NDArray, stat_gen['best_score']).mean()
-        curr_gen     = cast(NDArray, stat_gen['curr_score']).mean()
-        
-        best_gen_str = f'{" " if best_gen < 1 else ""}{best_gen:.1f}' # Pad for decimals
-        curr_gen_str = f'{curr_gen:.1f}'
         
         layerwise_score = " ".join([f'{k}:{np.mean(v):.1f}' for k,v in self.layer_scores.items()])
         #NOTE: layerwise score for input is the pixel budjet
         
-        desc = f' | best score: {best_gen_str} | avg score: {curr_gen_str} | unweighted scores: {layerwise_score}'
+        desc = f'Unweighted scores: {layerwise_score}'
         
         # Best natural score
         if self._use_natural:
@@ -502,21 +513,22 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         # Create image folder
         img_dir_gen = make_dir(path=path.join(self.dir, 'images'), logger=self._logger)
-        df_row = self.save_exp_data(img_dir_gen); self.img_dir = df_row['image_path']
-        self.best_syn = self.generator(codes=(self._reference_code['code']))[0]
-        self.best_gen = self.generator(codes=msg.best_code+self._reference_code['code'])[0]
+        #df_row = self.save_exp_data(img_dir_gen); 
+        self.img_dir = img_dir_gen #df_row['image_path']
+        self.best_syn = self.generator(codes=(self._reference_code))[0]
+        self.best_gen = self.generator(codes=msg.best_code+self._reference_code)[0]
         self._save_images(img_dir=self.img_dir, best_gen=self.best_gen, ref=self.best_syn)
         
-        last_layer = list(state.layer_scores_gen_history.keys())[-1] #type: ignore
-        
-        # Save variables to log in a multi-experiment csv
-        self.hidden_reference = int(self.scorer.reference[last_layer])
-        self.distance         = get_best_distance(self.img_dir)
-        self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0]] #type: ignore
+        #last_layer = list(state.layer_scores_gen_history.keys())[-1] #type: ignore
+        #
+        ## Save variables to log in a multi-experiment csv
+        #self.hidden_reference = int(self.scorer.reference[last_layer])
+        #self.distance         = get_best_distance(self.img_dir)
+        #self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0]] #type: ignore
 
-        exp_path = os.path.join(img_dir_gen, 'experiments.csv')
-        df = pd.read_csv(exp_path) if os.path.exists(exp_path) else pd.DataFrame(columns=[*df_row.keys(),'experiment', 
-                                                                                        'hidden_reference', 'hidden_dist', 'pixel_dist', 'num_iter'])
+        #exp_path = os.path.join(img_dir_gen, 'experiments.csv')
+        #df = pd.read_csv(exp_path) if os.path.exists(exp_path) else pd.DataFrame(columns=[*df_row.keys(),'experiment', 
+        #                                                                                'hidden_reference', 'hidden_dist', 'pixel_dist', 'num_iter'])
         
         # df_row['hidden_reference']= int(self.hidden_reference)
         # df_row['hidden_dist'] = hidden_dist
@@ -531,9 +543,9 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
     def save_exp_data(self, img_dir_gen):
         # usato per salvare immagini e dati dell'esperimento. Va messo a posto
         target_cat = int(self.subject.target[list(self.subject.target.keys())[-1]][0][0]) # non capito il type checker
-        task = 'invar' if list(self.scorer._weights.values())[0] < 0 else 'adv_attk' #rough
+        task = 'invar' if list(self.scorer._layer_weights.values())[0] < 0 else 'adv_attk' #rough
         robust = '_r' if self._reference['robust'] else ''
-        net_name = f"{self.subject._name}{robust}"; low_layer = list(self.scorer._weights.keys())[0]
+        net_name = f"{self.subject._name}{robust}"; low_layer = list(self.scorer._layer_weights.keys())[0]
         category = f"c{target_cat}"
         dirname = f"{task}_{net_name}_{low_layer}_{category}"
         new_base_folder = os.path.join(img_dir_gen, self._name)
@@ -573,21 +585,25 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
 class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
     
-    # def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
-    #     '''
-    #     Method called before entering the main for-loop across generations.
-    #     It is responsible for generating the initial codes
-    #     '''
-    # 
-    #     ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
-    #     noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference_code))), ref_codes.shape)
-    #     # Codes initialization
-    #     codes = self.optimizer.init()#init_codes = (ref_codes + noise))
-    #     
-    #     # Update the message codes history
-    #     msg.codes_history.append(codes)
-    #     
-    #     return codes, msg
+    def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
+        '''
+        Method called before entering the main for-loop across generations.
+        It is responsible for generating the initial codes
+        '''
+    
+        ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
+        noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference_code))), ref_codes.shape)
+        # Codes initialization
+        if isinstance(self.optimizer, CMAESOptimizer):
+            codes = self.optimizer.init()
+        else:
+            init_codes = (ref_codes + noise)
+            codes = self.optimizer.init(init_codes = init_codes)
+        
+        # Update the message codes history
+        msg.codes_history.append(codes)
+        
+        return codes, msg
     
     def _codes_to_stimuli(self, data: Tuple[Codes, ZdreamMessage]) -> Tuple[Stimuli, ZdreamMessage]:
         

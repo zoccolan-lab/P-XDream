@@ -95,7 +95,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         pretrained: bool = True,
         inp_shape: Tuple[int, ...] = (1, 3, 224, 224),
         device: str | torch.device = device,
-        robust_net_path: None | str = '' #messa qua ma forse si può trovare dove metterla meglio
+        custom_weights_path: str = '' #messa qua ma forse si può trovare dove metterla meglio
     ) -> None:
         '''
         Initialize a subject represented by an artificial neural
@@ -131,26 +131,21 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         # Initialize the network with the provided name and input shape
         self._name = network_name
         self._inp_shape = inp_shape
-        self._robust = '_r' if robust_net_path else ''
-
+        self.robust = '_r' if custom_weights_path else ''
+        
         # 1) LOAD NETWORK ARCHITECTURE
-        if robust_net_path != '':
-            ds = ImageNet('/home/lorenzo/Desktop/Datafolders/tiny-imagenet')
-            model, _ = make_and_restore_model(arch=network_name, dataset=ds, resume_path=robust_net_path)
-            self._weights = None
-            self._network = nn.Sequential(
-                InputLayer(),
-                model.model
-            ).to(device)
+        
+        if custom_weights_path != '':
+            self._weights = torch.load(custom_weights_path)
         else:
             # Load the torch model via its name from the torchvision hub if pretrained
             # otherwise initialize it with random weights (weights=None).
             self._weights = get_model_weights(self._name).DEFAULT if pretrained else None  # type: ignore
 
-            self._network = nn.Sequential(
-                InputLayer(),
-                get_model(self._name, weights=self._weights)
-            ).to(device)
+        self._network = nn.Sequential(
+            InputLayer(),
+            get_model(self._name, weights=self._weights)
+        ).to(device)
 
         # NOTE: Here we make sure no inplace operations are used in the network
         #       to avoid weird behaviors (e.g. if a backward hook is attached
@@ -178,6 +173,8 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         if record_probe:
             self._target = record_probe.target
             self.register_forward(record_probe)
+            
+
 
     # --- STRING REPRESENTATION ---
 

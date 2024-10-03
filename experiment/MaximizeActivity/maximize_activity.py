@@ -70,7 +70,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_net_name   = str  (conf[ExperimentArgParams.NetworkName    .value])
         PARAM_rec_layers = str  (conf[ExperimentArgParams.RecordingLayers.value])
         PARAM_scr_layers = str  (conf[ExperimentArgParams.ScoringLayers  .value])
-        PARAM_robust_path = str (conf[ExperimentArgParams.RobustPath  .value])
+        PARAM_robust_path = str (conf[ExperimentArgParams.CustomWeightsPath  .value])
         PARAM_unit_red   = str  (conf[ExperimentArgParams.UnitsReduction .value])
         PARAM_layer_red  = str  (conf[ExperimentArgParams.LayerReduction .value])
         PARAM_pop_size   = int  (conf[ExperimentArgParams.PopulationSize .value])
@@ -93,7 +93,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         use_nat  = template.count(False) > 0
         
         # Create dataset and loader
-        dataset  = RandomImageDataset(n_img=100, img_size=(224, 224,))# MiniImageNet(root=PARAM_dataset)
+        dataset  = MiniImageNet(root=PARAM_dataset) #RandomImageDataset(n_img=100, img_size=(224, 224,))# 
         
         nat_img_loader   = NaturalStimuliLoader(
             dataset=dataset,
@@ -124,7 +124,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
-            robust_net_path = PARAM_robust_path
+            custom_weights_path = PARAM_robust_path
         )
         
         # Set the network in evaluation mode
@@ -216,7 +216,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
             iteration      = PARAM_iter,
             data           = data, 
             name           = PARAM_exp_name,
-            saveref        = PARAM_ref_code
         )
 
         return experiment
@@ -234,7 +233,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         nat_img_loader : NaturalStimuliLoader,
         data           : Dict[str, Any] = dict(),
         name           : str            = 'maximize_activity',
-        saveref        : str            = ''
     ) -> None:
         ''' 
         Uses the same signature as the parent class ZdreamExperiment.
@@ -257,7 +255,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         self._render        = cast(bool, data[str(ArgParams.Render)])
         self._close_screen  = cast(bool, data['close_screen'])
         self._use_natural   = cast(bool, data['use_nat'])
-        self._refpath       = saveref
         # Save dataset if used
         if self._use_natural: self._dataset = cast(ExperimentDataset, data['dataset'])
             
@@ -282,9 +279,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         ''' We use scores to save stimuli (both natural and synthetic) that achieved the highest score. '''
 
         sub_score, msg = data
-
-        print(sub_score.shape)
-        print(sub_score.dtype)
 
         # We inspect if the new set of stimuli for natural images,
         # checking if they achieved an higher score than previous ones.
@@ -399,8 +393,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         best_gen = self.generator(codes=msg.best_code)[0]  # remove batch size
         
         to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best synthetic')]
-        if not(self._refpath==''):
-            np.save(self._refpath, msg.best_code)
         # If used we retrieve the best natural image
         if self._use_natural:
             best_nat = self._best_nat_img
@@ -741,8 +733,6 @@ class LayersCorrelationMultiExperiment(BaseZdreamMultiExperiment):
         # Iterate over recorded layers to get statistics about non optimized sites
         non_scoring = self._get_non_scoring_units(exp=exp)
         
-        print(msg.states_history)
-        
         states_history = {
             key: np.stack([state[key] for state in msg.states_history]) if msg.states_history else np.array([])
             for key in msg.rec_layers
@@ -912,6 +902,64 @@ class LayersCorrelationMultiExperiment(BaseZdreamMultiExperiment):
             non_scoring_units[layer] = list(not_scoring)
 
         return non_scoring_units
+    
+
+class NeuronReferenceMultiExperiment(BaseZdreamMultiExperiment):
+    
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'     ] = 'Creates a code reference for layer, neuron and random_seed'
+        self._data['reference'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict))))
+
+    def _progress(
+        self, 
+        exp  : MaximizeActivityExperiment, 
+        conf : ParamConfig,
+        msg  : ZdreamMessage, 
+        i    : int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        gen_variant = str(conf[ExperimentArgParams.GenVariant.value])
+        rec_units   = exp.subject.target
+        
+        assert len(rec_units) == 1, f'Expected to record from a single layer, but {len(rec_units)} were found'
+        
+        layer = list(rec_units.keys())[0]
+        units = rec_units[layer]
+        
+        assert len(units) == 1, f'Expected to record a single neuron, but {len(units)} were found'
+        
+        neuron = str(units[0]) # NOTE: tuple indexing
+        
+        seed = int(conf[ArgParams.RandomSeed.value])
+        
+        score = msg.stats_gen['best_score']
+        code  = msg.best_code
+        
+        self._data['reference'][gen_variant][layer][neuron][seed] = {'code': code, 'fitness': score}
+        
+    def _finish(self):
+        
+        self._data['reference'] = {
+            variant: {
+                layer: {
+                    neuron: {
+                        seed: data
+                        for seed, data in seeds.items()
+                    }
+                    for neuron, seeds in neurons.items()
+                }
+                for layer, neurons in layers.items()
+            }
+            for variant, layers in self._data['reference'].items()
+        }
+        
+        super()._finish()
+
 
 
 """

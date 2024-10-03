@@ -10,4 +10,4 @@ from experiment.AdversarialAttack_BMM.adversarial_attack_max import AdversarialA
 
 matplotlib.use('TKAgg')
 
-if __name__ == '__main__': run_single(args_conf=ARGS, exp_type=AdversarialAttackMaxExperiment2)y
+if __name__ == '__main__': run_single(args_conf=ARGS, exp_type=AdversarialAttackMaxExperiment2)

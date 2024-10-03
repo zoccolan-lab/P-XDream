@@ -493,10 +493,10 @@ def get_neurons_target(
         return targets, rec_layers, rand_seeds
     
 
-def parse_reference_info(ref_info: str) -> Tuple[str, int, int]:
+def parse_reference_info(ref_info: str) -> Tuple[str, int, str, int]:
 
     # Define the pattern to match the string format
-    pattern = r"L=(?P<L>\w+), N=(?P<N>\d+), S=(?P<S>\d+)"
+    pattern = r"G=(?P<G>\w+), L=(?P<L>\d+), N=\[(?P<N>(?:\d+(?:,\s*)?)*)\], S=(?P<S>\d+)"
 
     # Use re.match to find the matches
     match = re.match(pattern, ref_info)
@@ -504,11 +504,12 @@ def parse_reference_info(ref_info: str) -> Tuple[str, int, int]:
     if match:
         
         # Extract the values using named groups
+        G = match.group('G')
         L = match.group('L')
         N = match.group('N')
         S = match.group('S')
         
-        return L, int(N), int(S)
+        return G, int(L), f'[{N}]', int(S)
     
     else:
         

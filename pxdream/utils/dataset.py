@@ -399,7 +399,7 @@ class MiniImageNet(ImageFolder, ExperimentDataset):
                             logger.error(f"Failed to process {image}: {e}")
 
 
-class RandomImageDataset(Dataset):
+class RandomImageDataset(ExperimentDataset):
     '''
     Random image dataset to simulate natural images to be interleaved
     in the stimuli with synthetic ones.
