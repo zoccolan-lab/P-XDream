@@ -6,11 +6,13 @@ from collections import defaultdict
 from copy import deepcopy
 import glob
 import os
+import platform
 from os import path
 from subprocess import PIPE, Popen
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
 from torchvision import transforms
 from scipy.spatial.distance import pdist
+
 
 import numpy as np
 from numpy.typing import NDArray
@@ -29,6 +31,7 @@ from pxdream.utils.logger import Logger, SilentLogger
 
 
 from .types import RFBox
+import subprocess
 
 # --- TYPING ---
 
@@ -344,12 +347,20 @@ def flatten_dict(d: Dict)-> Dict:
 def copy_on_clipboard(command: str):
     ''' Copies input string to clipboard '''
 
-    # Byte conversion
-    cmd_ =  bytes(command, encoding='utf-8')
-    
-    # Copy
-    p = Popen(['xsel', '-bi'], stdin=PIPE)
-    p.communicate(input=cmd_)
+    match platform.system():
+
+        case 'Linux':
+
+            # Byte conversion
+            cmd_ =  bytes(command, encoding='utf-8')
+            
+            # Copy
+            p = Popen(['xsel', '-bi'], stdin=PIPE)
+            p.communicate(input=cmd_)
+
+        case 'Windows':
+
+            subprocess.run(f'echo {command} | clip', shell=True)
 
 
 def copy_exec(

@@ -12,7 +12,6 @@ from enum import Enum
 from typing import Any, Dict, List, Type
 
 from pxdream.utils.io_ import save_json
-from pxdream.utils.parameters import ArgParam
 
 Parameter      = str | int | float | bool
 ''' Possible command line argument types. '''
