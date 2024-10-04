@@ -208,7 +208,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
                 pop_size     = PARAM_pop_size,
                 rnd_scale    = 1,
                 mut_size     = 0.3,
-                mut_rate     = 0.3,
+                mut_rate     = 0.15,
                 allow_clones = True,
                 n_parents    = 4
             )
@@ -285,7 +285,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         logger         : Logger,
         nat_img_loader : NaturalStimuliLoader,
         data           : Dict[str, Any] = dict(),
-        name           : str            = 'maximize_activity'
+        name           : str            = 'adversarial_attack'
     ) -> None:
         ''' 
         Uses the same signature as the parent class ZdreamExperiment.
@@ -360,16 +360,17 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         # TODO @DonTau, this will break the code
         # `key` comes from previous for loop now moved in the class
-        # what is `key` supposed to be? Which layer?  
-        if False:
-            valid_values_count = sum(
-                1 
-                for value in self.scorer.bound_constraints(self.layer_scores)[key] 
-                if value != float('-inf')
-            )
-            if valid_values_count < 10 and self._curr_iter > 5:
-                    msg.early_stopping = True
-        
+        #  what is `key` supposed to be? Which layer?  
+        ll = list(self.layer_scores.keys())[-1]
+        bounded_lscores = self.scorer.bound_constraints(state = self.layer_scores)
+        valid_values_count = sum(
+            1 
+            for value in bounded_lscores[ll] 
+            if value != float('-inf')
+        )
+        if valid_values_count < 10 and self._curr_iter > 5:
+                msg.early_stopping = True
+    
         msg = cast(ParetoMessage, msg)
         
         # scores = self.scorer.__call__(states=states_, current_iter = self._current_iteration)
@@ -438,7 +439,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         super()._progress(i, msg)
         
-        #TODO : UPDATE WITH PARETO BEST
         # Best synthetic stimulus (and natural one)
         best_synthetic     = self.generator(codes=msg.best_code)
         best_synthetic_img = to_pil_image(best_synthetic[0])
@@ -513,19 +513,22 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         # Create image folder
         img_dir_gen = make_dir(path=path.join(self.dir, 'images'), logger=self._logger)
-        #df_row = self.save_exp_data(img_dir_gen); 
-        self.img_dir = img_dir_gen #df_row['image_path']
+        df_row = self.save_exp_data(img_dir_gen); self.img_dir = df_row['image_path']
         self.best_syn = self.generator(codes=(self._reference_code))[0]
-        self.best_gen = self.generator(codes=msg.best_code+self._reference_code)[0]
+        #self.best_gen = self.generator(codes=msg.best_code+self._reference_code)[0]
+        self.best_gen = self.generator(codes=msg.best_code)[0]
+        #self.best_gen = self.generator(codes=state.codes[msg.best_code_idx[0]+1:,msg.best_code_idx[1],:])[0]
         self._save_images(img_dir=self.img_dir, best_gen=self.best_gen, ref=self.best_syn)
         
-        #last_layer = list(state.layer_scores_gen_history.keys())[-1] #type: ignore
-        #
-        ## Save variables to log in a multi-experiment csv
-        #self.hidden_reference = int(self.scorer.reference[last_layer])
-        #self.distance         = get_best_distance(self.img_dir)
-        #self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0]] #type: ignore
-
+        last_layer = list(state.layer_scores_gen_history.keys())[-1] #type: ignore
+        input_layer = list(state.layer_scores_gen_history.keys())[0] #type: ignore
+        
+        # Save variables to log in a multi-experiment csv
+        self.hidden_reference = int(self.scorer._reference[last_layer])
+        self.distance         = get_best_distance(self.img_dir)
+        self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0],msg.best_code_idx[1]] #type: ignore
+        self.image_dist       = state.layer_scores_gen_history[input_layer][msg.best_code_idx[0],msg.best_code_idx[1]] #type: ignore
+        print(f"image dist - rec {self.image_dist}, direct computation {self.distance}")
         #exp_path = os.path.join(img_dir_gen, 'experiments.csv')
         #df = pd.read_csv(exp_path) if os.path.exists(exp_path) else pd.DataFrame(columns=[*df_row.keys(),'experiment', 
         #                                                                                'hidden_reference', 'hidden_dist', 'pixel_dist', 'num_iter'])
@@ -544,7 +547,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         # usato per salvare immagini e dati dell'esperimento. Va messo a posto
         target_cat = int(self.subject.target[list(self.subject.target.keys())[-1]][0][0]) # non capito il type checker
         task = 'invar' if list(self.scorer._layer_weights.values())[0] < 0 else 'adv_attk' #rough
-        robust = '_r' if self._reference['robust'] else ''
+        robust = '_r' if self.subject.robust else ''
         net_name = f"{self.subject._name}{robust}"; low_layer = list(self.scorer._layer_weights.keys())[0]
         category = f"c{target_cat}"
         dirname = f"{task}_{net_name}_{low_layer}_{category}"
@@ -566,7 +569,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         return df_row
     
-    def _save_images(self, img_dir: str, best_gen: NDArray, ref: NDArray):  
+    def _save_images(self, img_dir: str, best_gen: torch.Tensor, ref: torch.Tensor):  
         
         to_save: List[Tuple[Image.Image, str]] = [(to_pil_image(best_gen), 'best adversarial')]
         to_save.append((to_pil_image(ref), 'best synthetic'))
@@ -591,12 +594,12 @@ class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
         It is responsible for generating the initial codes
         '''
     
-        ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
-        noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference_code))), ref_codes.shape)
         # Codes initialization
         if isinstance(self.optimizer, CMAESOptimizer):
             codes = self.optimizer.init()
         else:
+            ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
+            noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference_code))), ref_codes.shape)
             init_codes = (ref_codes + noise)
             codes = self.optimizer.init(init_codes = init_codes)
         
@@ -609,7 +612,6 @@ class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
         
         codes, msg = data
         
-        # Aggiungi il codice a quello della reference per generare
         codes_ = codes
     
         data_ = (codes_, msg)
@@ -624,11 +626,15 @@ class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
         '''
         
         msg = super()._finish(msg = msg)
-        self.best_gen = self.generator(codes=msg.best_code)[0]
+        #self.best_gen = self.generator(codes=msg.best_code)[0]
+        self.best_gen = self.generator(msg.codes_history[-1][msg.best_code_idx[1],:].reshape(1, 4096))[0]
         self._save_images(img_dir=self.img_dir, best_gen=self.best_gen, ref=self.best_syn)
-        
+        self.distance         = get_best_distance(self.img_dir)
+        print(self.distance)
         return msg
     
+    
+#TODO: check why this is different from the recorded image. Is it because of the normalization?    
 def get_best_distance(im_dir):
     #per calcolare empiricamente la distanza euclidea tra due immagini.
     #usato per adversarial attacks project @BMM
@@ -639,6 +645,7 @@ def get_best_distance(im_dir):
         transforms.ToTensor(),
         ])
         image_tensor = torch.unsqueeze(transform(img), dim = 0).to('cuda')
+        #torch.nn.functional.interpolate(image_tensor, size=(224, 224), mode='bilinear', align_corners=False)
         return image_tensor
     
     adv_images = {os.path.basename(imp):load_myimg(imp) 

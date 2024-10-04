@@ -6,7 +6,7 @@ ARGS: ParamConfig = {
 
     # Natural image dataloader
     ExperimentArgParams.GenWeights       .value : WEIGHTS            , 
-    ExperimentArgParams.GenVariant       .value : "fc8"              ,
+    ExperimentArgParams.GenVariant       .value : "fc7"              ,
 
     # Natural Images
     ExperimentArgParams.Template         .value : "T"                , 
@@ -28,7 +28,7 @@ ARGS: ParamConfig = {
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,
     ExperimentArgParams.LayerReduction   .value : "mean"             ,
     ExperimentArgParams.Reference        .value : REFERENCES ,
-    ExperimentArgParams.ReferenceInfo    .value : "G=fc8, L=21, N=[0], S=48467"  ,
+    ExperimentArgParams.ReferenceInfo    .value : "G=fc7, L=21, N=[0], S=60944"  ,
     
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,

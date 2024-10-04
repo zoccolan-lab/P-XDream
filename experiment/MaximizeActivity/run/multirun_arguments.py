@@ -11,9 +11,9 @@ from experiment.utils.args import ExperimentArgParams
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
 
-NAME   = f'trial_for_references'
+NAME   = f'resnet50_references'
 
-ITER     = 15
+ITER     = 500
 SAMPLE   =  30
 
 # --- NEURON SCALING ---
@@ -40,10 +40,12 @@ VARIANT_NEURONS = list(range(2))
 # --- REFERENCES ---
 def get_rnd(): return str(random.randint(1000, 1000000))
 
-REF_GEN_VARIANT = ['fc8', 'fc7']
-REF_LAYERS      = [21, 20]
-REF_NEURONS     = [0, 1]
-REF_SEED        = [get_rnd() for _ in range(2)]
+REF_GEN_VARIANT = ['fc7']
+REF_LAYERS      = [126]
+REF_NEURONS     = [0,76,93,107] # , 111,166, 340, 550,654,907
+REF_SEED        = [get_rnd() for _ in range(7)]
+NET             = 'resnet50'
+ROBUST_VARIANT  = 'imagenet_l2_3_0.pt'
 
 
 def get_args_neuron_scaling() -> Tuple[str, str, str]:
@@ -194,7 +196,9 @@ if __name__ == '__main__':
                 str(ExperimentArgParams.GenVariant     ) : gen_var_str,
                 str(ExperimentArgParams.RecordingLayers) : rec_layer_str,
                 str(ExperimentArgParams.ScoringLayers  ) : rec_layer_str,
-                str(          ArgParams.RandomSeed     ) : seed_str
+                str(ExperimentArgParams.NetworkName    ) : NET,
+                str(          ArgParams.RandomSeed     ) : seed_str,
+                str(ExperimentArgParams.CustomWeightsVariant) : ROBUST_VARIANT
             }
             
             file = 'run_multiple_references.py'
@@ -206,5 +210,7 @@ if __name__ == '__main__':
     args[str(ArgParams          .ExperimentName)] = NAME
     args[str(ArgParams          .NumIterations )] = str(ITER)
     args[str(ExperimentArgParams.Template      )] = 'T'
+    
+    fname ='/home/lorenzo/Documents/GitHub/ZXDREAM/experiment/MaximizeActivity/run/multirun_cmd.txt'
 
-    copy_exec(file=file, args=args)
+    copy_exec(file=file, args=args, fname = fname)

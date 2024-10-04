@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple
 import torch
 from torch import nn
 from torch.utils.hooks import RemovableHandle
+import torch.nn.functional as F
 from torchvision.models import get_model, get_model_weights
 
 from .utils.logger import Logger, SilentLogger
@@ -338,7 +339,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         # Apply preprocessing associated to pretrained weights
         # NOTE: `self.weights` is None in the case of random initialization
         #       and corresponds to no transformation
-        preprocessing = self._weights.transforms() if self._weights else lambda x: x
+        preprocessing = self._weights.transforms()if self._weights and not(self.robust) else lambda x: x
         prep_stimuli = preprocessing(stimuli)
 
         # Expose the network to the visual input and return the measured activations
@@ -348,7 +349,9 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
             auto_clean=auto_clean,
             with_grad=with_grad
         )
-
+        #get the input as 224x224x3 image with values in range (0,1) as in Gaziv et al. 2023
+        state['00_input_01'] = F.interpolate(stimuli, size=(224, 224), mode='bilinear', align_corners=False).view(stimuli.shape[0],-1).cpu().numpy().astype('float32')
+        
         return state
 
     def forward(

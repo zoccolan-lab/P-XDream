@@ -563,7 +563,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
     to create a pair of states with the reference as the second state.
     '''
     
-    name = 'WeightedPairSimilarityScorer'
+    name = 'ParetoReferencePairDistanceScorer'
 
     def __init__(
         self,
@@ -745,7 +745,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         """
         
         # Apply bound constraints
-        state_dup = self._bound_constraints(state)
+        state_dup = self.bound_constraints(state)
         
         pf_scores, coordinates_p1 = self.pareto_front(state_dup, weights = [v for v in weights.values()])
         self.coordinates_p1 = coordinates_p1
@@ -758,7 +758,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
     
     # --- BOUND CONSTRAINTS ---
     
-    def _bound_constraints(self, state: States) -> States:
+    def bound_constraints(self, state: States) -> States:
         """
         Apply bound constraints to the state, pushing to minus infinity
         the values that do not satisfy the constraints.
@@ -776,20 +776,13 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         
         state_dup = {
             layer: np.array([
-                individual_state if self._bounds[layer](individual_state) else -1000 #-float('inf') 
+                individual_state if self._bounds[layer](individual_state) else -float('inf') #-float('inf') 
                 for individual_state in layer_state
             ])
             for layer, layer_state in state.items()
         }
         
         return state_dup
-    
-    def bound_constraints(self, state: States) -> States:
-        """ 
-        It is a stub to the private method using the preprocessed states 
-        It is supposed to be used externally to the typical `__call__` pipeline
-        """
-        return self._bound_constraints(state=self._preprocess_states(state))
     
     @property
     def reference(self) -> Dict[str, NDArray]: return self.reference

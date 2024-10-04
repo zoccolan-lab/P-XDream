@@ -703,10 +703,9 @@ class ZdreamExperiment(Experiment):
         # Scorer step
         _, _, scores = self.scorer(states=states)
         
-        if scores is not None:
-            # Update message scores history (synthetic and natural)
-            msg.scores_gen_history.append(scores[ msg.mask])
-            msg.scores_nat_history.append(scores[~msg.mask])
+        # Update message scores history (synthetic and natural)
+        msg.scores_gen_history.append(scores[ msg.mask])
+        msg.scores_nat_history.append(scores[~msg.mask])
         
         return scores, msg
     

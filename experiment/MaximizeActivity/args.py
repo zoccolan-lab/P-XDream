@@ -1,4 +1,4 @@
-from experiment.utils.args import DATASET, OUT_DIR, WEIGHTS,REFERENCES, ExperimentArgParams
+from experiment.utils.args import DATASET, OUT_DIR, WEIGHTS,REFERENCES, CUSTOM_WEIGHTS,ExperimentArgParams
 from pxdream.utils.parameters import ArgParams, ParamConfig
 
 ARGS: ParamConfig = {
@@ -16,7 +16,9 @@ ARGS: ParamConfig = {
     # Subject
     ExperimentArgParams.NetworkName      .value : "alexnet"          , # resnet50
     ExperimentArgParams.RecordingLayers  .value : "21=[0]"           , #126=[0] for rn50
-    ExperimentArgParams.CustomWeightsPath.value : '',                  #'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
+    ExperimentArgParams.CustomWeightsPath.value : CUSTOM_WEIGHTS     , #'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
+    ExperimentArgParams.CustomWeightsVariant.value : ''              , #'imagenet_l2_3_0.pt''
+    
     #, Scorer
     ExperimentArgParams.ScoringLayers    .value : "21=[]"            ,
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,

@@ -70,7 +70,6 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_net_name   = str  (conf[ExperimentArgParams.NetworkName    .value])
         PARAM_rec_layers = str  (conf[ExperimentArgParams.RecordingLayers.value])
         PARAM_scr_layers = str  (conf[ExperimentArgParams.ScoringLayers  .value])
-        PARAM_robust_path = str (conf[ExperimentArgParams.CustomWeightsPath  .value])
         PARAM_unit_red   = str  (conf[ExperimentArgParams.UnitsReduction .value])
         PARAM_layer_red  = str  (conf[ExperimentArgParams.LayerReduction .value])
         PARAM_pop_size   = int  (conf[ExperimentArgParams.PopulationSize .value])
@@ -80,12 +79,14 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_rnd_seed   = int  (conf[          ArgParams.RandomSeed     .value])
         PARAM_render     = bool (conf[          ArgParams.Render         .value])
         PARAM_ref_code   = str  (conf[ExperimentArgParams.Reference .value])
+        PARAM_customW_path = str  (conf[ExperimentArgParams.CustomWeightsPath     .value])
+        PARAM_customW_var  = str  (conf[ExperimentArgParams.CustomWeightsVariant  .value])
 
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
         # Set numpy random seed
-        PARAM_ref_code = os.path.join(PARAM_ref_code, f'reference_code_{PARAM_net_name}{"robust" if PARAM_robust_path else ""}.npy')
+        PARAM_ref_code = os.path.join(PARAM_ref_code, f'reference_code_{PARAM_net_name}{"robust" if PARAM_customW_var else ""}.npy')
         np.random.seed(PARAM_rnd_seed)
-
+        path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
         # --- NATURAL IMAGE LOADER ---
 
         # Parse template and derive if to use natural images
@@ -124,7 +125,7 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
-            custom_weights_path = PARAM_robust_path
+            custom_weights_path = path2CustomW
         )
         
         # Set the network in evaluation mode
