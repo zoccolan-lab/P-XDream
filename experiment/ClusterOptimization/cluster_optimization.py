@@ -790,7 +790,7 @@ class ClusterSubsettingOptimizationMultiExperiment(BaseZdreamMultiExperiment):
         self._logger.info(msg=f'Saving plots to {plot_dir}')
         os.makedirs(plot_dir)
         
-        plot_subset_acwtivations(
+        plot_subset_activations(
             activations=self._data['activations'],
             out_dir=plot_dir,
             file_name='cluster_subsetting_optimization',
