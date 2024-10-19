@@ -23,6 +23,7 @@ from pxdream.utils.dataset import MiniImageNet
 from experiment.utils.parsing import parse_boolean_string, parse_recording, parse_scoring, parse_signature
 from pxdream.utils.types import Codes, MaskGenerator, ScoringUnits, Stimuli, Fitness, States, mask_generator_from_template
 from pxdream.utils.message import ZdreamMessage
+from pxdream.utils.parameters import ArgParams
 
 from numpy.typing import NDArray
 
@@ -137,7 +138,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         #  --- LOGGER --- 
 
-        log_conf[str(Args.ExperimentTitle)] = AdversarialAttackExperiment.EXPERIMENT_TITLE
+        log_conf[str(ArgParams.ExperimentTitle)] = AdversarialAttackExperiment.EXPERIMENT_TITLE
         logger = LoguruLogger(path_=log_conf)
         
         # In the case render option is enabled we add display screens
@@ -145,8 +146,8 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
             # In the case of multi-experiment run, the shared screens
             # are set in `str(Args.DisplayScreens)` entry
-            if str(Args.DisplayScreens) in conf:
-                for screen in conf[str(Args.DisplayScreens)]:
+            if str(ArgParams.DisplayScreens) in conf:
+                for screen in conf[str(ArgParams.DisplayScreens)]:
                     logger.add_screen(screen=screen)
 
             # If the key is not set it is the case of a single experiment
