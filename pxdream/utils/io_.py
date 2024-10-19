@@ -84,7 +84,8 @@ def store_pickle(data: Dict[str, Any], path: str):
     :type path: str
     :return: None
     """
-
+    directory, _ = os.path.split(path)
+    os.makedirs(directory, exist_ok=True)
     with open(path, 'wb') as f:
         pickle.dump(data, f)
 

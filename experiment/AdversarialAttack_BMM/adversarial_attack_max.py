@@ -28,7 +28,7 @@ from pxdream.utils.parameters          import ArgParams, ParamConfig
 from pxdream.utils.probe               import RecordingProbe
 from pxdream.utils.types               import Codes, Stimuli, Fitness, States
 from experiment.utils.args            import ExperimentArgParams
-from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_recording, parse_reference_info, parse_scoring, parse_signature
+from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_net_loading, parse_recording, parse_reference_info, parse_scoring, parse_signature
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
 
 class AdversarialAttackMaxExperiment(ZdreamExperiment):
@@ -87,6 +87,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         PARAM_ref_info    = str  (conf[ExperimentArgParams.ReferenceInfo   .value])
         PARAM_sigma0      = float(conf[ExperimentArgParams.Sigma0          .value])
         PARAM_optim_type  = str  (conf[ExperimentArgParams.OptimType       .value])
+        PARAM_net_loading = str  (conf[ExperimentArgParams.WeightLoadFunction.value])
 
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
         path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
@@ -133,15 +134,18 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         record_target = parse_recording(input_str=PARAM_rec_layers, net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
 
+        #Get net loading function from parsing
+        net_loading = parse_net_loading(input_str = PARAM_net_loading)
         # Subject with attached recording probe
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
+            t_net_loading = net_loading,
             custom_weights_path = path2CustomW
         )
         
         # Set the network in evaluation mode
-        # sbj_net.eval()
+        sbj_net.eval()
         # ref_states = sbj_net(stimuli=generator(codes = ref_code))
         # reference = {**reference, **ref_states}
         
@@ -208,7 +212,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
                 pop_size     = PARAM_pop_size,
                 rnd_scale    = 1,
                 mut_size     = 0.3,
-                mut_rate     = 0.15,
+                mut_rate     = 0.3,
                 allow_clones = True,
                 n_parents    = 4
             )

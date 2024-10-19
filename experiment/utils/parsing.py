@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import partial
 from itertools import product, starmap
 import re
 from typing import Dict, List, Tuple, Callable
@@ -6,7 +7,7 @@ import warnings
 
 from pxdream.utils.types import RecordingUnits, ScoringUnits
 from pxdream.utils.io_ import neurons_from_file
-
+from pxdream.utils.torch_net_load_functs import NET_LOAD_DICT
 import numpy as np
 
 # --- SCORING and AGGREGATE FUNCTION TEMPLATES ---
@@ -514,3 +515,36 @@ def parse_reference_info(ref_info: str) -> Tuple[str, int, str, int]:
     else:
         
         raise ValueError(f"Invalid format in {ref_info}.")
+    
+    
+def parse_net_loading(input_str: str) -> callable:
+    '''
+    Parses the input string to determine the appropriate network loading function.
+    
+    The input string can optionally contain the keyword 'pretrained' to indicate
+    that the network should be loaded with pretrained weights. This keyword can
+    appear anywhere in the input string and is case-insensitive.
+    
+    Example:
+    net_loader = parse_net_loading('torch_load_pretrained')
+    
+    :param input_str: The input string specifying the network loading configuration.
+    :type input_str: str
+    :return: The network loading function corresponding to the input string.
+    :rtype: callable
+    :raises ValueError: If the input string does not correspond to any known network loading function.
+    '''
+    
+    pretrained_pattern = r'[-_ ]*pretrained[-_ ]*'
+    is_pretr = re.search(pretrained_pattern, input_str, flags=re.IGNORECASE)
+    #remove the pretrained pattern from the input string
+    input_str = re.sub(pretrained_pattern, '', input_str, flags=re.IGNORECASE)
+
+    # Check if the input string is in the dictionary
+    if input_str in NET_LOAD_DICT:
+        net_loader = NET_LOAD_DICT[input_str]
+        if is_pretr: net_loader = partial(net_loader, pretrained=True)
+    else:
+        raise ValueError(f"Network loading function for '{input_str}' not found.")
+    
+    return net_loader

@@ -25,7 +25,7 @@ from pxdream.utils.probe               import RecordingProbe
 from pxdream.utils.types               import Codes, ScoringUnits, Stimuli, Fitness, States
 from experiment.MaximizeActivity.plot import multiexp_lineplot, plot_optimizing_units, plot_scores, plot_scores_by_label, save_best_stimulus_per_variant, save_stimuli_samples
 from experiment.utils.args            import ExperimentArgParams
-from experiment.utils.parsing         import parse_boolean_string, parse_recording, parse_scoring
+from experiment.utils.parsing         import parse_boolean_string, parse_net_loading, parse_recording, parse_scoring
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
 
 class MaximizeActivityExperiment(ZdreamExperiment):
@@ -81,6 +81,9 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         PARAM_ref_code   = str  (conf[ExperimentArgParams.Reference .value])
         PARAM_customW_path = str  (conf[ExperimentArgParams.CustomWeightsPath     .value])
         PARAM_customW_var  = str  (conf[ExperimentArgParams.CustomWeightsVariant  .value])
+        PARAM_optim_type  = str  (conf[ExperimentArgParams.OptimType       .value])
+        PARAM_net_loading = str  (conf[ExperimentArgParams.WeightLoadFunction.value])
+
 
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
         # Set numpy random seed
@@ -120,11 +123,13 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         # Probe
         record_target = parse_recording(input_str=PARAM_rec_layers, net_info=layer_info)
         probe = RecordingProbe(target = record_target) # type: ignore
-
+        #Get net loading function from parsing
+        net_loading = parse_net_loading(input_str = PARAM_net_loading)
         # Subject with attached recording probe
         sbj_net = TorchNetworkSubject(
             record_probe=probe,
             network_name=PARAM_net_name,
+            t_net_loading = net_loading,
             custom_weights_path = path2CustomW
         )
         
@@ -147,25 +152,27 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         )
 
         # --- OPTIMIZER ---
-
-        optim = CMAESOptimizer(
-            codes_shape = generator.input_dim,
-            rnd_seed    = PARAM_rnd_seed,
-            pop_size    = PARAM_pop_size,
-            sigma0      = PARAM_sigma0
-        )
-        
-        #optim = GeneticOptimizer(
-        #    codes_shape  = generator.input_dim,
-        #    rnd_seed     = PARAM_rnd_seed,
-        #    pop_size     = PARAM_pop_size,
-        #    rnd_scale    = 1,
-        #    mut_size     = 0.6,
-        #    mut_rate     = 0.25,
-        #    allow_clones = True,
-        #    n_parents    = 4
-        #)
-
+        if PARAM_optim_type == 'cmaes':
+            optim = CMAESOptimizer(
+                codes_shape = generator.input_dim,
+                rnd_seed    = PARAM_rnd_seed,
+                pop_size    = PARAM_pop_size,
+                sigma0      = PARAM_sigma0
+                )
+            
+        elif PARAM_optim_type == 'genetic':
+            optim = GeneticOptimizer(
+                codes_shape  = generator.input_dim,
+                rnd_seed     = PARAM_rnd_seed,
+                pop_size     = PARAM_pop_size,
+                rnd_scale    = 1,
+                mut_size     = 0.3,
+                mut_rate     = 0.3,
+                allow_clones = True,
+                n_parents    = 4
+            )
+        else:
+            raise ValueError(f'Optimizer type {PARAM_optim_type} not recognized')
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = MaximizeActivityExperiment.EXPERIMENT_TITLE

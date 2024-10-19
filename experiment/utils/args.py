@@ -70,6 +70,8 @@ class ExperimentArgParams(Enum):
     RecordingLayers     = ArgParam(name="rec_layers",         type=str,   help=f"Recording layers with specification\n{LAYERS_NEURONS_SPECIFICATION}")
     CustomWeightsPath   = ArgParam(name="robust_path",        type=str,   help="Path to weights of robust version of the network")
     CustomWeightsVariant= ArgParam(name="robust_variant",     type=str,   help="Variant of robust network")
+    WeightLoadFunction  = ArgParam(name="w_load_funct",       type=str,   help="Function to load the torch networ subject")
+    
     # Scorer
     ScoringSignature   = ArgParam(name="scr_sign",           type=str,   help="Scoring signature for WeightedPairSimilarityScorer")
     Bounds             = ArgParam(name="bounds",             type=str,   help="Bounds for the WeightedPairSimilarityScorer")

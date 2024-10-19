@@ -443,9 +443,9 @@ class SilentLogger(Logger):
 		super().__init__()
 	
 	# Override for no logging
-	def _info(self, mess: str): pass
-	def _warn(self, mess: str): pass
-	def _err (self, mess: str): pass
+	def _info(self, msg: str): pass
+	def _warn(self, msg: str): pass
+	def _err (self, msg: str): pass
 
 
 class DisplayScreen:

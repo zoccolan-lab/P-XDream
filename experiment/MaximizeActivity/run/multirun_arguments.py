@@ -11,7 +11,7 @@ from experiment.utils.args import ExperimentArgParams
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
 
-NAME   = f'resnet50_references'
+NAME   = f'resnet50_references_group2'
 
 ITER     = 500
 SAMPLE   =  30
@@ -38,12 +38,15 @@ VARIANT_LAYER = 21
 VARIANT_NEURONS = list(range(2))
 
 # --- REFERENCES ---
-def get_rnd(): return str(random.randint(1000, 1000000))
+def get_rnd(seed=None):
+    if seed is not None:
+        random.seed(seed)
+    return str(random.randint(1000, 1000000))
 
 REF_GEN_VARIANT = ['fc7']
 REF_LAYERS      = [126]
-REF_NEURONS     = [0,76,93,107] # , 111,166, 340, 550,654,907
-REF_SEED        = [get_rnd() for _ in range(7)]
+REF_NEURONS     = [12,81,90,190,315,501, 569, 616,780,978] #  
+REF_SEED        = [get_rnd(seed = 50000) for _ in range(10)]
 NET             = 'resnet50'
 ROBUST_VARIANT  = 'imagenet_l2_3_0.pt'
 
@@ -211,6 +214,6 @@ if __name__ == '__main__':
     args[str(ArgParams          .NumIterations )] = str(ITER)
     args[str(ExperimentArgParams.Template      )] = 'T'
     
-    fname ='/home/lorenzo/Documents/GitHub/ZXDREAM/experiment/MaximizeActivity/run/multirun_cmd.txt'
+    #fname ='/home/lorenzo/Documents/GitHub/ZXDREAM/experiment/MaximizeActivity/run/multirun_cmd.txt'
 
-    copy_exec(file=file, args=args, fname = fname)
+    copy_exec(file=file, args=args ) #fname = fname

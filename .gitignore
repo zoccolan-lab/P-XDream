@@ -11,6 +11,10 @@
 *.pyc
 *.npy
 *.npz
+*.zip
+*.json
+*.log
+*.txt
 *__*
 
 # Local directories

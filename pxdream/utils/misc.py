@@ -366,7 +366,7 @@ def copy_on_clipboard(command: str):
 def copy_exec(
         file: str,
         program: str = 'python',
-        args: Dict[str, str] = dict()
+        args: Dict[str, str] = dict(),
     ) -> str:
     ''' 
     Copies a program execution command line to clipboard given 

@@ -18,6 +18,7 @@ ARGS: ParamConfig = {
     ExperimentArgParams.RecordingLayers  .value : "21=[0]"           , #126=[0] for rn50
     ExperimentArgParams.CustomWeightsPath.value : CUSTOM_WEIGHTS     , #'/home/lorenzo/Desktop/Datafolders/imagenet_l2_3_0.pt' ,
     ExperimentArgParams.CustomWeightsVariant.value : ''              , #'imagenet_l2_3_0.pt''
+    ExperimentArgParams.WeightLoadFunction.value : 'torch_load_pretrained' ,
     
     #, Scorer
     ExperimentArgParams.ScoringLayers    .value : "21=[]"            ,
@@ -28,6 +29,7 @@ ARGS: ParamConfig = {
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,
     ExperimentArgParams.Sigma0           .value : 1.0                ,
+    ExperimentArgParams.OptimType        .value : "cmaes"              ,
 
     # Logger
     ArgParams          .ExperimentName   .value : "maximize_activity", 

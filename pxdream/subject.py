@@ -13,14 +13,13 @@ import torch
 from torch import nn
 from torch.utils.hooks import RemovableHandle
 import torch.nn.functional as F
-from torchvision.models import get_model, get_model_weights
+
+from pxdream.utils.torch_net_load_functs import torch_load
 
 from .utils.logger import Logger, SilentLogger
 from .utils.probe import SetterProbe, SilicoProbe,RecordingProbe
 from .utils.misc import InputLayer, default, device, unpack, replace_inplace
 from .utils.types import RecordingUnits, Stimuli, States
-# from robustness.datasets import ImageNet
-# from robustness.model_utils import make_and_restore_model
 
 
 class Subject(ABC):
@@ -93,9 +92,9 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         self,
         network_name: str,
         record_probe: RecordingProbe | None = None,
-        pretrained: bool = True,
         inp_shape: Tuple[int, ...] = (1, 3, 224, 224),
         device: str | torch.device = device,
+        t_net_loading: callable = torch_load,
         custom_weights_path: str = '' #messa qua ma forse si può trovare dove metterla meglio
     ) -> None:
         '''
@@ -132,21 +131,11 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         # Initialize the network with the provided name and input shape
         self._name = network_name
         self._inp_shape = inp_shape
+        self._device = device
         self.robust = '_r' if custom_weights_path else ''
         
         # 1) LOAD NETWORK ARCHITECTURE
-        
-        if custom_weights_path != '':
-            self._weights = torch.load(custom_weights_path)
-        else:
-            # Load the torch model via its name from the torchvision hub if pretrained
-            # otherwise initialize it with random weights (weights=None).
-            self._weights = get_model_weights(self._name).DEFAULT if pretrained else None  # type: ignore
-
-        self._network = nn.Sequential(
-            InputLayer(),
-            get_model(self._name, weights=self._weights)
-        ).to(device)
+        t_net_loading(self, custom_weights_path)
 
         # NOTE: Here we make sure no inplace operations are used in the network
         #       to avoid weird behaviors (e.g. if a backward hook is attached
@@ -335,12 +324,8 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
             # Otherwise print a warning message
             else:
                 logger.warn(warn_msg)
-
-        # Apply preprocessing associated to pretrained weights
-        # NOTE: `self.weights` is None in the case of random initialization
-        #       and corresponds to no transformation
-        preprocessing = self._weights.transforms()if self._weights and not(self.robust) else lambda x: x
-        prep_stimuli = preprocessing(stimuli)
+        # Apply preprocessing to the stimuli (see torch_net_load_functs.py)
+        prep_stimuli = self._preprocessing(stimuli)
 
         # Expose the network to the visual input and return the measured activations
         state = self.forward(
@@ -350,7 +335,8 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
             with_grad=with_grad
         )
         #get the input as 224x224x3 image with values in range (0,1) as in Gaziv et al. 2023
-        state['00_input_01'] = F.interpolate(stimuli, size=(224, 224), mode='bilinear', align_corners=False).view(stimuli.shape[0],-1).cpu().numpy().astype('float32')
+        state['00_input_01'] = F.interpolate(stimuli, size=(self._inp_shape[-2], self._inp_shape[-1]),
+                                             mode='bilinear', align_corners=False).view(stimuli.shape[0],-1).cpu().numpy().astype('float32')
         
         return state
 
