@@ -132,8 +132,9 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         self._name = network_name
         self._inp_shape = inp_shape
         self._device = device
-        self.robust = '_r' if custom_weights_path else ''
-        
+        #default value. It will be set to True if the network loaded is a robust model
+        self.robust = False 
+                
         # 1) LOAD NETWORK ARCHITECTURE
         t_net_loading(self, custom_weights_path)
 

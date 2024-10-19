@@ -119,10 +119,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             variant = str(PARAM_variant) # type: ignore
         ).to(device)
         
-        # name_ref = f'reference_code_{PARAM_net_name}{"robust" if PARAM_robust_path else ""}.npy'
-        # ref_code = np.load(os.path.join(PARAM_ref, name_ref)); reference = {'code': ref_code}
-        # reference['robust'] = True if PARAM_robust_path else False
-        
         # --- SUBJECT ---
 
         # Create a on-the-fly network subject to extract all network layer names
@@ -146,9 +142,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         # Set the network in evaluation mode
         sbj_net.eval()
-        # ref_states = sbj_net(stimuli=generator(codes = ref_code))
-        # reference = {**reference, **ref_states}
-        
         # --- SCORER ---
         
         reference_file      = load_pickle(PARAM_ref)
@@ -160,7 +153,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         try:
             ref_code = reference_file[gen_var][layer_name][neuron][seed]['code']
         except KeyError:
-            raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
+            raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, 
+                            neuron {neuron}, seed {seed} in file {PARAM_ref}')
         
         # Generate the code and the state, unbatching it
         ref_stimulus : Stimuli = generator(codes=ref_code)
@@ -223,8 +217,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = AdversarialAttackMaxExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger.from_conf(conf=conf) # NOT IN ISCHIAGUALASTIA BABY :)
-        # logger = LoguruLogger(on_file=False)
+        logger = LoguruLogger.from_conf(conf=conf)
         
         # In the case render option is enabled we add display screens
         if bool(PARAM_render):
@@ -317,8 +310,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         self._use_natural    = cast(bool,    data['use_nat'])
         
         # Save dataset if used
-        if self._use_natural: self._dataset = cast(ExperimentDataset, data['dataset'])
-            
+        if self._use_natural: self._dataset = cast(ExperimentDataset, data['dataset'])  
     # --- DATA FLOW ---
     
     def _stimuli_to_states(self, data: Tuple[Stimuli, ZdreamMessage]) -> Tuple[States, ZdreamMessage]:
@@ -361,24 +353,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             # Update message scores history (synthetic and natural)
             msg.scores_gen_history.append(scores[ msg.mask])
             msg.scores_nat_history.append(scores[~msg.mask])
-        
-        # TODO @DonTau, this will break the code
-        # `key` comes from previous for loop now moved in the class
-        #  what is `key` supposed to be? Which layer?  
-        ll = list(self.layer_scores.keys())[-1]
-        bounded_lscores = self.scorer.bound_constraints(state = self.layer_scores)
-        valid_values_count = sum(
-            1 
-            for value in bounded_lscores[ll] 
-            if value != float('-inf')
-        )
-        if valid_values_count < 10 and self._curr_iter > 5:
-                msg.early_stopping = True
-    
-        msg = cast(ParetoMessage, msg)
-        
-        # scores = self.scorer.__call__(states=states_, current_iter = self._current_iteration)
-        
+                        
         for k,v in self.layer_scores.items():
             msg.layer_scores_gen_history[k].append(v) #[ msg.mask]?
         
@@ -470,8 +445,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
                 ) 
                 
         # Check early stopping
-        
-        
+        self.pareto_early_stopping(msg, valid_val_thrshold = 10, iter_thrshold = 5)
     
     def _progress_info(self, i: int, msg : ParetoMessage) -> str:
         ''' Add information about the best score and the average score.'''
@@ -486,7 +460,6 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         # Best natural score
         if self._use_natural:
-            
             stat_nat     = msg.stats_nat
             best_nat     = cast(NDArray, stat_nat['best_score']).mean()
             best_nat_str = f'{best_nat:.1f}'
@@ -589,6 +562,36 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             out_fp = path.join(img_dir, f'{label.replace(" ", "_")}.png')
             self._logger.info(f'> Saving {label} image to {out_fp}')
             img.save(out_fp)
+            
+    def pareto_early_stopping(self, msg : ParetoMessage, valid_val_thrshold = 10, iter_thrshold = 5):
+        '''
+        Determines whether to trigger early stopping based on Pareto front constraints.
+
+        This method evaluates the scores of the last layer and checks if the number of valid
+        values (i.e., values not equal to negative infinity) is below a certain threshold.
+        If the number of valid values is less than `valid_val_thrshold` and the current iteration count exceeds `iter_thrshold`,
+        early stopping is triggered by setting the `early_stopping` attribute of the `msg` object to True.
+
+        :param msg: An object containing the early stopping flag.
+        :type msg: ParetoMessage
+        :param valid_val_thrshold: The threshold for the number of valid values to trigger early stopping.
+        :type valid_val_thrshold: int
+        :param iter_thrshold: The iteration threshold to trigger early stopping.
+        :type iter_thrshold: int
+        :return: None
+        :rtype: None
+        '''
+        # TODO: IMPROVE AND GENERALIZE
+
+        last_layer = list(self.layer_scores.keys())[-1]
+        #apply constrains to layer scores
+        bounded_lscores = self.scorer.bound_constraints(state = self.layer_scores)
+        #count the number of valid values (i.e. not equal to -inf)
+        valid_values_count = sum(1 for value in bounded_lscores[last_layer] 
+            if value != float('-inf')
+        )
+        if valid_values_count < valid_val_thrshold and self._curr_iter > iter_thrshold:
+                msg.early_stopping = True
 
 class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
     

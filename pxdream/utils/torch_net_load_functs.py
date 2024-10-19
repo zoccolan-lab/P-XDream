@@ -9,7 +9,19 @@ from robustness.model_utils import make_and_restore_model
 from pxdream.utils.misc import InputLayer
 from experiment.utils.args import DATASET
 
-def torch_load(net_sbj  , weights_path: str = '', pretrained: bool = False):
+def torch_load(net_sbj: 'TorchNetworkSubject', weights_path: str = '', pretrained: bool = False):
+    """
+    Load weights into a neural network subject (net_sbj) and initialize its network architecture.
+
+    :param net_sbj: The neural network subject.
+    :type net_sbj: TorchNetworkSubject (NOTE: PROBLEM OF CIRCULAR IMPORT)
+    :param weights_path: The file path to the pre-trained weights. If not provided, the function will either load weights from the torchvision hub or initialize with random weights based on the 'pretrained' flag.
+    :type weights_path: str, optional
+    :param pretrained: If True, loads the model with pre-trained weights from the torchvision hub. If False, initializes the model with random weights.
+    :type pretrained: bool, optional
+    :returns: None
+    """
+    
     if weights_path != '':
         net_sbj._weights = torch.load(weights_path)
     else:
@@ -28,7 +40,20 @@ def torch_load(net_sbj  , weights_path: str = '', pretrained: bool = False):
     
     #return net_sbj
     
-def madryLab_robust_load(net_sbj, weights_path: str = '', pretrained: bool = False):
+def madryLab_robust_load(net_sbj: 'TorchNetworkSubject', weights_path: str, pretrained: bool = False):
+    """
+    Load weights into a neural network subject (net_sbj) using MadryLab's robustness library 
+    and initialize its network architecture.
+
+    :param net_sbj: The neural network subject.
+    :type net_sbj: TorchNetworkSubject (NOTE: PROBLEM OF CIRCULAR IMPORT)
+    :param weights_path: The file path to the pre-trained weights.
+    :type weights_path: str
+    :param pretrained: unused flag, kept for compatibility with other loading
+        functions in torch_net_load_functs.py.
+    :type pretrained: bool, optional
+    :returns: None
+    """
     # loading robust models used during BMM summer school
     ds = ImageNet(DATASET)
     model, _ = make_and_restore_model(arch=net_sbj._name, dataset=ds, resume_path=weights_path)
@@ -38,6 +63,9 @@ def madryLab_robust_load(net_sbj, weights_path: str = '', pretrained: bool = Fal
     ).to(net_sbj._device)
     
     net_sbj._preprocessing = model.normalizer
+    # this loading implies working with robust models
+    net_sbj.robust = True
+
     
     
 NET_LOAD_DICT ={
