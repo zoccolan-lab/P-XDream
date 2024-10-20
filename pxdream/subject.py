@@ -93,10 +93,9 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         self,
         network_name: str,
         record_probe: RecordingProbe | None = None,
-        pretrained: bool = True,
+        model_weights : PathLike | Literal['pretrained'] = 'pretrained', 
         inp_shape: Tuple[int, ...] = (1, 3, 224, 224),
         device: str | torch.device = device,
-        custom_weights_path: str = '' #messa qua ma forse si può trovare dove metterla meglio
     ) -> None:
         '''
         Initialize a subject represented by an artificial neural
@@ -339,7 +338,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         # Apply preprocessing associated to pretrained weights
         # NOTE: `self.weights` is None in the case of random initialization
         #       and corresponds to no transformation
-        preprocessing = self._weights.transforms()if self._weights and not(self.robust) else lambda x: x
+        preprocessing = self._weights.transforms() if self._weights and not(self.robust) else lambda x: x
         prep_stimuli = preprocessing(stimuli)
 
         # Expose the network to the visual input and return the measured activations

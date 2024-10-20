@@ -1,5 +1,6 @@
 
 
+from collections import defaultdict
 import os
 import torch
 import numpy as np
@@ -10,6 +11,7 @@ from torch.utils.data import DataLoader
 from typing import Any, Dict, List, Tuple, cast
 from torchvision.transforms.functional import to_pil_image
 
+from experiment.utils.misc import BaseZdreamMultiExperiment
 from pxdream.experiment import ZdreamExperiment
 from pxdream.generator import Generator, DeePSiMGenerator
 from pxdream.utils.logger import DisplayScreen, Logger, LoguruLogger
@@ -125,6 +127,7 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         # --- OPTIMIZER ---
 
+        # TODO: @DonTau - Maybe we should add the CMA-ES optimizer as an alternative
         optim = GeneticOptimizer(
             states_shape   = (2, *generator.input_dim),
             random_seed    =     conf['random_seed'],
@@ -135,6 +138,13 @@ class AdversarialAttackExperiment(ZdreamExperiment):
             temp    = opt_conf['temperature'],
             n_parents    = opt_conf['n_parents']
         )
+        
+        # optim = CMAESOptimizer(
+        #     codes_shape = generator.input_dim,
+        #     rnd_seed    = PARAM_rnd_seed,
+        #     pop_size    = PARAM_pop_size,
+        #     sigma0      = PARAM_sigma0
+        # )
 
         #  --- LOGGER --- 
 
@@ -452,3 +462,12 @@ class AdversarialAttackExperiment(ZdreamExperiment):
 
         return super()._scores_to_codes((stm_score, msg))
 
+class ScalingTargetsMultiExperiment(BaseZdreamMultiExperiment):
+    
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'   ] = 'Perform Adversarial Attacks' # TODO
+        
+        self._data['samples'] = defaultdict(list)

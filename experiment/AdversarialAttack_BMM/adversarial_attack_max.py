@@ -31,7 +31,7 @@ from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_recording, parse_reference_info, parse_scoring, parse_signature
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
 
-class AdversarialAttackMaxExperiment(ZdreamExperiment):
+class StretchSqueezeMaskExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = "AdversarialAttackMax"
 
@@ -52,7 +52,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
     # --- CONFIG ---
 
     @classmethod
-    def _from_config(cls, conf : ParamConfig) -> 'AdversarialAttackMaxExperiment':
+    def _from_config(cls, conf : ParamConfig) -> 'StretchSqueezeMaskExperiment':
         '''
         Create a MaximizeActivityExperiment instance from a configuration dictionary.
 
@@ -218,7 +218,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         #  --- LOGGER --- 
 
-        conf[ArgParams.ExperimentTitle.value] = AdversarialAttackMaxExperiment.EXPERIMENT_TITLE
+        conf[ArgParams.ExperimentTitle.value] = StretchSqueezeMaskExperiment.EXPERIMENT_TITLE
         logger = LoguruLogger.from_conf(conf=conf) # NOT IN ISCHIAGUALASTIA BABY :)
         # logger = LoguruLogger(on_file=False)
         
@@ -504,8 +504,9 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         state = ParetoExperimentState.from_msg(msg=msg)
         state.dump(
             out_dir=path.join(self.dir, 'state'),
-            logger=self._logger)
-         
+            logger=self._logger
+        )
+        
         # Close screens if set (or preserve for further experiments using the same screen)
         if self._close_screen: self._logger.close_all_screens()
             
@@ -586,7 +587,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
             self._logger.info(f'> Saving {label} image to {out_fp}')
             img.save(out_fp)
 
-class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
+class StretchSqueezeExperiment(StretchSqueezeMaskExperiment):
     
     def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
         '''
@@ -616,7 +617,7 @@ class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
     
         data_ = (codes_, msg)
         
-        return super(AdversarialAttackMaxExperiment, self)._codes_to_stimuli(data=data_)
+        return super(StretchSqueezeMaskExperiment, self)._codes_to_stimuli(data=data_)
     
     
     def _finish(self, msg : ParetoMessage):
@@ -682,7 +683,7 @@ class BMMMultiExperiment(BaseZdreamMultiExperiment):
 
     def _progress(
         self, 
-        exp  : AdversarialAttackMaxExperiment2, 
+        exp  : StretchSqueezeExperiment, 
         conf : ParamConfig,
         msg  : ParetoMessage, 
         i    : int
@@ -701,3 +702,69 @@ class BMMMultiExperiment(BaseZdreamMultiExperiment):
         
         super()._finish()
         
+class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
+    
+    def _init(self):
+        
+        super()._init()
+        
+        self._data['desc'] = 'StretchSqueeze Experiment Targeting multiple Layers in the same Network'
+        
+        self._data['hidden_reference'] = []
+        self._data['hidden_dist']      = []
+        self._data['pixel_dist']       = []
+        self._data['num_iter']         = []
+
+    def _progress(
+        self, 
+        exp  : StretchSqueezeExperiment, 
+        conf : ParamConfig,
+        msg  : ParetoMessage, 
+        i    : int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        # Collect the needed data from the experiment
+        low_key, high_key = list(exp.subject.target.keys()) 
+        
+        target_low  = exp.subject.target[low_key]
+        target_high = exp.subject.target[high_key]
+        
+        signature = exp.scorer._layer_weights
+        
+        robust = exp.subject.robust
+        
+        net_name = f"{self.subject._name}{robust}"
+        
+        
+        dirname = f"{task}_{net_name}_{low_layer}_{category}"
+        
+        new_base_folder = os.path.join(img_dir_gen, self._name)
+        new_task_folder = os.path.join(new_base_folder, f"{task}_{net_name}")
+        new_layer_folder = os.path.join(new_task_folder, low_layer)
+        new_category_folder = os.path.join(new_layer_folder, category)
+        
+        # os.makedirs(new_category_folder, exist_ok=True)
+        # subdirs = [name for name in os.listdir(new_category_folder) if os.path.isdir(os.path.join(new_category_folder, name)) and re.search(dirname, name)]
+        # dirname = f"{dirname}_{len(subdirs) + 1}_rs{self._optimizer._rnd_seed}"        
+        # img_dir = make_dir(path=path.join(new_category_folder, dirname), logger=self._logger)
+        
+        df_row = {
+            'multiexp':self._name,
+            'task':task,
+            'network':net_name,
+            'low_layer':low_layer,
+            'category':target_cat,
+            'seed':self._optimizer._rnd_seed,
+        }
+        
+        self._data['hidden_reference'].append(exp.hidden_reference)
+        self._data['hidden_dist']     .append(exp.hidden_dist)
+        self._data['pixel_dist']      .append(exp.distance)
+        self._data['num_iter']        .append(exp._curr_iter)
+        
+
+    def _finish(self):
+        
+        super()._finish()
