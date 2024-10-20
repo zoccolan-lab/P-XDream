@@ -11,7 +11,7 @@ The file implements three main classes:
 from _collections_abc import dict_keys
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Any, Callable, Dict, List, Tuple, cast, Literal
+from typing import Any, Callable, Dict, List, Tuple, Union, cast, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -569,7 +569,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         self,
         layer_weights : Dict[str, float],
         scoring_units : Dict[str, ScoringUnits], 
-        reference     : Dict[str, NDArray],
+        reference     : tuple[Dict[str, NDArray], Dict[str, Union[str, float]]],
         metric        : _MetricKind = 'euclidean',
         dist_reduce   : Callable[[NDArray], NDArray] = np.mean,
         bounds        : Dict[str, Callable[[float], bool]] | None = None
@@ -594,11 +594,13 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         :type bounds: Dict[str, Callable[[float], bool]] | None, defaults to None
         
         '''
+        self._reference     = reference[0]
+        self.reference_info = reference[1]
         
         # Sanity Check - Check if all the layers in the reference are specified in the bounds
-        if bounds and not all(k in reference for k in bounds):
+        if bounds and not all(k in self._reference for k in bounds):
             
-            not_specified = set(reference.keys()).difference(set(bounds.keys()))
+            not_specified = set(self._reference.keys()).difference(set(bounds.keys()))
             
             raise ValueError(
                 f'Bounds must be specified for all the layers in the reference', 
@@ -606,7 +608,7 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
             )
         
         # Save the input parameters
-        self._reference     = reference
+
         self._bounds        = bounds
         self._layer_weights = layer_weights
         

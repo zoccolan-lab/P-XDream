@@ -31,7 +31,7 @@ from experiment.utils.args            import ExperimentArgParams
 from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_net_loading, parse_recording, parse_reference_info, parse_scoring, parse_signature
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
 
-class AdversarialAttackMaxExperiment(ZdreamExperiment):
+class StretchSqueezeMaskExperiment(ZdreamExperiment):
 
     EXPERIMENT_TITLE = "AdversarialAttackMax"
 
@@ -52,7 +52,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
     # --- CONFIG ---
 
     @classmethod
-    def _from_config(cls, conf : ParamConfig) -> 'AdversarialAttackMaxExperiment':
+    def _from_config(cls, conf : ParamConfig) -> 'StretchSqueezeMaskExperiment':
         '''
         Create a MaximizeActivityExperiment instance from a configuration dictionary.
 
@@ -146,6 +146,8 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         
         reference_file      = load_pickle(PARAM_ref)
         gen_var, layer, neuron, seed = parse_reference_info(PARAM_ref_info)
+        ref_info = {'gen_var': gen_var, 'layer': layer, 'neuron': neuron, 'seed': seed,
+                    'ref_file': PARAM_ref}
         
         layer_name = list(layer_info.keys())[layer]
         
@@ -153,8 +155,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         try:
             ref_code = reference_file[gen_var][layer_name][neuron][seed]['code']
         except KeyError:
-            raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, 
-                            neuron {neuron}, seed {seed} in file {PARAM_ref}')
+            raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
         
         # Generate the code and the state, unbatching it
         ref_stimulus : Stimuli = generator(codes=ref_code)
@@ -185,7 +186,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         scorer = ParetoReferencePairDistanceScorer(
             layer_weights=signature,
             scoring_units=scoring_units,
-            reference=ref_states_b,
+            reference = (ref_states_b,ref_info),
             metric=sel_metric,
             bounds = bounds
         )
@@ -216,7 +217,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
 
         #  --- LOGGER --- 
 
-        conf[ArgParams.ExperimentTitle.value] = AdversarialAttackMaxExperiment.EXPERIMENT_TITLE
+        conf[ArgParams.ExperimentTitle.value] = StretchSqueezeMaskExperiment.EXPERIMENT_TITLE
         logger = LoguruLogger.from_conf(conf=conf)
         
         # In the case render option is enabled we add display screens
@@ -593,7 +594,7 @@ class AdversarialAttackMaxExperiment(ZdreamExperiment):
         if valid_values_count < valid_val_thrshold and self._curr_iter > iter_thrshold:
                 msg.early_stopping = True
 
-class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
+class StretchSqueezeExperiment(StretchSqueezeMaskExperiment):
     
     def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
         '''
@@ -623,7 +624,7 @@ class AdversarialAttackMaxExperiment2(AdversarialAttackMaxExperiment):
     
         data_ = (codes_, msg)
         
-        return super(AdversarialAttackMaxExperiment, self)._codes_to_stimuli(data=data_)
+        return super(StretchSqueezeMaskExperiment, self)._codes_to_stimuli(data=data_)
     
     
     def _finish(self, msg : ParetoMessage):
@@ -667,7 +668,7 @@ def get_best_distance(im_dir):
 
 #TODO: refactor anche l'esperimento AdvAttk originale (evolverne 2 insieme)
 #??? Classe ParetoExperiment ???
-#class AdversarialAttackExperimentEvolvePair(AdversarialAttackMaxExperiment):
+#class AdversarialAttackExperimentEvolvePair(StretchSqueezeMaskExperiment):
     
     
 
@@ -681,7 +682,8 @@ class BMMMultiExperiment(BaseZdreamMultiExperiment):
         self._data['desc'] = 'BMM Multixperiment'
         
         # Cluster-idx : Weighted : Scores History
-        
+        self._data['target']           = []
+        self._data['experiment_type']  = []
         self._data['hidden_reference'] = []
         self._data['hidden_dist']      = []
         self._data['pixel_dist']       = []
@@ -689,13 +691,16 @@ class BMMMultiExperiment(BaseZdreamMultiExperiment):
 
     def _progress(
         self, 
-        exp  : AdversarialAttackMaxExperiment2, 
+        exp  : StretchSqueezeExperiment, 
         conf : ParamConfig,
         msg  : ParetoMessage, 
         i    : int
     ):
 
         super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        
+        self._data['target']          .append(exp.subject.target)
+        self._data['experiment_type'] .append(exp.scorer._layer_weights)
         
         self._data['hidden_reference'].append(exp.hidden_reference)
         self._data['hidden_dist']     .append(exp.hidden_dist)
@@ -707,4 +712,62 @@ class BMMMultiExperiment(BaseZdreamMultiExperiment):
     def _finish(self):
         
         super()._finish()
+       
+       
+class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
+    
+    def _init(self):
         
+        super()._init()
+        
+        self._data['desc'] = 'StretchSqueeze Experiment Targeting multiple Layers in the same Network'
+        
+        self._data['net_sbj']        = []
+        self._data['robust']         = []
+        self._data['lower_ly']       = []
+        self._data['upper_ly']       = []
+        self._data['low_target']     = []
+        self._data['high_target']    = []
+        self._data['task_signature'] = []
+        self._data['rnd_seed']       = []
+        self._data['reference_info'] = []
+        self._data['p1_front']       = []
+        self._data['p1_codes']       = []
+        self._data['layer_scores']   = []
+        self._data['num_iter']       = []
+
+    def _progress(
+        self, 
+        exp  : StretchSqueezeExperiment, 
+        conf : ParamConfig,
+        msg  : ParetoMessage, 
+        i    : int
+    ):
+
+        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
+        # get the network type (robust or not)
+        self._data['net_sbj'].append(exp.subject._name)
+        self._data['robust'].append(exp.subject.robust)
+        # Collect the needed data from the experiment
+        #get the layers involved and their target neurons
+        low_key, high_key = list(exp.subject.target.keys()) 
+        self._data['lower_ly'].append(low_key)
+        self._data['upper_ly'].append(high_key)
+        self._data['low_target'].append(exp.subject.target[low_key])
+        self._data['high_target'].append(exp.subject.target[high_key])
+        #get the signature, which is characteristic of the task (invariance or adversarial attack)
+        self._data['task_signature'].append(exp.scorer._layer_weights)
+        self._data['rnd_seed'].append(exp.optimizer._rnd_seed)
+        self._data['reference_info'].append(exp.scorer.reference_info)
+        pf1_coords = msg.Pfront_1
+        self._data['p1_front'].append(pf1_coords)
+        codes_history = np.stack(msg.codes_history)
+        #TODO: why codes_history length is nr iter +1?
+        self._data['p1_codes'].append(codes_history[pf1_coords[:,0]+1, pf1_coords[:,1],:]),
+        self._data['layer_scores'].append({k:np.vstack(v) for k,v in msg.layer_scores_gen_history.items()})
+        self._data['num_iter'].append(exp._curr_iter)
+        
+
+    def _finish(self):
+        #TODO: summary of the experiment as .xlsx file?
+        super()._finish() 
