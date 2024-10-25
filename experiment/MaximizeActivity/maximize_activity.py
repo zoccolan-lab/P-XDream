@@ -938,10 +938,9 @@ class NeuronReferenceMultiExperiment(BaseZdreamMultiExperiment):
         
         layer = list(rec_units.keys())[0]
         units = rec_units[layer]
+        #assert len(units) == 1, f'Expected to record a single neuron, but {len(units)} were found'
         
-        assert len(units) == 1, f'Expected to record a single neuron, but {len(units)} were found'
-        
-        neuron = str(units[0]) # NOTE: tuple indexing
+        neuron = str(list(map(int, units))) # NOTE: tuple indexing
         
         seed = int(conf[ArgParams.RandomSeed.value])
         

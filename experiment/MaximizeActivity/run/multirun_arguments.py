@@ -7,11 +7,13 @@ import numpy as np
 from pxdream.utils.misc import copy_exec
 from pxdream.utils.parameters import ArgParams
 from experiment.utils.args import ExperimentArgParams
+from pxdream.subject import TorchNetworkSubject
+
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
 
-NAME   = f'resnet50_references_group2'
+NAME   = f'resnet50_conv53_vanilla_ref'
 
 ITER     = 500
 SAMPLE   =  30
@@ -38,17 +40,57 @@ VARIANT_LAYER = 21
 VARIANT_NEURONS = list(range(2))
 
 # --- REFERENCES ---
-def get_rnd(seed=None):
+def get_rnd(
+    seed=None,
+    n_seeds=10,
+    r_range : Tuple[Tuple[int, int], ...] | Tuple[int, int] = (1000, 1000000),
+    add_parenthesis: bool = True
+):
+    if isinstance(r_range[0], int):
+        if len(r_range) == 2:
+            r_range = (r_range,)
+        else: #fast parsing of tuple(tuple[int, int], ...)
+            r_range = tuple((r,) for r in r_range)
+    
     if seed is not None:
         random.seed(seed)
-    return str(random.randint(1000, 1000000))
+    
+    unique_numbers = set()
+    
+    while len(unique_numbers) < n_seeds:
+        idx = []
+        for inner in r_range:
+            if len(inner) == 1:
+                start = 0
+                end = inner[0]
+            else:
+                start, end = inner
+            
+            idx.append(str(random.randint(start, end)))
+        if add_parenthesis == True:
+            unique_numbers.add('(' + ' '.join(idx) + ')')
+        else:
+            unique_numbers.add(' '.join(idx))
+    return list(unique_numbers)
 
+
+NUM_NEURONS = 100
+GLOBAL_SEED = 31415
 REF_GEN_VARIANT = ['fc7']
-REF_LAYERS      = [126]
-REF_NEURONS     = [12,81,90,190,315,501, 569, 616,780,978] #  
-REF_SEED        = [get_rnd(seed = 50000) for _ in range(10)]
+REF_LAYERS      = [122]
+REF_SEED        = get_rnd(seed=GLOBAL_SEED, n_seeds=4, add_parenthesis=False) 
 NET             = 'resnet50'
-ROBUST_VARIANT  = 'imagenet_l2_3_0.pt'
+ROBUST_VARIANT  = ''#'imagenet_l2_3_0.pt'
+SBJ_LOADER      = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
+
+
+subject = TorchNetworkSubject(
+    NET,
+    inp_shape=(1, 3, 224, 224),
+)
+layer_shape = subject.layer_shapes[REF_LAYERS[0]]
+layer_shape = tuple([e-1 for e in layer_shape]) if len(layer_shape) == 2 else tuple([e-1 for e in layer_shape[1:]])
+REF_NEURONS = get_rnd(seed=GLOBAL_SEED, n_seeds=NUM_NEURONS, r_range=layer_shape) #  
 
 
 def get_args_neuron_scaling() -> Tuple[str, str, str]:
@@ -60,8 +102,8 @@ def get_args_neuron_scaling() -> Tuple[str, str, str]:
         for _ in range(SAMPLE)
     ]
 
-    rec_layer_str = '#'.join(a for a, _, _ in args)
-    scr_layer_str = '#'.join(a for _, a, _ in args)
+    rec_layer_str = '#'.join(a for a, _, _ in args) 
+    scr_layer_str = '#'.join(a for _, a, _ in args) 
     rand_seed_str = '#'.join(a for _, _, a in args)
     
     return rec_layer_str, scr_layer_str, rand_seed_str
@@ -123,7 +165,7 @@ def get_args_reference() -> Tuple[str, str, str]:
     ]
     
     gen_var_str = '#'.join(a for a, _, _ in args)
-    rec_str     = '#'.join(a for _, a, _ in args)
+    rec_str     = '"' + '#'.join(a for _, a, _ in args) + '"'
     seed_str    = '#'.join(a for _, _, a in args)
     
     return gen_var_str, rec_str, seed_str
@@ -201,9 +243,9 @@ if __name__ == '__main__':
                 str(ExperimentArgParams.ScoringLayers  ) : rec_layer_str,
                 str(ExperimentArgParams.NetworkName    ) : NET,
                 str(          ArgParams.RandomSeed     ) : seed_str,
-                str(ExperimentArgParams.CustomWeightsVariant) : ROBUST_VARIANT
+                str(ExperimentArgParams.WeightLoadFunction): SBJ_LOADER
             }
-            
+            if ROBUST_VARIANT : args[str(ExperimentArgParams.CustomWeightsVariant)] = ROBUST_VARIANT
             file = 'run_multiple_references.py'
             
         case _:

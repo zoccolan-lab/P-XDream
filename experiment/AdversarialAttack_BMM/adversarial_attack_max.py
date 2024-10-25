@@ -152,14 +152,18 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         layer_name = list(layer_info.keys())[layer]
         
         # Extract code from reference file
+        r = '_r' if path2CustomW else ''
+        net_key = PARAM_net_name+r
+        
         try:
-            ref_code = reference_file[gen_var][layer_name][neuron][seed]['code']
+            ref_code = reference_file['reference'][net_key][gen_var][layer_name][neuron][seed]['code']
         except KeyError:
             raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
         
         # Generate the code and the state, unbatching it
         ref_stimulus : Stimuli = generator(codes=ref_code)
         ref_states_b : States  = sbj_net(stimuli=ref_stimulus)
+        print(f"Reference performance: {ref_states_b[list(record_target.keys())[-1]]}")
         
         # Parse target neurons
         scoring_units = parse_scoring(
@@ -218,8 +222,8 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         #  --- LOGGER --- 
 
         conf[ArgParams.ExperimentTitle.value] = StretchSqueezeMaskExperiment.EXPERIMENT_TITLE
-        logger = LoguruLogger.from_conf(conf=conf)
-        
+        #logger = LoguruLogger.from_conf(conf=conf)
+        logger = LoguruLogger(to_file=False)
         # In the case render option is enabled we add display screens
         if bool(PARAM_render):
 
@@ -672,48 +676,6 @@ def get_best_distance(im_dir):
     
     
 
-
-class BMMMultiExperiment(BaseZdreamMultiExperiment):
-        
-    def _init(self):
-        
-        super()._init()
-        
-        self._data['desc'] = 'BMM Multixperiment'
-        
-        # Cluster-idx : Weighted : Scores History
-        self._data['target']           = []
-        self._data['experiment_type']  = []
-        self._data['hidden_reference'] = []
-        self._data['hidden_dist']      = []
-        self._data['pixel_dist']       = []
-        self._data['num_iter']         = []
-
-    def _progress(
-        self, 
-        exp  : StretchSqueezeExperiment, 
-        conf : ParamConfig,
-        msg  : ParetoMessage, 
-        i    : int
-    ):
-
-        super()._progress(exp=exp, conf=conf, i=i, msg=msg)
-        
-        self._data['target']          .append(exp.subject.target)
-        self._data['experiment_type'] .append(exp.scorer._layer_weights)
-        
-        self._data['hidden_reference'].append(exp.hidden_reference)
-        self._data['hidden_dist']     .append(exp.hidden_dist)
-        self._data['pixel_dist']      .append(exp.distance)
-        self._data['num_iter']        .append(exp._curr_iter)
-        
-        
-
-    def _finish(self):
-        
-        super()._finish()
-       
-       
 class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
     
     def _init(self):
@@ -731,6 +693,7 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         self._data['task_signature'] = []
         self._data['rnd_seed']       = []
         self._data['reference_info'] = []
+        self._data['reference_activ']= []
         self._data['p1_front']       = []
         self._data['p1_codes']       = []
         self._data['layer_scores']   = []
@@ -759,6 +722,7 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         self._data['task_signature'].append(exp.scorer._layer_weights)
         self._data['rnd_seed'].append(exp.optimizer._rnd_seed)
         self._data['reference_info'].append(exp.scorer.reference_info)
+        self._data['reference_activ'].append(exp.scorer._reference[high_key])
         pf1_coords = msg.Pfront_1
         self._data['p1_front'].append(pf1_coords)
         codes_history = np.stack(msg.codes_history)
@@ -769,5 +733,30 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         
 
     def _finish(self):
+        self.get_df_summary()
         #TODO: summary of the experiment as .xlsx file?
         super()._finish() 
+        
+    def get_df_summary(self):
+        Sign2Task = {
+            1 : 'adversarial',
+            -1 : 'invariance'
+        }
+        mexp_data = self._data
+        # Funzione per verificare se tutti gli elementi di una lista sono di un tipo desiderato
+        def is_valid_column(column):
+            valid_types = (str, int, float, bool)
+            return all(isinstance(item, valid_types) for item in column)
+
+        # Filtra le colonne in base ai tipi di dati desiderati
+        filtered_data = {key: value for key, value in mexp_data.items() if is_valid_column(value)}
+
+        # Converti il dizionario filtrato in un DataFrame
+        df = pd.DataFrame(filtered_data)
+        df['p1_last'] = [tuple(x[-1,:]) for x in mexp_data['p1_front']]
+        df['task'] = [Sign2Task[list(x.values())[0]] for x in mexp_data['task_signature']]
+        df['high_target'] = [int(x[0][0]) for x in mexp_data['high_target']]
+        df['dist_low'] = [x[ll][c] for x,ll,c in zip(mexp_data['layer_scores'], df['lower_ly'], df['p1_last'])]
+        df['dist_up']  = [x[ll][c] for x,ll,c in zip(mexp_data['layer_scores'], df['upper_ly'], df['p1_last'])]
+        df.to_csv(path.join(self.target_dir, 'data_summary.csv'), index=False)
+        # Visualizza il DataFrame

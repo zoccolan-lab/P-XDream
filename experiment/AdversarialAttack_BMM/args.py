@@ -18,7 +18,7 @@ ARGS: ParamConfig = {
     ExperimentArgParams.NetworkName             .value : 'alexnet',        # resnet50
     ExperimentArgParams.RecordingLayers         .value : "0=[], 21=[0]"  , # 126 resnet50
     ExperimentArgParams.CustomWeightsPath       .value : CUSTOM_WEIGHTS, 
-    ExperimentArgParams.CustomWeightsVariant    .value : 'imagenet_l2_3_0.pt', # 'imagenet_l2_3_0.pt'
+    ExperimentArgParams.CustomWeightsVariant    .value : '', # 'imagenet_l2_3_0.pt'
     ExperimentArgParams.WeightLoadFunction.value       : 'madryLab_robust_load',
     
     # Scorer
@@ -29,7 +29,7 @@ ARGS: ParamConfig = {
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,
     ExperimentArgParams.LayerReduction   .value : "mean"             ,
     ExperimentArgParams.Reference        .value : REFERENCES ,
-    ExperimentArgParams.ReferenceInfo    .value : "G=fc7, L=126, N=[0], S=685675"  ,
+    ExperimentArgParams.ReferenceInfo    .value : "G=fc7, L=126, N=[348], S=482726"  ,
     
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,

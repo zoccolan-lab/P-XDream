@@ -17,6 +17,7 @@
 *.txt
 *.pt
 *.pth
+*.svg
 *__*
 
 # Local directories
