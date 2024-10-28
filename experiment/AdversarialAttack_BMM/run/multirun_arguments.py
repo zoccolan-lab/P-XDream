@@ -12,7 +12,7 @@ from pxdream.utils.parameters import ArgParams
 from experiment.MaximizeActivity.run.multirun_arguments import get_rnd
 
 TASK = ['adversarial', 'invariance']
-NAME                = f'SnS_multiexp_251024_robustRnet50_genetic_i250'
+NAME                = f'SnS_multiexp_271024_robustRnet50_genetic_i250'
 
 GLOBAL_RSEED        = 50000
 ITER                = 250
@@ -33,7 +33,7 @@ Task2Bound = {
     'invariance': f'{LOW_LY}=N, {HIGH_LY}=<10%',
     'adversarial': f'{LOW_LY}=N, {HIGH_LY}=>100%'
 }
-N_NEURONS           = 10
+N_NEURONS           = 20
 subject = TorchNetworkSubject(
     NET,
     inp_shape=(1, 3, 224, 224),
@@ -42,7 +42,8 @@ LNAME = subject.layer_names[HIGH_LY]
 
 #select neurons and seeds
 reference_file      = load_pickle(REFERENCES)
-refs                = reference_file['reference'][GEN_VARIANT][LNAME]
+net_key = NET+'_r' if ROBUST_VARIANT else NET
+refs                = reference_file['reference'][net_key][GEN_VARIANT][LNAME]
 neurons_available   = list(refs.keys())
 N_NEURONS = min(N_NEURONS, len(neurons_available))
 neurons_idxs        = list(map(int,get_rnd(seed = GLOBAL_RSEED, n_seeds = N_NEURONS, 

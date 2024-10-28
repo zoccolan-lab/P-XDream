@@ -919,7 +919,7 @@ class NeuronReferenceMultiExperiment(BaseZdreamMultiExperiment):
         super()._init()
         
         self._data['desc'     ] = 'Creates a code reference for layer, neuron and random_seed'
-        self._data['reference'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict))))
+        self._data['reference'] = defaultdict(lambda:defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))))
 
     def _progress(
         self, 
@@ -933,6 +933,8 @@ class NeuronReferenceMultiExperiment(BaseZdreamMultiExperiment):
         
         gen_variant = str(conf[ExperimentArgParams.GenVariant.value])
         rec_units   = exp.subject.target
+        r = '_r' if exp.subject.robust else ''
+        neural_net  = exp.subject.name + r
         
         assert len(rec_units) == 1, f'Expected to record from a single layer, but {len(rec_units)} were found'
         
@@ -947,22 +949,25 @@ class NeuronReferenceMultiExperiment(BaseZdreamMultiExperiment):
         score = msg.stats_gen['best_score']
         code  = msg.best_code
         
-        self._data['reference'][gen_variant][layer][neuron][seed] = {'code': code, 'fitness': score}
+        self._data['reference'][neural_net][gen_variant][layer][neuron][seed] = {'code': code, 'fitness': score}
         
     def _finish(self):
         
         self._data['reference'] = {
-            variant: {
-                layer: {
-                    neuron: {
-                        seed: data
-                        for seed, data in seeds.items()
+            neural_net: {
+                variant: {
+                    layer: {
+                        neuron: {
+                            seed: data
+                            for seed, data in seeds.items()
+                        }
+                        for neuron, seeds in neurons.items()
                     }
-                    for neuron, seeds in neurons.items()
+                    for layer, neurons in layers.items()
                 }
-                for layer, neurons in layers.items()
+                for variant, layers in variants.items()
             }
-            for variant, layers in self._data['reference'].items()
+            for neural_net, variants in self._data['reference'].items()
         }
         
         super()._finish()

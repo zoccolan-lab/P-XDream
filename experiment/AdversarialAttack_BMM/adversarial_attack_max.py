@@ -14,6 +14,7 @@ from torchvision.transforms.functional import to_pil_image
 from torchvision import transforms
 from scipy.spatial.distance import pdist
 
+from experiment.AdversarialAttack_BMM.plots import BMM_scatter_plot
 from pxdream.experiment                import ParetoExperimentState, ZdreamExperiment
 from pxdream.generator                 import Generator, DeePSiMGenerator
 from pxdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
@@ -733,7 +734,8 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         
 
     def _finish(self):
-        self.get_df_summary()
+        df = self.get_df_summary()
+        BMM_scatter_plot(df, net_name = df['net_sbj'].unique()[0], savepath = self.target_dir)
         #TODO: summary of the experiment as .xlsx file?
         super()._finish() 
         
@@ -758,5 +760,7 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         df['high_target'] = [int(x[0][0]) for x in mexp_data['high_target']]
         df['dist_low'] = [x[ll][c] for x,ll,c in zip(mexp_data['layer_scores'], df['lower_ly'], df['p1_last'])]
         df['dist_up']  = [x[ll][c] for x,ll,c in zip(mexp_data['layer_scores'], df['upper_ly'], df['p1_last'])]
+        df['ref_activ'] = [int(x[0][0]) for x in mexp_data['reference_activ']]
         df.to_csv(path.join(self.target_dir, 'data_summary.csv'), index=False)
+        return df
         # Visualizza il DataFrame

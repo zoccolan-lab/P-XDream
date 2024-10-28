@@ -10,6 +10,7 @@ import platform
 from os import path
 from subprocess import PIPE, Popen
 from typing import Tuple, TypeVar, Callable, Dict, List, Any, Union, cast
+import pyperclip
 from torchvision import transforms
 from scipy.spatial.distance import pdist
 
@@ -346,15 +347,15 @@ def flatten_dict(d: Dict)-> Dict:
 # NOTE: This requires `sudo apt install xsel`
 def copy_on_clipboard(command: str):
     ''' Copies input string to clipboard '''
-
     match platform.system():
-
+        
         case 'Linux':
 
             # Byte conversion
             cmd_ =  bytes(command, encoding='utf-8')
             
             # Copy
+            #p = Popen(['xclip', '-selection', 'clipboard'], stdin=PIPE)
             p = Popen(['xsel', '-bi'], stdin=PIPE)
             p.communicate(input=cmd_)
 
@@ -362,6 +363,7 @@ def copy_on_clipboard(command: str):
 
             subprocess.run(f'echo {command} | clip', shell=True)
 
+        
 
 def copy_exec(
         file: str,
@@ -375,7 +377,8 @@ def copy_exec(
     '''
     
     cmd = f'{program} {file} ' + " ".join(f'--{k} {v}' for k, v in args.items())
-
+    with open('cmd2exec.txt', 'w') as file:
+            file.write(cmd)
     copy_on_clipboard(cmd)
 
     return cmd

@@ -1,19 +1,22 @@
 
+from functools import reduce
+import operator
 import random
-from typing import List, Tuple
+from typing import List, Set, Tuple
 
 import numpy as np
 
+from pxdream.utils.io_ import load_pickle
 from pxdream.utils.misc import copy_exec
 from pxdream.utils.parameters import ArgParams
-from experiment.utils.args import ExperimentArgParams
+from experiment.utils.args import REFERENCES, ExperimentArgParams
 from pxdream.subject import TorchNetworkSubject
 
 
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
 
-NAME   = f'resnet50_conv53_vanilla_ref'
+NAME   = f'reference_Vanilla_Rnet50_other100'
 
 ITER     = 500
 SAMPLE   =  30
@@ -43,54 +46,80 @@ VARIANT_NEURONS = list(range(2))
 def get_rnd(
     seed=None,
     n_seeds=10,
-    r_range : Tuple[Tuple[int, int], ...] | Tuple[int, int] = (1000, 1000000),
-    add_parenthesis: bool = True
+    r_range: Tuple[Tuple[int, int], ...] | Tuple[int, int] = (1, 10),
+    add_parenthesis: bool = True,
+    avoid_numbers: Set[int] | Tuple[Set[int],...] = None
 ):
     if isinstance(r_range[0], int):
         if len(r_range) == 2:
             r_range = (r_range,)
-        else: #fast parsing of tuple(tuple[int, int], ...)
+        elif isinstance(r_range[0], int):
+            r_range = tuple((0,r) for r in r_range)  
+        else:  # fast parsing of tuple(tuple[int, int], ...)
             r_range = tuple((r,) for r in r_range)
-    
+
     if seed is not None:
         random.seed(seed)
-    
+
+    if avoid_numbers is None:
+        avoid_numbers = tuple(set() for _ in range(len(r_range)))
+
+    if not isinstance(avoid_numbers, tuple): avoid_numbers =(avoid_numbers,)
+    # Calculate the total number of possible unique numbers
+    total_possible_numbers = reduce(operator.mul,[end - start + 1 - len(avoid_numbers[i]) 
+                                                  for i,(start, end) in enumerate(r_range)])
+    # Security check
+    if n_seeds > total_possible_numbers:
+        raise ValueError("Requested more unique numbers than possible to sample given the range and avoid_numbers.")
+
+
     unique_numbers = set()
-    
+
     while len(unique_numbers) < n_seeds:
         idx = []
-        for inner in r_range:
-            if len(inner) == 1:
-                start = 0
-                end = inner[0]
-            else:
-                start, end = inner
-            
-            idx.append(str(random.randint(start, end)))
-        if add_parenthesis == True:
+        for i,inner in enumerate(r_range):
+            start, end = inner
+            an = avoid_numbers[i]
+
+            # Generate a random number that is not in avoid_numbers
+            while True:
+                rand_num = random.randint(start, end)
+                if rand_num not in an:
+                    break
+
+            idx.append(str(rand_num))
+
+        if add_parenthesis:
             unique_numbers.add('(' + ' '.join(idx) + ')')
         else:
             unique_numbers.add(' '.join(idx))
+
     return list(unique_numbers)
 
-
-NUM_NEURONS = 100
-GLOBAL_SEED = 31415
-REF_GEN_VARIANT = ['fc7']
-REF_LAYERS      = [122]
-REF_SEED        = get_rnd(seed=GLOBAL_SEED, n_seeds=4, add_parenthesis=False) 
 NET             = 'resnet50'
 ROBUST_VARIANT  = ''#'imagenet_l2_3_0.pt'
-SBJ_LOADER      = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
-
+REF_GEN_VARIANT = ['fc7']
+REF_LAYERS      = [126]
 
 subject = TorchNetworkSubject(
     NET,
     inp_shape=(1, 3, 224, 224),
 )
+LNAME = subject.layer_names[REF_LAYERS[0]]
 layer_shape = subject.layer_shapes[REF_LAYERS[0]]
+
+reference_file      = load_pickle(REFERENCES)
+net_key = NET+'_r' if ROBUST_VARIANT else NET
+refs                = reference_file['reference'][net_key][REF_GEN_VARIANT[0]][LNAME]
+neurons_present = set([int(key.strip('[]')) for key in refs.keys()])
+
+NUM_NEURONS = 100
+GLOBAL_SEED = 31415
+REF_SEED        = get_rnd(seed=GLOBAL_SEED, n_seeds=4, add_parenthesis=False) 
+SBJ_LOADER      = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
+
 layer_shape = tuple([e-1 for e in layer_shape]) if len(layer_shape) == 2 else tuple([e-1 for e in layer_shape[1:]])
-REF_NEURONS = get_rnd(seed=GLOBAL_SEED, n_seeds=NUM_NEURONS, r_range=layer_shape) #  
+REF_NEURONS = get_rnd(seed=GLOBAL_SEED, n_seeds=NUM_NEURONS, r_range=layer_shape, avoid_numbers = neurons_present) #  
 
 
 def get_args_neuron_scaling() -> Tuple[str, str, str]:
@@ -102,8 +131,8 @@ def get_args_neuron_scaling() -> Tuple[str, str, str]:
         for _ in range(SAMPLE)
     ]
 
-    rec_layer_str = '#'.join(a for a, _, _ in args) 
-    scr_layer_str = '#'.join(a for _, a, _ in args) 
+    rec_layer_str = '#'.join(a for a, _, _ in args)
+    scr_layer_str = '#'.join(a for _, a, _ in args)
     rand_seed_str = '#'.join(a for _, _, a in args)
     
     return rec_layer_str, scr_layer_str, rand_seed_str
