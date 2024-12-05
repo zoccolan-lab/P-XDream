@@ -75,7 +75,7 @@ class AffinityMatrix:
     def __len__ (self) -> int:  return self.shape[0]
     def __str__ (self) -> str:  return f'AffinityMatrix[objects: {len(self)}]'
     def __repr__(self) -> str:  return str(self)
-    def __bool__(self) -> bool: return np.sum(self.A) > 0
+    def __bool__(self) -> bool: return bool(np.sum(self.A) > 0)
 
     def __copy__(self) -> 'AffinityMatrix':
         return AffinityMatrix(

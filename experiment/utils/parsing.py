@@ -75,7 +75,48 @@ def parse_bounds(
     net_info: Dict[str, Tuple[int, ...]],
     reference
 ) -> Dict[str, Callable[[float], bool]]:
-    
+    """
+    This function parses a string that specifies bounds for different layers of a neural network
+    and returns a dictionary mapping layer names to functions that check whether a given value
+    satisfies the specified bound for that layer.
+
+    The input string should be in the format:
+    `"layer_id=bound,layer_id=bound,..."`
+
+    Where:
+    - `layer_id` is the index of the layer in the list of layer names from `net_info`.
+    - `bound` is a bound condition that can be:
+        - An upper bound, e.g., `<0.5` or `<20%`.
+        - A lower bound, e.g., `>0.1` or `>5%`.
+        - Bounds specified with `%` are calculated relative to the reference values provided.
+
+    ### Parameters:
+    - **input_str** (`str`): A string specifying the bounds for each layer.
+    - **net_info** (`Dict[str, Tuple[int, ...]]`): A dictionary containing network information, mapping layer names to their dimensions or shapes.
+    - **reference**: A dictionary of reference values for each layer, used when bounds are specified as percentages.
+
+    ### Returns:
+    - **bounds_funcs** (`Dict[str, Callable[[float], bool]]`): A dictionary mapping layer names to functions that take a float value 
+        and return a boolean indicating whether the value satisfies the specified bound for that layer.
+
+    ### Example Usage:
+    ```python
+    net_info = {
+        'conv1': (64, 3, 3),
+        'conv2': (128, 3, 3),
+        'conv3': (256, 3, 3)
+    }
+    reference = {
+        'conv1': 1.0,
+        'conv2': 2.0,
+        'conv3': 3.0
+    }
+    input_str = "0=<0.5,2=>20%"
+    bounds_funcs = parse_bounds(input_str, net_info, reference)
+    # bounds_funcs['conv1'] checks if values are less than 0.5
+    # bounds_funcs['conv3'] checks if values are greater than 20% of the reference value
+    ```
+    """
     # Extract layer names from the net information
     layer_names = list(net_info.keys())
     # Initialize the dictionary to hold bounding functions

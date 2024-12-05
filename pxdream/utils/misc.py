@@ -22,6 +22,7 @@ import torch.nn as nn
 from torch import Tensor
 from torchvision.utils import make_grid
 from torchvision.transforms.functional import to_pil_image
+import torch.nn.functional as F
 from PIL import Image
 from einops import rearrange
 from pandas import DataFrame
@@ -429,3 +430,7 @@ def load_npy_npz(in_dir:str, fnames:list[tuple[str, str]], logger: Logger = Sile
             loaded[name] = None
     return loaded
 
+def resize_image_tensor(img_tensor: Tensor, size: Tuple[int, int]) -> Tensor:
+    resized_img_tensor = F.interpolate(img_tensor, size=(size[-2], size[-1]),
+    mode='bilinear', align_corners=False).view(img_tensor.shape[0],-1).cpu().numpy().astype('float32')
+    return resized_img_tensor

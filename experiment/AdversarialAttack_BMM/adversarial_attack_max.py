@@ -17,18 +17,18 @@ from scipy.spatial.distance import pdist
 from experiment.AdversarialAttack_BMM.plots import BMM_scatter_plot
 from pxdream.experiment                import ParetoExperimentState, ZdreamExperiment
 from pxdream.generator                 import Generator, DeePSiMGenerator
-from pxdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, Optimizer
+from pxdream.optimizer                 import CMAESOptimizer, GeneticOptimizer, HybridOptimizer, Optimizer
 from pxdream.scorer                    import Scorer, ParetoReferencePairDistanceScorer, _MetricKind
 from pxdream.subject                   import InSilicoSubject, TorchNetworkSubject
 from pxdream.utils.dataset             import ExperimentDataset, MiniImageNet, NaturalStimuliLoader, RandomImageDataset
 from pxdream.utils.io_ import load_pickle
 from pxdream.utils.logger              import DisplayScreen, Logger, LoguruLogger
 from pxdream.utils.message             import ParetoMessage, ZdreamMessage
-from pxdream.utils.misc                import concatenate_images, device
+from pxdream.utils.misc                import concatenate_images, device, resize_image_tensor
 from pxdream.utils.parameters          import ArgParams, ParamConfig
 from pxdream.utils.probe               import RecordingProbe
 from pxdream.utils.types               import Codes, Stimuli, Fitness, States
-from experiment.utils.args            import ExperimentArgParams
+from experiment.utils.args            import ExperimentArgParams, WEIGHTS
 from experiment.utils.parsing         import parse_boolean_string, parse_bounds, parse_net_loading, parse_recording, parse_reference_info, parse_scoring, parse_signature
 from experiment.utils.misc            import BaseZdreamMultiExperiment, make_dir
 
@@ -64,7 +64,6 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         '''
         
         # Extract parameter from configuration and cast
-        
         PARAM_weights     = str  (conf[ExperimentArgParams.GenWeights      .value])
         PARAM_variant     = str  (conf[ExperimentArgParams.GenVariant      .value])
         PARAM_template    = str  (conf[ExperimentArgParams.Template        .value])
@@ -89,10 +88,10 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         PARAM_sigma0      = float(conf[ExperimentArgParams.Sigma0          .value])
         PARAM_optim_type  = str  (conf[ExperimentArgParams.OptimType       .value])
         PARAM_net_loading = str  (conf[ExperimentArgParams.WeightLoadFunction.value])
-
+        PARAM_noise_strength = float(conf[ExperimentArgParams.Noise_strength.value])
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
-        path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
         
+        path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
         # Set numpy random seed
         
         np.random.seed(PARAM_rnd_seed)
@@ -216,6 +215,13 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
                 allow_clones = True,
                 n_parents    = 4
             )
+        elif PARAM_optim_type == 'hybrid':
+            optim = HybridOptimizer(        
+                    codes_shape     = generator.input_dim,
+                    pop_size        = PARAM_pop_size,
+                    pso_prob        = 0.5,
+                    pso_iterations  = 1,
+                    rnd_seed        = PARAM_rnd_seed)
         else:
             raise ValueError(f'Optimizer type {PARAM_optim_type} not recognized')
             
@@ -256,7 +262,9 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
             'render'       : PARAM_render,
             'close_screen' : PARAM_close_screen,
             'use_nat'      : use_nat,
-            'ref_code'     : ref_code
+            'ref_code'     : ref_code,
+            'params'       : conf,
+            'noise_strength': PARAM_noise_strength
         }
 
         # --- EXPERIMENT INSTANCE ---
@@ -314,6 +322,8 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         self._render         = cast(bool,    data[str(ArgParams.Render)])
         self._close_screen   = cast(bool,    data['close_screen'])
         self._use_natural    = cast(bool,    data['use_nat'])
+        self._noise_strength = cast(float,   data['noise_strength'])
+        self.params          = cast(ParamConfig, data['params']) if 'params' in data else {}
         
         # Save dataset if used
         if self._use_natural: self._dataset = cast(ExperimentDataset, data['dataset'])  
@@ -511,19 +521,7 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         self.distance         = get_best_distance(self.img_dir)
         self.hidden_dist      = state.layer_scores_gen_history[last_layer][msg.best_code_idx[0],msg.best_code_idx[1]] #type: ignore
         self.image_dist       = state.layer_scores_gen_history[input_layer][msg.best_code_idx[0],msg.best_code_idx[1]] #type: ignore
-        print(f"image dist - rec {self.image_dist}, direct computation {self.distance}")
-        #exp_path = os.path.join(img_dir_gen, 'experiments.csv')
-        #df = pd.read_csv(exp_path) if os.path.exists(exp_path) else pd.DataFrame(columns=[*df_row.keys(),'experiment', 
-        #                                                                                'hidden_reference', 'hidden_dist', 'pixel_dist', 'num_iter'])
-        
-        # df_row['hidden_reference']= int(self.hidden_reference)
-        # df_row['hidden_dist'] = hidden_dist
-        # df_row['pixel_dist'] = distance
-        # df_row['num_iter'] = self._curr_iter
-        # 
-        # df = pd.concat([df, pd.DataFrame([df_row])])
-        # df.to_csv(exp_path, index=False)
-        
+        print(f"image dist - rec {self.image_dist}, direct computation {self.distance}")        
         return msg
         
     def save_exp_data(self, img_dir_gen):
@@ -612,7 +610,7 @@ class StretchSqueezeExperiment(StretchSqueezeMaskExperiment):
             codes = self.optimizer.init()
         else:
             ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
-            noise = np.random.normal(0, np.sqrt(0.01 * np.abs(np.mean(self._reference_code))), ref_codes.shape)
+            noise = np.random.normal(0, np.sqrt(self._noise_strength * np.abs(np.mean(self._reference_code))), ref_codes.shape)
             init_codes = (ref_codes + noise)
             codes = self.optimizer.init(init_codes = init_codes)
         
@@ -645,7 +643,34 @@ class StretchSqueezeExperiment(StretchSqueezeMaskExperiment):
         self.distance         = get_best_distance(self.img_dir)
         print(self.distance)
         return msg
+
+class StretchSqueezeExperiment_randinit(StretchSqueezeExperiment):
+    def _run_init(self, msg : ParetoMessage) -> Tuple[Codes, ParetoMessage]:
+        '''
+        Method called before entering the main for-loop across generations.
+        It is responsible for generating the initial codes
+        '''
     
+        # Codes initialization
+        if isinstance(self.optimizer, CMAESOptimizer):
+            init_codes = np.random.normal(0, np.sqrt(self._noise_strength * np.abs(np.mean(self._reference_code))), *self.optimizer._es.x0.shape)
+            self._optimizer = CMAESOptimizer(
+                codes_shape = self.generator.input_dim,
+                rnd_seed    = self.optimizer._rnd_seed,
+                pop_size    = self.optimizer.pop_size,
+                sigma0      = self.optimizer._sigma0,
+                x0          = init_codes
+            )
+            codes = self.optimizer.init()
+        else:
+            ref_codes = np.tile(self._reference_code, (self._optimizer._init_n_codes, 1))
+            init_codes = np.random.normal(0, np.sqrt(self._noise_strength * np.abs(np.mean(self._reference_code))), ref_codes.shape)
+            codes = self.optimizer.init(init_codes = init_codes)
+        
+        # Update the message codes history
+        msg.codes_history.append(codes)
+        
+        return codes, msg
     
 #TODO: check why this is different from the recorded image. Is it because of the normalization?    
 def get_best_distance(im_dir):
@@ -692,6 +717,7 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         self._data['low_target']     = []
         self._data['high_target']    = []
         self._data['task_signature'] = []
+        self._data['constraint']     = []
         self._data['rnd_seed']       = []
         self._data['reference_info'] = []
         self._data['reference_activ']= []
@@ -721,6 +747,12 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         self._data['high_target'].append(exp.subject.target[high_key])
         #get the signature, which is characteristic of the task (invariance or adversarial attack)
         self._data['task_signature'].append(exp.scorer._layer_weights)
+        up_layer_defaults = exp.scorer._bounds[high_key].__defaults__
+        if up_layer_defaults:
+            self._data['constraint'].append(up_layer_defaults[0]) 
+        else:
+            self._data['constraint'].append(np.nan)
+            
         self._data['rnd_seed'].append(exp.optimizer._rnd_seed)
         self._data['reference_info'].append(exp.scorer.reference_info)
         self._data['reference_activ'].append(exp.scorer._reference[high_key])
@@ -734,33 +766,89 @@ class StretchSqueezeLayerMultiExperiment(BaseZdreamMultiExperiment):
         
 
     def _finish(self):
-        df = self.get_df_summary()
-        BMM_scatter_plot(df, net_name = df['net_sbj'].unique()[0], savepath = self.target_dir)
         #TODO: summary of the experiment as .xlsx file?
         super()._finish() 
+        df = get_df_summary(self._data, savepath = self.target_dir)
+        BMM_scatter_plot(df, net_name = df['net_sbj'].unique()[0], savepath = self.target_dir)
+
+            
         
-    def get_df_summary(self):
-        Sign2Task = {
-            1 : 'adversarial',
-            -1 : 'invariance'
+def get_df_summary(SnS_mexp_data: Dict[str, Any], 
+                savepath: str | None = None, 
+                Constraints: Dict[str,int]| None = None) -> pd.DataFrame:
+    
+    Sign2Task = {
+        1 : 'adversarial',
+        -1 : 'invariance'
+    }
+    # Funzione per verificare se tutti gli elementi di una lista sono di un tipo desiderato
+    def is_valid_column(column):
+        valid_types = (str, int, float, bool)
+        return all(isinstance(item, valid_types) for item in column)
+
+    # Filtra le colonne in base ai tipi di dati desiderati
+    filtered_data = {key: value for key, value in SnS_mexp_data.items() if is_valid_column(value)}
+
+    # Converti il dizionario filtrato in un DataFrame
+    df = pd.DataFrame(filtered_data)
+    df['task'] = [Sign2Task[list(x.values())[0]] for x in SnS_mexp_data['task_signature']]
+    df['ref_activ'] = [int(x[0][0]) for x in SnS_mexp_data['reference_activ']]
+    if 'constraint' in df.columns and Constraints is None:
+        c_adv = df['constraint'][df['task']=='adversarial'].unique()[0] if any(df['task']=='adversarial') else np.nan
+        c_inv = df['constraint'][df['task']=='invariance'].unique()[0] if any(df['task']=='invariance') else np.nan
+        #TODO: improve and generalize for further cases if needed
+        Constraints = {
+            'adversarial': 10 if np.isnan(c_adv) else c_adv/100,
+            'invariance': 10 if np.isnan(c_inv) else c_inv/100
+        }  
+    elif Constraints is None:
+        Constraints = {
+            'adversarial': 10,
+            'invariance': 10
         }
-        mexp_data = self._data
-        # Funzione per verificare se tutti gli elementi di una lista sono di un tipo desiderato
-        def is_valid_column(column):
-            valid_types = (str, int, float, bool)
-            return all(isinstance(item, valid_types) for item in column)
-
-        # Filtra le colonne in base ai tipi di dati desiderati
-        filtered_data = {key: value for key, value in mexp_data.items() if is_valid_column(value)}
-
-        # Converti il dizionario filtrato in un DataFrame
-        df = pd.DataFrame(filtered_data)
-        df['p1_last'] = [tuple(x[-1,:]) for x in mexp_data['p1_front']]
-        df['task'] = [Sign2Task[list(x.values())[0]] for x in mexp_data['task_signature']]
-        df['high_target'] = [int(x[0][0]) for x in mexp_data['high_target']]
-        df['dist_low'] = [x[ll][c] for x,ll,c in zip(mexp_data['layer_scores'], df['lower_ly'], df['p1_last'])]
-        df['dist_up']  = [x[ll][c] for x,ll,c in zip(mexp_data['layer_scores'], df['upper_ly'], df['p1_last'])]
-        df['ref_activ'] = [int(x[0][0]) for x in mexp_data['reference_activ']]
-        df.to_csv(path.join(self.target_dir, 'data_summary.csv'), index=False)
-        return df
-        # Visualizza il DataFrame
+            
+    #df['p1_last'] = [tuple(x[-1,:]) for x in SnS_mexp_data['p1_front']]
+    df['p1_last'] = [tuple(c[np.where(np.abs(x[ul][c[:, 0], c[:, 1]]) < (df['ref_activ'][i]*Constraints[t]))[0][-1]]) 
+        for i,(x,ul,c,t) in enumerate(zip(SnS_mexp_data['layer_scores'], df['upper_ly'], SnS_mexp_data['p1_front'],df['task']))]
+    
+    df['high_target'] = [int(x[0][0]) for x in SnS_mexp_data['high_target']]
+    df['dist_low'] = [x[ll][c] for x,ll,c in zip(SnS_mexp_data['layer_scores'], df['lower_ly'], df['p1_last'])]
+    #Max pixel distance (TODO: organize this code)
+    gen_var = SnS_mexp_data['reference_info'][0]['gen_var'] if all(d['gen_var'] == SnS_mexp_data['reference_info'][0]['gen_var'] 
+            for d in SnS_mexp_data['reference_info']) else None
+    code_idx = [np.where((SnS_mexp_data['p1_front'][i] == df['p1_last'][i]).all(axis=1))[0] for i in range(len(df['p1_last']))]
+    best_codes = np.vstack([p1c[code_idx[i],:] for i,p1c in enumerate(SnS_mexp_data['p1_codes'])])
+    
+    mock_sbj = TorchNetworkSubject(
+        df['net_sbj'].unique()[0])
+    l_names = mock_sbj.layer_names
+    
+    references = np.vstack([load_pickle(ref_i['ref_file'])['reference'][ns+'_r' if is_r else ns][gen_var][l_names[ref_i['layer']]][ref_i['neuron']][ref_i['seed']]['code']
+                for ref_i,ns,is_r in zip(SnS_mexp_data['reference_info'],df['net_sbj'],df['robust'])])
+    generator = DeePSiMGenerator(
+        root    = WEIGHTS,
+        variant = gen_var
+    ).to('cuda')
+    ref_imgs = generator(references)
+    if savepath: #Save images from multiexperiment
+        best_imgs = generator(best_codes)
+        impath = os.path.join(savepath, 'images')
+        os.makedirs(impath, exist_ok=True)
+        for i, (ref_i, best_i, t) in enumerate(zip(ref_imgs, best_imgs, df['task'])):
+            collage = concatenate_images([ref_i, best_i])
+            collage.save(os.path.join(impath,f'ref_vs_{t}_{i}.png'))
+            ref_i = to_pil_image(ref_i)
+            best_i = to_pil_image(best_i)
+            ref_i.save(os.path.join(impath,f'ref_{i}.png'))
+            best_i.save(os.path.join(impath,f'{t}_{i}.png'))
+            
+    
+    ref_imgs = torch.from_numpy(resize_image_tensor(ref_imgs, (224,224)))
+    df['max_pix_dist'] =np.array([torch.norm(torch.max(ref_i, 1 - ref_i)).detach().cpu().numpy()
+                        for ref_i in ref_imgs])
+    df['dist_low_perc'] = [(np.abs(row['dist_low'])/row['max_pix_dist'])*100 if row['lower_ly']=='00_input_01' else np.nan for _,row in df.iterrows()]
+    df['dist_up']  = [x[ll][c] for x,ll,c in zip(SnS_mexp_data['layer_scores'], df['upper_ly'], df['p1_last'])]
+    df['dist_up_perc']=(df['dist_up'].abs()/df['ref_activ'])*100
+    if savepath: df.to_csv(path.join(savepath, 'data_summary.csv'), index=False)
+    return df
+    # Visualizza il DataFrame

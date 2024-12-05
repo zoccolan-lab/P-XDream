@@ -11,29 +11,32 @@ from pxdream.utils.misc       import copy_exec
 from pxdream.utils.parameters import ArgParams
 from experiment.MaximizeActivity.run.multirun_arguments import get_rnd
 
-TASK = ['adversarial', 'invariance']
-NAME                = f'SnS_multiexp_271024_robustRnet50_genetic_i250'
+TASK = ['adversarial', 'invariance'] #['adversarial', 'invariance']
+NAME                = f'SnS_InvAdv_mexp_161124_Rnet50Robust_cmaes_randinit_i250_NoBounds_noise50x'
 
 GLOBAL_RSEED        = 50000
-ITER                = 250
-OPTIMIZER           = 'genetic'
+ITER                = 250 #250
+OPTIMIZER           = 'cmaes'#'genetic'
 TEMPLATE            = 'T'
 GEN_VARIANT         = 'fc7'
 NET                 = 'resnet50'
-ROBUST_VARIANT  = 'imagenet_l2_3_0.pt'
-SBJ_LOADER      = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
-RND_SEED        = get_rnd(seed=GLOBAL_RSEED, n_seeds=10, add_parenthesis=False) 
+ROBUST_VARIANT      = 'imagenet_l2_3_0.pt'
+SBJ_LOADER          = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
+RND_SEED            = get_rnd(seed=GLOBAL_RSEED, n_seeds=10, add_parenthesis=False) #n_seeds=10
 LOW_LY              = 0
 HIGH_LY             = 126
+NOISE_STRENGTH     = 50
+
 Task2Sign = {
     'invariance': f'{LOW_LY}=-1, {HIGH_LY}=1',
     'adversarial': f'{LOW_LY}=1, {HIGH_LY}=-1'
 }
+
 Task2Bound = {
-    'invariance': f'{LOW_LY}=N, {HIGH_LY}=<10%',
-    'adversarial': f'{LOW_LY}=N, {HIGH_LY}=>100%'
+    'invariance': f'{LOW_LY}=N, {HIGH_LY}=N', #<10%
+    'adversarial': f'{LOW_LY}=N, {HIGH_LY}=N' #>100%
 }
-N_NEURONS           = 20
+N_NEURONS           = 20 # 100
 subject = TorchNetworkSubject(
     NET,
     inp_shape=(1, 3, 224, 224),
@@ -55,8 +58,6 @@ for n in NEURONS:
     rs_idxs = list(map(int,get_rnd(seed = GLOBAL_RSEED, n_seeds = 1, 
                     r_range = (0,len(rseeds_available)), add_parenthesis = False)))
     RSEEDS.append(rseeds_available[rs_idxs[0]])
-
-
 
 SAMPLE = 2
 
@@ -88,6 +89,7 @@ if __name__ == '__main__':
     
     print('Multiple run: ')
     print('[1] BMM multi experiment')
+    print('[2] BMM multi experiment - random initialization')
     choice = int(input('Choice: '))
     
     match choice:
@@ -103,6 +105,18 @@ if __name__ == '__main__':
             args[str(ExperimentArgParams.ScoringSignature)] = signatures
             args[str(ExperimentArgParams.Bounds)]           = bounds
             file = 'run_multi.py'
+
+        case 2:
+            
+            rand_seeds, rec_score_ly, ref_p, signatures, bounds = get_bmm_args()
+            
+            args[str(ArgParams.RandomSeed)]                 = rand_seeds
+            args[str(ExperimentArgParams.RecordingLayers)]  = rec_score_ly
+            args[str(ExperimentArgParams.ScoringLayers)]    = rec_score_ly
+            args[str(ExperimentArgParams.ReferenceInfo)]    = ref_p
+            args[str(ExperimentArgParams.ScoringSignature)] = signatures
+            args[str(ExperimentArgParams.Bounds)]           = bounds
+            file = 'run_multi_rand_init.py'
             
         case 0:
             
@@ -119,5 +133,6 @@ if __name__ == '__main__':
     if ROBUST_VARIANT : args[str(ExperimentArgParams.CustomWeightsVariant)] = ROBUST_VARIANT
     args[str(ExperimentArgParams.WeightLoadFunction)] = SBJ_LOADER
     args[str(ExperimentArgParams.OptimType)] = OPTIMIZER
-    
+    args[str(ExperimentArgParams.Noise_strength)] = NOISE_STRENGTH
+
     copy_exec(file=file, args=args)

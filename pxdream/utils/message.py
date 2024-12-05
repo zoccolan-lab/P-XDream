@@ -15,7 +15,7 @@ from pxdream.scorer import ParetoReferencePairDistanceScorer
 
 from .misc import SEM, defaultdict_list
 from .types import Codes, Mask, RFBox, RecordingUnits, ScoringUnits, Fitness, States
-
+from pxdream.utils.parameters import ParamConfig
 
 @dataclass
 class Message:
@@ -48,6 +48,10 @@ class ZdreamMessage(Message):
     The class is designed to store all the information relative to the current state of the framework, 
     including the history of all the data that has been processed.
     '''
+    # --- PARAMS ---
+    
+    params : ParamConfig = field(default_factory=dict)
+
     
     # --- ZDREAM COMPONENTS ---
     

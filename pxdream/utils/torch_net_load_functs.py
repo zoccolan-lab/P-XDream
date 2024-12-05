@@ -9,7 +9,7 @@ from robustness.model_utils import make_and_restore_model
 from pxdream.utils.misc import InputLayer
 from experiment.utils.args import DATASET
 
-def torch_load(net_sbj: 'TorchNetworkSubject', weights_path: str = '', pretrained: bool = False):
+def torch_load(net_sbj: 'TorchNetworkSubject', weights_path: str = '', pretrained: bool = True):
     """
     Load weights into a neural network subject (net_sbj) and initialize its network architecture.
 

@@ -95,7 +95,7 @@ class ExperimentArgParams(Enum):
     AllowClones        = ArgParam(name="allow_clones",       type=str,   help="Random distribution for the codes initialization")
     RandomScale        = ArgParam(name="random_scale",       type=float, help="Random scale for the random distribution sampling")
     Sigma0             = ArgParam(name="sigma0",             type=float, help="Initial variance for CMAES covariance matrix")
-    
+    Noise_strength     = ArgParam(name="noise_strength",     type=float, help="Noise strength for initial code")
     
     # --- MAGIC METHODS ---
     

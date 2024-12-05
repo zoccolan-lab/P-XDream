@@ -256,9 +256,9 @@ class DSClusters(Clusters):
     
     def __init__(
         self, 
-        clusters: List[DSCluster] = []
+        clusters: List[DSCluster] | None = None
     )-> None:
-        
+        if clusters is None: clusters = []
         super().__init__(clusters=clusters)  # type: ignore
     
     
