@@ -715,17 +715,28 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
             first_front_only=first_front_only
         )
         
-        scores = np.zeros([len(individuals)])
+        #scores = np.zeros([len(individuals)])
+        #
+        ## Assign the scores
+        #for front_id, front in enumerate(fronts):
+        #    for individual_id, individual in enumerate(front):
+        #        scores[individual.id] = np.abs(front_id - (len(fronts)))
+        #
+        ## TODO @DonTau
+        #coordinates_p1 = np.where(scores == np.max(scores))
+        #
+        #return scores, coordinates_p1[0]
         
-        # Assign the scores
+        pf_vec = np.zeros([len(individuals)])
+        #assign the pareto front to each individual of the population
         for front_id, front in enumerate(fronts):
             for individual_id, individual in enumerate(front):
-                scores[individual.id] = np.abs(front_id - (len(fronts)))
+                pf_vec[individual.id] = front_id
         
-        # TODO @DonTau
-        coordinates_p1 = np.where(scores == np.max(scores))
+        #find the coordinates of the points in the first pareto front
+        coordinates_p1 = np.where(pf_vec == 0)[0]
         
-        return scores, coordinates_p1[0]
+        return pf_vec, coordinates_p1
         
     def _best_pareto(
         self,
@@ -748,13 +759,16 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
         
         # Apply bound constraints
         state_dup = self.bound_constraints(state)
+        #PROVA
+        #my_layers = list(state.keys())
+        #ref_obj = {my_layers[0]: -150, my_layers[1]: 0}
+        #state_dup = {k: v - ref_obj[k] for k,v in state_dup.items()}
         
-        pf_scores, coordinates_p1 = self.pareto_front(state_dup, weights = [v for v in weights.values()])
+        pf_vec, coordinates_p1 = self.pareto_front(state_dup, weights = [v for v in weights.values()])
         self.coordinates_p1 = coordinates_p1
-        rand_scores = np.random.rand(pf_scores.shape[0])
-        scores = (pf_scores+1)*(max(rand_scores)+1)+rand_scores
-
-        scores = scores.astype(np.float32)
+        
+        scores = random_pareto_rank(pf_vec)
+        #scores = ranking_by_crowding(pf_vec, state_dup)
         
         return scores
     
@@ -792,4 +806,80 @@ class ParetoReferencePairDistanceScorer(PairDistanceScorer):
 
 
 
+def calculate_crowding_distance(pareto_fronts, metrics):
+    """
+    Calcola la crowding distance per una popolazione di soluzioni.
+    
+    Args:
+        pareto_fronts (list): Lista dei fronti di Pareto cui ciascun punto appartiene.
+        metrics (dict): Dizionario che contiene le metriche 'm1' e 'm2' per ciascun elemento della popolazione.
+    
+    Returns:
+        list: Lista delle crowding distances per ogni soluzione nella popolazione.
+    """
+    num_solutions = len(pareto_fronts)
+    p_indexes = range(num_solutions)
+    crowding_distances = np.zeros(num_solutions)
+    
+    # Organizza i punti in base al fronte di Pareto cui appartengono
+    fronts = {}
+    for i, front in enumerate(pareto_fronts):
+        if front not in fronts:
+            fronts[front] = []
+        fronts[front].append(p_indexes[i])
+    
+    # Calcola la crowding distance per ciascun fronte
+    for front in fronts.values():
+        if len(front) < 3:
+            # Se ci sono meno di 3 punti nel fronte, imposta la crowding distance a infinito
+            for i in front:
+                crowding_distances[i] = np.inf
+            continue
+        
+        # Calcola la crowding distance per ciascuna metrica
+        for m in list(metrics.keys()):
+            # Ordina i punti in base alla metrica m
+            sorted_front = sorted(front, key=lambda x: np.abs(metrics[m][x]))
+            crowding_distances[sorted_front[0]] = np.inf
+            crowding_distances[sorted_front[-1]] = np.inf
+            
+            # Calcola la crowding distance per i punti intermedi
+            for i in range(1, len(sorted_front) - 1):
+                prev_value = np.abs(metrics[m][sorted_front[i - 1]])
+                next_value = np.abs(metrics[m][sorted_front[i + 1]])
+                crowding_distances[sorted_front[i]] += (next_value - prev_value)
+    
+    # Ordina i punti in base alla crowding distance in ordine decrescente
+    sorted_population = sorted(p_indexes, key=lambda x: (pareto_fronts[x], -crowding_distances[x]))
 
+    
+    return sorted_population, crowding_distances
+
+
+def random_pareto_rank(pf_vec: NDArray) -> NDArray:
+    """
+    order elements within a Pareto front randomly
+    """
+         
+    pf_scores = np.abs(pf_vec - (np.max(pf_vec)+1))
+    rand_scores = np.random.rand(pf_scores.shape[0])
+    scores = (pf_scores+1)*(max(rand_scores)+1)+rand_scores
+    return scores   
+
+def ranking_by_crowding(pf_vec: NDArray, metrics: Dict[str, NDArray]) -> NDArray:
+    """
+    Rank the individuals in the population based on the crowding distance.
+    
+    Args:
+        pf_vec (np.ndarray): The Pareto front vector.
+        metrics (dict): The metrics for each individual in the population.
+    
+    Returns:
+        np.ndarray: The ranking of the individuals in the population.
+    """
+    sorted_population, crowding_distances = calculate_crowding_distance(pf_vec, metrics)
+    sorted_population = np.array(sorted_population, dtype = np.float32)
+    scores = np.abs(sorted_population - np.max(sorted_population))
+    scores = scores.astype(np.float32)    
+    return scores
+    

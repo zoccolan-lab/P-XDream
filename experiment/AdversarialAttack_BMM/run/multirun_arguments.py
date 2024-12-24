@@ -11,21 +11,29 @@ from pxdream.utils.misc       import copy_exec
 from pxdream.utils.parameters import ArgParams
 from experiment.MaximizeActivity.run.multirun_arguments import get_rnd
 
-TASK = ['adversarial', 'invariance'] #['adversarial', 'invariance']
-NAME                = f'SnS_InvAdv_mexp_161124_Rnet50Robust_cmaes_randinit_i250_NoBounds_noise50x'
+TASK = ['invariance'] #['adversarial', 'invariance']
+NAME                = f'SnS_Inv_mexp_181224_Resnet50_robustLinf_i250_25pcBound'
 
 GLOBAL_RSEED        = 50000
 ITER                = 250 #250
-OPTIMIZER           = 'cmaes'#'genetic'
+OPTIMIZER           = 'genetic'#'genetic'
 TEMPLATE            = 'T'
 GEN_VARIANT         = 'fc7'
-NET                 = 'resnet50'
-ROBUST_VARIANT      = 'imagenet_l2_3_0.pt'
-SBJ_LOADER          = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
+NET                 = 'resnet50'#'convnext_base'
+ROBUST_VARIANT      = 'Salman2020Do_R50'#'Liu2023Comprehensive_ConvNeXt-B'
+
+if ROBUST_VARIANT:
+    if ROBUST_VARIANT == 'imagenet_l2_3_0.pt':
+        SBJ_LOADER = 'madryLab_robust_load'
+    else:
+        SBJ_LOADER = 'robustBench_load'
+else:
+    SBJ_LOADER = 'torch_load_pretrained'
+    
 RND_SEED            = get_rnd(seed=GLOBAL_RSEED, n_seeds=10, add_parenthesis=False) #n_seeds=10
 LOW_LY              = 0
-HIGH_LY             = 126
-NOISE_STRENGTH     = 50
+HIGH_LY             = 56
+NOISE_STRENGTH     = 0.01
 
 Task2Sign = {
     'invariance': f'{LOW_LY}=-1, {HIGH_LY}=1',
@@ -33,10 +41,10 @@ Task2Sign = {
 }
 
 Task2Bound = {
-    'invariance': f'{LOW_LY}=N, {HIGH_LY}=N', #<10%
+    'invariance': f'{LOW_LY}=N, {HIGH_LY}=<25%', #<10%
     'adversarial': f'{LOW_LY}=N, {HIGH_LY}=N' #>100%
 }
-N_NEURONS           = 20 # 100
+N_NEURONS           = 100 # 100
 subject = TorchNetworkSubject(
     NET,
     inp_shape=(1, 3, 224, 224),
@@ -46,7 +54,18 @@ LNAME = subject.layer_names[HIGH_LY]
 #select neurons and seeds
 reference_file      = load_pickle(REFERENCES)
 net_key = NET+'_r' if ROBUST_VARIANT else NET
-refs                = reference_file['reference'][net_key][GEN_VARIANT][LNAME]
+#aggiungi l'opizone che se non trova ref, cerca sulla base del layer type id
+try:
+    refs                = reference_file['reference'][net_key][GEN_VARIANT][LNAME]
+except KeyError:
+    if '_'.join(LNAME.split('_')[1:]) in ['_'.join(k.split('_')[1:]) for k in reference_file['reference'][net_key][GEN_VARIANT].keys()]:
+        lname_idx = ['_'.join(k.split('_')[1:]) for k in reference_file['reference'][net_key][GEN_VARIANT].keys()].index('_'.join(LNAME.split('_')[1:]))
+        lname_alt = list(reference_file['reference'][net_key][GEN_VARIANT].keys())[lname_idx]
+        refs                = reference_file['reference'][net_key][GEN_VARIANT][lname_alt]
+        print(f'Layer {LNAME} not found, using {lname_alt} instead')
+    else:
+        raise KeyError(f'Layer {LNAME} not found')
+    
 neurons_available   = list(refs.keys())
 N_NEURONS = min(N_NEURONS, len(neurons_available))
 neurons_idxs        = list(map(int,get_rnd(seed = GLOBAL_RSEED, n_seeds = N_NEURONS, 

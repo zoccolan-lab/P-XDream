@@ -19,7 +19,7 @@ ARGS: ParamConfig = {
     ExperimentArgParams.RecordingLayers         .value : "0=[], 21=[0]"  , # 126 resnet50
     ExperimentArgParams.CustomWeightsPath       .value : CUSTOM_WEIGHTS, 
     ExperimentArgParams.CustomWeightsVariant    .value : '', # 'imagenet_l2_3_0.pt'
-    ExperimentArgParams.WeightLoadFunction.value       : 'madryLab_robust_load',
+    ExperimentArgParams.WeightLoadFunction.value       : 'torch_load',
     
     # Scorer
     ExperimentArgParams.ScoringLayers    .value : "0=[],21=[]"           ,
@@ -29,12 +29,13 @@ ARGS: ParamConfig = {
     ExperimentArgParams.UnitsReduction   .value : "mean"             ,
     ExperimentArgParams.LayerReduction   .value : "mean"             ,
     ExperimentArgParams.Reference        .value : REFERENCES ,
-    ExperimentArgParams.ReferenceInfo    .value : "G=fc7, L=126, N=[348], S=482726"  ,
+    ExperimentArgParams.ReferenceInfo    .value : "G=fc7, L=21, N=[348], S=482726"  ,
     
     # Optimizer
     ExperimentArgParams.PopulationSize   .value : 50                 ,
     ExperimentArgParams.Sigma0           .value : 1.0                ,
-    ExperimentArgParams.OptimType        .value : 'cmaes'                ,
+    ExperimentArgParams.OptimType        .value : 'hybrid'            ,
+    ExperimentArgParams.Noise_strength   .value : 0.01              ,#0.01
 
     # Logger
     ArgParams          .ExperimentName   .value : "adversarial_attack", 

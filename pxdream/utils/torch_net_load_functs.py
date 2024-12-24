@@ -6,6 +6,8 @@ from torchvision.models import get_model, get_model_weights
 from robustness.datasets import ImageNet
 from robustness.model_utils import make_and_restore_model
 
+from robustbench import load_model
+
 from pxdream.utils.misc import InputLayer
 from experiment.utils.args import DATASET
 
@@ -66,9 +68,35 @@ def madryLab_robust_load(net_sbj: 'TorchNetworkSubject', weights_path: str, pret
     # this loading implies working with robust models
     net_sbj.robust = True
 
+def robustBench_load(net_sbj: 'TorchNetworkSubject', weights_path: str, pretrained: bool = False):
+    """
+    Load weights into a neural network subject (net_sbj) using Robust bench robustness library 
+    and initialize its network architecture.
+
+    :param net_sbj: The neural network subject.
+    :type net_sbj: TorchNetworkSubject (NOTE: PROBLEM OF CIRCULAR IMPORT)
+    :param weights_path: The name of the pre-trained network.
+    :type weights_path: str
+    :param pretrained: unused flag, kept for compatibility with other loading
+        functions in torch_net_load_functs.py.
+    :type pretrained: bool, optional
+    :returns: None
+    """
+    model = load_model(model_name=weights_path, dataset='imagenet')
+    net_sbj._network = nn.Sequential(
+        InputLayer(),
+        model.model
+    ).to(net_sbj._device)
+    
+    net_sbj._preprocessing = model.normalize.to(net_sbj._device)
+    # this loading implies working with robust models
+    net_sbj.robust = True 
+    
+    
     
     
 NET_LOAD_DICT ={
     'torch_load': torch_load,
-    'madryLab_robust_load': madryLab_robust_load
+    'madryLab_robust_load': madryLab_robust_load,
+    'robustBench_load': robustBench_load
 }

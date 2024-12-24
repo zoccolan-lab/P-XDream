@@ -89,7 +89,10 @@ class MaximizeActivityExperiment(ZdreamExperiment):
         # Set numpy random seed
         PARAM_ref_code = os.path.join(PARAM_ref_code, f'reference_code_{PARAM_net_name}{"robust" if PARAM_customW_var else ""}.npy')
         np.random.seed(PARAM_rnd_seed)
-        path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
+        if PARAM_customW_var == 'imagenet_l2_3_0.pt': 
+            path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var)
+        else:
+            path2CustomW = PARAM_customW_var
         # --- NATURAL IMAGE LOADER ---
 
         # Parse template and derive if to use natural images

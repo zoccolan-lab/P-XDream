@@ -16,7 +16,7 @@ from pxdream.subject import TorchNetworkSubject
 def generate_log_numbers(N, M): return list(sorted(list(set([int(a) for a in np.logspace(0, np.log10(M), N)]))))
 
 
-NAME   = f'reference_Vanilla_Rnet50_other100'
+NAME   = f'101224_refs_Robust_ConvNeXtB_100_readoutL300'
 
 ITER     = 500
 SAMPLE   =  30
@@ -96,10 +96,10 @@ def get_rnd(
 
     return list(unique_numbers)
 
-NET             = 'resnet50'
-ROBUST_VARIANT  = ''#'imagenet_l2_3_0.pt'
+NET             = 'convnext_base'
+ROBUST_VARIANT  = 'Liu2023Comprehensive_ConvNeXt-B'
 REF_GEN_VARIANT = ['fc7']
-REF_LAYERS      = [126]
+REF_LAYERS      = [156]
 
 subject = TorchNetworkSubject(
     NET,
@@ -110,14 +110,23 @@ layer_shape = subject.layer_shapes[REF_LAYERS[0]]
 
 reference_file      = load_pickle(REFERENCES)
 net_key = NET+'_r' if ROBUST_VARIANT else NET
-refs                = reference_file['reference'][net_key][REF_GEN_VARIANT[0]][LNAME]
-neurons_present = set([int(key.strip('[]')) for key in refs.keys()])
+try:
+    refs                = reference_file['reference'][net_key][REF_GEN_VARIANT[0]][LNAME]
+    neurons_present = set([int(key.strip('[]')) for key in refs.keys()])
+except:
+    neurons_present = None
 
 NUM_NEURONS = 100
 GLOBAL_SEED = 31415
 REF_SEED        = get_rnd(seed=GLOBAL_SEED, n_seeds=4, add_parenthesis=False) 
-SBJ_LOADER      = 'madryLab_robust_load' if ROBUST_VARIANT else 'torch_load_pretrained'
-
+if ROBUST_VARIANT:
+    if ROBUST_VARIANT == 'imagenet_l2_3_0.pt':
+        SBJ_LOADER = 'madryLab_robust_load'
+    else:
+        SBJ_LOADER = 'robustBench_load'
+else:
+    SBJ_LOADER = 'torch_load_pretrained'
+print('layer shape',layer_shape)
 layer_shape = tuple([e-1 for e in layer_shape]) if len(layer_shape) == 2 else tuple([e-1 for e in layer_shape[1:]])
 REF_NEURONS = get_rnd(seed=GLOBAL_SEED, n_seeds=NUM_NEURONS, r_range=layer_shape, avoid_numbers = neurons_present) #  
 

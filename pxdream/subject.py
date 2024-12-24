@@ -93,6 +93,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         network_name: str,
         record_probe: RecordingProbe | None = None,
         inp_shape: Tuple[int, ...] = (1, 3, 224, 224),
+        exclude_layers: List[str] | None = ['relu', 'batchnorm2d', 'gelu', 'permute', 'stochasticdepth', 'identity', 'dropout'],
         device: str | torch.device = device,
         t_net_loading: callable = torch_load,
         custom_weights_path: str = '' #messa qua ma forse si può trovare dove metterla meglio
@@ -127,6 +128,8 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         '''
 
         super().__init__()
+        
+        self.exclude_layers = exclude_layers or []
 
         # Initialize the network with the provided name and input shape
         self._name = network_name
@@ -151,7 +154,7 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         # Attach a SetterProbe to the network to properly 
         # assign a unique identifier to each layer and
         # retrieve it's input shape
-        setter_probe = SetterProbe()
+        setter_probe = SetterProbe(exclude=self.exclude_layers)
         self.register_forward(setter_probe)
 
         # Expose the network to a fake input to trigger the hooks
@@ -178,7 +181,8 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
         all = 'all'  # NOTE: RecordingUnit equal to None indicates to record all units
 
         # Create a string with the number of units to record for each layer
-        recording_targets = f"{sep.join([f'{k}: {len(v) if v else all} units' for k, v in self._target.items()])}"
+        recording_targets = f"{sep.join([f'{k}: {len(v) if v else all} units' for k, v in self._target.items()])}"\
+            if hasattr(self, '_target') else 'No Targets'
 
         return  f'NetworkSubject[name: {self.name}, ' \
                 f'in-shape: {self.in_shape}, ' \
@@ -243,14 +247,13 @@ class TorchNetworkSubject(InSilicoSubject, nn.Module):
     ''' Return the device where the network is hosted. '''
 
     @property
-    def layer_names(self) -> List[str]: return [layer.name for layer in unpack(self._network)]
+    def layer_names(self) -> List[str]: return [layer.name for layer in unpack(self._network) if layer.name != 'excluded']
     ''' Return layers names in the network architecture. '''
 
     @property
-    def layer_shapes(self) -> List[Tuple[int, ...]]: return [layer.shape for layer in unpack(self._network)]
+    def layer_shapes(self) -> List[Tuple[int, ...]]: return [layer.shape for layer in unpack(self._network) if layer.name != 'excluded']
     ''' Return layers shapes in the network architecture. '''
-
-        
+    
 
     @property
     def layer_info(self) -> Dict[str, Tuple[int, ...]]:

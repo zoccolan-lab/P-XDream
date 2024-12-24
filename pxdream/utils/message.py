@@ -269,14 +269,14 @@ class ParetoMessage(ZdreamMessage):
         # stack layer scores
         layer_scores = {k:np.vstack(v) for k,v in self.layer_scores_gen_history.items()}
         layer_scores_flat = {k:v.flatten() for k,v in layer_scores.items()}
-        _ , coordinates = ParetoReferencePairDistanceScorer.pareto_front(layer_scores_flat, weights = [v for v in self.signature.values()], first_front_only=True)
+        _ , coordinates = ParetoReferencePairDistanceScorer.pareto_front(layer_scores_flat, weights = [v for v in self.signature.values()], first_front_only=False)
         self.Pfront_1 = np.unravel_index(coordinates, layer_scores[list(layer_scores.keys())[0]].shape)
         
     def get_pareto1(self):
         layer_scores = {k:np.vstack(v) for k,v in self.layer_scores_gen_history.items()}
         p1_coords = np.vstack(self.local_p1)
         p1_pts = {k:v[p1_coords[:, 0], p1_coords[:, 1]] for k,v in layer_scores.items()}
-        _ , coordinates = ParetoReferencePairDistanceScorer.pareto_front(p1_pts, weights = [v for v in self.signature.values()], first_front_only=True)
+        _ , coordinates = ParetoReferencePairDistanceScorer.pareto_front(p1_pts, weights = [v for v in self.signature.values()], first_front_only=False)
         self.Pfront_1 = p1_coords[coordinates,:].astype(np.int32)
 
     @property

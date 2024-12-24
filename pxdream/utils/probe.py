@@ -100,7 +100,7 @@ class SetterProbe(SilicoProbe):
     store the output shape of each of these layers.
     '''
 
-    def __init__(self) -> None:
+    def __init__(self, exclude : List[str] | None = None) -> None:
         '''
         Construct a SetterProbe by specifying the name of the
         attribute that the probe attaches to each sub-module of
@@ -112,6 +112,7 @@ class SetterProbe(SilicoProbe):
         # Define the attribute names to attach to each module
         self.name_attr  = 'name'
         self.shape_attr = 'shape'
+        self.exclude    = default(exclude, [])
         
         # Initialize layer depth and occurrence dictionary
         # by triggering the clean method
@@ -130,10 +131,18 @@ class SetterProbe(SilicoProbe):
         called directly by the user, it should be called via
         the `forward_hook` attached to the network layer.
         '''
+        if hasattr(module, self.name_attr): return
+        if hasattr(module, self.shape_attr): return
         
         # Save the current layer name and output shape
         name = module._get_name().lower()
         curr_shape = out.detach().cpu().numpy().shape
+        
+        if name in self.exclude:
+            # Attach the unique identifier to the (sub-)module
+            setattr(module, self.name_attr,  'excluded')
+            setattr(module, self.shape_attr, None)    
+            return
         
         # Update the depth and occurrence of this layer type
         self._depth       += 1

@@ -91,7 +91,10 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         PARAM_noise_strength = float(conf[ExperimentArgParams.Noise_strength.value])
         PARAM_close_screen = conf.get(ArgParams.CloseScreen.value, True)
         
-        path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var) if PARAM_customW_var else ''
+        if PARAM_customW_var == 'imagenet_l2_3_0.pt': 
+            path2CustomW = os.path.join(PARAM_customW_path, PARAM_net_name, PARAM_customW_var)
+        else:
+            path2CustomW = PARAM_customW_var
         # Set numpy random seed
         
         np.random.seed(PARAM_rnd_seed)
@@ -158,7 +161,13 @@ class StretchSqueezeMaskExperiment(ZdreamExperiment):
         try:
             ref_code = reference_file['reference'][net_key][gen_var][layer_name][neuron][seed]['code']
         except KeyError:
-            raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
+            if '_'.join(layer_name.split('_')[1:]) in ['_'.join(k.split('_')[1:]) for k in reference_file['reference'][net_key][gen_var].keys()]:
+                lname_idx = ['_'.join(k.split('_')[1:]) for k in reference_file['reference'][net_key][gen_var].keys()].index('_'.join(layer_name.split('_')[1:]))
+                lname_alt = list(reference_file['reference'][net_key][gen_var].keys())[lname_idx]
+                ref_code = reference_file['reference'][net_key][gen_var][lname_alt][neuron][seed]['code']
+                print(f'Layer {layer_name} not found, using {lname_alt} instead')
+            else:
+                raise ValueError(f'No reference found for gen_variant {gen_var}, layer {layer_name}, neuron {neuron}, seed {seed} in file {PARAM_ref}')
         
         # Generate the code and the state, unbatching it
         ref_stimulus : Stimuli = generator(codes=ref_code)
@@ -822,9 +831,23 @@ def get_df_summary(SnS_mexp_data: Dict[str, Any],
     mock_sbj = TorchNetworkSubject(
         df['net_sbj'].unique()[0])
     l_names = mock_sbj.layer_names
-    
-    references = np.vstack([load_pickle(ref_i['ref_file'])['reference'][ns+'_r' if is_r else ns][gen_var][l_names[ref_i['layer']]][ref_i['neuron']][ref_i['seed']]['code']
-                for ref_i,ns,is_r in zip(SnS_mexp_data['reference_info'],df['net_sbj'],df['robust'])])
+    references =[]
+    for ref_i,ns,is_r in zip(SnS_mexp_data['reference_info'],df['net_sbj'],df['robust']):
+        ref_f = load_pickle(ref_i['ref_file'])['reference'][ns+'_r' if is_r else ns][gen_var]
+        try:
+            ref_code = ref_f[l_names[ref_i['layer']]][ref_i['neuron']][ref_i['seed']]['code']
+        except KeyError:
+            if '_'.join(l_names[ref_i['layer']].split('_')[1:]) in ['_'.join(k.split('_')[1:]) for k in ref_f.keys()]:
+                lname_idx = ['_'.join(k.split('_')[1:]) for k in ref_f.keys()].index('_'.join(l_names[ref_i['layer']].split('_')[1:]))
+                lname_alt = list(ref_f.keys())[lname_idx]
+                ref_code = ref_f[lname_alt][ref_i['neuron']][ref_i['seed']]['code']
+                print(f'Layer {l_names[ref_i["layer"]]} not found, using {lname_alt} instead')
+            else:
+                raise ValueError(f'No reference found')
+        references.append(ref_code)
+    references = np.vstack(references)
+    # references = np.vstack([load_pickle(ref_i['ref_file'])['reference'][ns+'_r' if is_r else ns][gen_var][l_names[ref_i['layer']]][ref_i['neuron']][ref_i['seed']]['code']
+    #             for ref_i,ns,is_r in zip(SnS_mexp_data['reference_info'],df['net_sbj'],df['robust'])])
     generator = DeePSiMGenerator(
         root    = WEIGHTS,
         variant = gen_var
